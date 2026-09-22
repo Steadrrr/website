@@ -1,0 +1,14 @@
+DirectoryIndex index.php
+Options -Indexes
+
+# 설정·스키마·문서 파일 직접 접근 차단
+<FilesMatch "\.(sql|md|sample\.php|log)$">
+  <IfModule mod_authz_core.c>
+    Require all denied
+  </IfModule>
+</FilesMatch>
+
+# SSL 적용 후 주석을 풀면 http → https 자동 이동
+#RewriteEngine On
+#RewriteCond %{HTTPS} off
+#RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
