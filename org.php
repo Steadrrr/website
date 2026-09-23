@@ -11,7 +11,7 @@ require __DIR__ . '/app/bootstrap.php';
 $user = require_login();
 $members = db()->query(
     "SELECT id, name, rank_level, team_id, squad_id, is_squad_leader, position, phone, photo FROM users
-      WHERE status = 'active' ORDER BY rank_level DESC, is_squad_leader DESC, name"
+      WHERE status = 'active' AND hide_in_org = 0 ORDER BY rank_level DESC, is_squad_leader DESC, name"
 )->fetchAll();
 
 $officials = [];                  // 팀장·주무관

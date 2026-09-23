@@ -6,7 +6,7 @@ defined('APP_ROOT') || exit;
  * 새 버전 파일을 FTP로 덮어쓰기만 하면, 첫 접속 때 부족한 테이블/컬럼을 만든다.
  * (기존 자료는 그대로 유지)
  */
-const DB_VERSION = 18;
+const DB_VERSION = 19;
 
 function db_version(): int
 {
@@ -187,6 +187,12 @@ function db_migrate(): void
     if (!column_exists('sales_meta', 'rent_dc_rule')) {
         $pdo->exec("ALTER TABLE sales_meta ADD rent_dc_rule VARCHAR(20) NULL AFTER ticket_cash, ADD rent_dc_pct TINYINT UNSIGNED NOT NULL DEFAULT 0 AFTER rent_dc_rule,
                     ADD rent_youth SMALLINT UNSIGNED NOT NULL DEFAULT 0 AFTER rent_dc_pct");
+    }
+
+    // 19) v18 → v19: 조직도 숨김 (관리자 admin·테스트 test 계정은 처음부터 숨김)
+    if (!column_exists('users', 'hide_in_org')) {
+        $pdo->exec("ALTER TABLE users ADD hide_in_org TINYINT(1) NOT NULL DEFAULT 0 AFTER menu_access");
+        $pdo->exec("UPDATE users SET hide_in_org = 1 WHERE LOWER(username) IN ('admin', 'test')");
     }
 
     $pdo->prepare("INSERT INTO settings (name, value) VALUES ('db_version', ?) ON DUPLICATE KEY UPDATE value = VALUES(value)")

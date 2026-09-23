@@ -22,6 +22,7 @@ CREATE TABLE IF NOT EXISTS users (
   work_end      TIME NULL COMMENT '근무 종료 시각',
   off_days      VARCHAR(20) NULL COMMENT '휴무 요일 (0=일 ~ 6=토, 쉼표 구분)',
   menu_access   VARCHAR(100) NULL COMMENT '볼 수 있는 선택 메뉴 (att,ops,prog 쉼표 구분, NULL = 전부)',
+  hide_in_org   TINYINT(1) NOT NULL DEFAULT 0 COMMENT '조직도에서 숨김 (관리자·테스트 계정)',
   status        ENUM('pending','active','disabled') NOT NULL DEFAULT 'pending',
   created_at    DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
   last_login_at DATETIME     NULL

@@ -128,16 +128,11 @@
         if (q) amounts.push(num(tr.dataset.price) * q);
         lodgeRooms += q;
       });
-      const sel = $(rb, '[data-rent-dc]');
-      if (!sel.dataset.touched) sel.value = lodgeRooms >= 9 ? 'lodge9' : (lodgeRooms >= 5 ? 'lodge5' : '');
-      const rule = sel.value;
-      const pct = num(sel.selectedOptions[0] ? sel.selectedOptions[0].dataset.pct : 0);
-      const youthBox = $(rb, '[data-youth-box]');
-      youthBox.hidden = rule !== 'youth20';
-      const youth = num($(rb, '[data-rent-youth]').value);
-      const bad = (rule === 'lodge5' && lodgeRooms < 5) || (rule === 'lodge9' && lodgeRooms < 9) || (rule === 'youth20' && youth < 20);
-      sel.classList.toggle('invalid', bad);
-      $(rb, '[data-rent-youth]').classList.toggle('invalid', rule === 'youth20' && youth < 20);
+      // 초등·청소년 체크 → 30%, 아니면 숙박 실 수로 자동 (9실 이상 20%, 5실 이상 10%)
+      const youth = $(rb, '[data-rent-youth]').checked;
+      const [label, pct] = youth ? ['초등·청소년 20명 이상 30%', 30]
+        : lodgeRooms >= 9 ? ['대관 숙박시설 9실 이상 20%', 20] : lodgeRooms >= 5 ? ['대관 숙박시설 5실 이상 10%', 10] : ['없음', 0];
+      setText($(rb, '[data-rent-dc-label]'), amounts.length ? label : '없음');
       const gross = amounts.reduce((s, a) => s + a, 0);
       const net = amounts.reduce((s, a) => s + (pct ? Math.floor(a * (100 - pct) / 1000) * 10 : a), 0); // 줄마다 10원 단위 버림 (서버와 같음)
       setText($(rb, '[data-rent-count]'), `${rentCount}건`);
@@ -175,8 +170,7 @@
   });
   document.querySelectorAll('[data-rate], [data-dc]').forEach((el) => el.addEventListener('change', recalc));
   document.querySelectorAll('[data-rent-time], [data-rent-night]').forEach((el) => el.addEventListener('change', recalc));
-  document.querySelectorAll('[data-rent-dc]').forEach((el) => el.addEventListener('change', () => { el.dataset.touched = '1'; recalc(); }));
-  document.querySelectorAll('[data-rent-youth]').forEach((el) => el.addEventListener('input', recalc));
+  document.querySelectorAll('[data-rent-youth]').forEach((el) => el.addEventListener('change', recalc));
 
   // 매출보고: 일자를 바꾸면 기간요금(동절기 등)과 객실 요금구분(금·토, 성수기=주말)을 다시 맞춤
   const seasonFor = (grp, md) => (window.SEASONS || []).find((s) =>

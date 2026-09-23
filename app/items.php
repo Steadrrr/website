@@ -178,16 +178,12 @@ function items_parse(string $type, string $workDate, int $journalId): array
             ];
         }
 
-        // 시설대관 + 대관 숙박시설 통합 할인 (5실 이상 10%, 9실 이상 20%, 초등·청소년 20명 이상 30%)
-        $rule = (string) ($_POST['rent_dc_rule'] ?? '');
-        $rule = isset(RENT_DC_RULES[$rule]) ? $rule : null;
-        $youth = to_int($_POST['rent_youth'] ?? 0);
+        // 시설대관 + 대관 숙박시설 통합 할인: '초등·청소년 20명 이상' 체크 → 30%,
+        // 아니면 대관 숙박시설 실 수로 자동 (9실 이상 20%, 5실 이상 10%)
         $rentLines = array_filter($lines, fn($l) => in_array($l['grp'], ['rental', 'lodge'], true));
         $lodgeRooms = array_sum(array_map(fn($l) => $l['grp'] === 'lodge' ? $l['qty'] : 0, $lines));
-        if ($rule && !$rentLines) $rule = null;
-        if ($rule === 'lodge5' && $lodgeRooms < 5) $errors[] = "대관 숙박시설 5실 이상 할인: 지금 {$lodgeRooms}실입니다.";
-        if ($rule === 'lodge9' && $lodgeRooms < 9) $errors[] = "대관 숙박시설 9실 이상 할인: 지금 {$lodgeRooms}실입니다.";
-        if ($rule === 'youth20' && $youth < 20) $errors[] = '초등·청소년 20명 이상 할인: 초등·청소년 인원을 20명 이상으로 입력하세요.';
+        $rule = !empty($_POST['rent_youth']) ? 'youth20' : rent_dc_auto($lodgeRooms);
+        if (!$rentLines) $rule = null;
         $pct = $rule ? RENT_DC_RULES[$rule][1] : 0;
         if ($pct) {
             foreach ($lines as &$l) {
@@ -200,7 +196,7 @@ function items_parse(string $type, string $workDate, int $journalId): array
         }
         $payload['rent_dc_rule'] = $rule;
         $payload['rent_dc_pct'] = $pct;
-        $payload['rent_youth'] = $rule === 'youth20' ? $youth : 0;
+        $payload['rent_youth'] = (int) ($rule === 'youth20'); // 체크 여부
         // 쉬자파크숙박 입실 = 이 보고서 객실 입실인원 합계, 퇴실 = 전날 입실인원 합계 (수정 불가, 무료 입장권으로 집계)
         $roomGuests = array_sum(array_map(fn($l) => $l['grp'] === 'room' ? $l['guests'] : 0, $lines));
         $stayLines = [];
@@ -502,16 +498,11 @@ function items_form(string $type, array $payload, string $workDate, ?array $jour
   <div class="rent-summary">
     <div class="rent-row"><span>소계 <small class="muted">(시설대관 <span data-rent-count>0건</span> · 대관 숙박 <span data-lodge-count>0실</span>)</small></span><b data-rent-gross>0원</b></div>
     <div class="rent-row rent-dc">
-      <label>통합 할인
-        <select name="rent_dc_rule" data-rent-dc <?= $rule ? 'data-touched="1"' : '' ?>>
-          <option value="" data-pct="0">할인 없음</option>
-          <?php foreach (RENT_DC_RULES as $k => [$label, $pct]): ?><option value="<?= $k ?>" data-pct="<?= $pct ?>" <?= $rule === $k ? 'selected' : '' ?>><?= e($label) ?> · <?= $pct ?>%</option><?php endforeach ?>
-        </select>
-      </label>
-      <label data-youth-box <?= $rule === 'youth20' ? '' : 'hidden' ?>>초등·청소년 인원<input name="rent_youth" value="<?= e(($payload['rent_youth'] ?? 0) ?: '') ?>" inputmode="numeric" class="num tiny" data-rent-youth placeholder="20"> 명</label>
+      <span>통합 할인 <b data-rent-dc-label>없음</b></span>
+      <label class="inline-check"><input type="checkbox" name="rent_youth" value="1" data-rent-youth <?= $rule === 'youth20' ? 'checked' : '' ?>> 초등·청소년 20명 이상 (30% 할인)</label>
       <b class="warn" data-rent-dc-amount></b>
     </div>
-    <p class="muted tiny-text" data-rent-dc-note>대관 숙박시설 5실 이상 10%, 9실 이상 20%는 실 수에 맞춰 자동 선택됩니다. 초등·청소년 20명 이상(30%)은 직접 고르고 인원을 입력하세요.</p>
+    <p class="muted tiny-text">대관 숙박시설 5실 이상 10%, 9실 이상 20%는 실 수에 맞춰 자동 적용됩니다. 초등·청소년 20명 이상이면 체크하세요 (30%, 다른 할인 대신 적용).</p>
     <div class="rent-row rent-total"><span>시설대관 · 대관 숙박시설 합계</span><b data-rent-net>0원</b></div>
   </div>
   </div>
@@ -720,7 +711,7 @@ function items_view(array $journal): void
       <tr><th colspan="5">소계</th><th class="right"><?= number_format($rgross) ?></th></tr>
       <?php if ($rgross !== $rnet): ?>
         <tr class="pay-row"><td colspan="5" class="right">통합 할인<?= $rule ? ' · ' . e(RENT_DC_RULES[$rule][0] ?? $rule) . ' ' . (int) $payload['rent_dc_pct'] . '%' : '' ?>
-          <?= $rule === 'youth20' ? '(초등·청소년 ' . (int) $payload['rent_youth'] . '명)' : '' ?></td><td class="right warn">− <?= number_format($rgross - $rnet) ?></td></tr>
+ </td><td class="right warn">− <?= number_format($rgross - $rnet) ?></td></tr>
       <?php endif ?>
       <tr><th colspan="5">합계</th><th class="right"><?= e(won($rnet)) ?></th></tr>
     </tfoot>

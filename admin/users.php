@@ -38,8 +38,9 @@ if (is_post()) {
         // 메인메뉴 권한: 전부 체크 = NULL(전체), 아니면 체크한 것만
         $menus = array_values(array_intersect(array_keys(MENU_OPTIONAL), array_map('strval', (array) ($_POST['menu'] ?? []))));
         $menuAccess = count($menus) === count(MENU_OPTIONAL) ? null : implode(',', $menus);
-        db()->prepare('UPDATE users SET rank_level = ?, status = ?, is_admin = ?, can_delegate = ?, team_id = ?, squad_id = ?, is_squad_leader = ?, position = ?, menu_access = ? WHERE id = ?')
-            ->execute([$rank, $status, $admin, $delegate, $team, $squad, $leader, $position, $menuAccess, $id]);
+        $hideOrg = (int) (post('hide_in_org') === '1');
+        db()->prepare('UPDATE users SET rank_level = ?, status = ?, is_admin = ?, can_delegate = ?, team_id = ?, squad_id = ?, is_squad_leader = ?, position = ?, menu_access = ?, hide_in_org = ? WHERE id = ?')
+            ->execute([$rank, $status, $admin, $delegate, $team, $squad, $leader, $position, $menuAccess, $hideOrg, $id]);
         flash("{$target['name']}님 정보를 저장했습니다.", 'success');
     }
     redirect('admin/users.php');
@@ -61,11 +62,12 @@ if ($me['is_admin']) settings_nav('users');
     <b>메뉴 권한</b>: 체크한 메인메뉴(근태관리·운영관리·프로그램)만 그 회원의 상단 메뉴에 보이고, 체크를 끄면 해당 페이지에도 들어갈 수 없습니다.
     <b>사원에게만 적용</b>되며 공무직·주무관·팀장·최고관리자는 항상 전체 메뉴가 보입니다.
     (대시보드·일정표·시설관리·기타는 항상 보이고, 결재함에서 결재 문서를 보고 결재하는 것은 메뉴 권한과 관계없이 됩니다)<br>
+    <b>조직도 숨김</b>: 체크한 계정은 조직도에 나오지 않습니다 (최고관리자·테스트 계정 등. 로그인과 다른 기능은 그대로).<br>
     <b>근무 설정</b>: 사원의 입사일·계약만료일·근무시간·휴무 요일을 입력합니다. (근태관리의 연차 발생·병가 한도·휴무일 계산에 쓰임)<br>
     <b>전결권한</b>: 체크한 주무관은 팀장 부재 시 '전결' 버튼으로 팀장 결재 없이 문서를 최종 완료할 수 있습니다. (주무관 직급만 가능)</p>
   <div class="table-scroll">
   <table class="table users-table">
-    <thead><tr><th>이름</th><th>아이디</th><th>연락처</th><th>직급</th><th>팀</th><th>반</th><th title="체크하면 조직도에서 반 맨 위에 표시">반장</th><th>보직</th><th title="사원 근태: 입사일·근무시간·휴무요일">근무 설정</th><th title="체크한 메인메뉴만 보입니다 (최고관리자는 항상 전체)">메뉴 권한</th><th>상태</th><th title="팀장 부재 시 주무관이 최종 결재">전결권한</th><?php if ($me['is_admin']): ?><th>관리자</th><?php endif ?><th></th></tr></thead>
+    <thead><tr><th>이름</th><th>아이디</th><th>연락처</th><th>직급</th><th>팀</th><th>반</th><th title="체크하면 조직도에서 반 맨 위에 표시">반장</th><th>보직</th><th title="사원 근태: 입사일·근무시간·휴무요일">근무 설정</th><th title="체크한 메인메뉴만 보입니다 (최고관리자는 항상 전체)">메뉴 권한</th><th>상태</th><th title="체크하면 조직도에 나오지 않음 (관리자·테스트 계정 등)">조직도<br>숨김</th><th title="팀장 부재 시 주무관이 최종 결재">전결권한</th><?php if ($me['is_admin']): ?><th>관리자</th><?php endif ?><th></th></tr></thead>
     <tbody>
     <?php foreach ($users as $u): $locked = $u['is_admin'] && !$me['is_admin']; ?>
       <tr class="<?= $u['status'] === 'pending' ? 'highlight' : '' ?>">
@@ -103,6 +105,7 @@ if ($me['is_admin']) settings_nav('users');
               <option value="<?= $v ?>" <?= $u['status'] === $v ? 'selected' : '' ?>><?= $label ?></option>
             <?php endforeach ?>
           </select></td>
+          <td class="center"><input type="checkbox" name="hide_in_org" value="1" form="u<?= (int) $u['id'] ?>" <?= !empty($u['hide_in_org']) ? 'checked' : '' ?> <?= $locked ? 'disabled' : '' ?>></td>
           <td class="center"><?php if ((int) $u['rank_level'] === RANK_OFFICER): ?><input type="checkbox" name="can_delegate" value="1" form="u<?= (int) $u['id'] ?>" <?= $u['can_delegate'] ? 'checked' : '' ?> <?= $locked ? 'disabled' : '' ?>><?php else: ?><span class="muted">-</span><?php endif ?></td>
           <?php if ($me['is_admin']): ?>
             <td class="center"><input type="checkbox" name="is_admin" value="1" form="u<?= (int) $u['id'] ?>" <?= $u['is_admin'] ? 'checked' : '' ?>></td>
