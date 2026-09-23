@@ -183,7 +183,7 @@ layout_header($title, 'stats');
 <style>@page { size: A4 landscape; margin: 10mm; }</style>
 <section class="card">
   <div class="card-head">
-    <h1>통계</h1>
+    <h1>매출통계</h1>
     <div class="actions no-margin no-print">
       <a class="btn" href="<?= e(url($query(['export' => 'xlsx']))) ?>">엑셀 다운로드</a>
       <button class="btn primary" onclick="window.print()">인쇄 / PDF 저장</button>

@@ -82,7 +82,7 @@ function nav_groups(?array $user): array
             'daily'   => ['journal.php?type=daily', '업무일지'],
             'sales'   => ['journal.php?type=sales', '매출보고'],
             'voucher' => ['voucher.php', '상품권'],
-            'stats'   => ['stats.php', '통계'],
+            'stats'   => ['stats.php', '매출통계'],
             'lost'    => ['lost.php', '유실물관리'],
         ]],
         'prog'     => ['label' => '프로그램', 'items' => [
