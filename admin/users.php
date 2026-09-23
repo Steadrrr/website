@@ -59,7 +59,8 @@ if ($me['is_admin']) settings_nav('users');
     팀장·주무관은 조직도에서 상위 부서에 표시되므로 팀·반을 비워 둬도 됩니다.
     팀·반 목록은 <?= $me['is_admin'] ? '<a href="' . e(url('settings.php?tab=org')) . '">설정 › 조직 구성</a>' : '최고관리자가 설정 › 조직 구성' ?>에서 바꿉니다)<br>
     <b>메뉴 권한</b>: 체크한 메인메뉴(근태관리·운영관리·프로그램)만 그 회원의 상단 메뉴에 보이고, 체크를 끄면 해당 페이지에도 들어갈 수 없습니다.
-    (대시보드·일정표·시설관리·기타는 항상 보이고, 결재함에서 결재 문서를 보고 결재하는 것은 메뉴 권한과 관계없이 됩니다. 최고관리자는 항상 전체)<br>
+    <b>관리원에게만 적용</b>되며 공무직·주무관·팀장·최고관리자는 항상 전체 메뉴가 보입니다.
+    (대시보드·일정표·시설관리·기타는 항상 보이고, 결재함에서 결재 문서를 보고 결재하는 것은 메뉴 권한과 관계없이 됩니다)<br>
     <b>근무 설정</b>: 관리원의 입사일·계약만료일·근무시간·휴무 요일을 입력합니다. (근태관리의 연차 발생·병가 한도·휴무일 계산에 쓰임)<br>
     <b>전결권한</b>: 체크한 주무관은 팀장 부재 시 '전결' 버튼으로 팀장 결재 없이 문서를 최종 완료할 수 있습니다. (주무관 직급만 가능)</p>
   <div class="table-scroll">
@@ -94,7 +95,7 @@ if ($me['is_admin']) settings_nav('users');
           <?php else: ?><span class="muted">-</span><?php endif ?></td>
           <td class="nowrap small menu-perms">
             <?php foreach (MENU_OPTIONAL as $g => $label): ?>
-              <label class="inline-check"><input type="checkbox" name="menu[]" value="<?= $g ?>" form="u<?= (int) $u['id'] ?>" <?= can_menu($u, $g) ? 'checked' : '' ?> <?= $locked || $u['is_admin'] ? 'disabled' : '' ?>> <?= e($label) ?></label>
+              <label class="inline-check"><input type="checkbox" name="menu[]" value="<?= $g ?>" form="u<?= (int) $u['id'] ?>" <?= can_menu($u, $g) ? 'checked' : '' ?> <?= $locked || $u['is_admin'] || (int) $u['rank_level'] >= RANK_WORKER ? 'disabled' : '' ?>> <?= e($label) ?></label>
             <?php endforeach ?>
           </td>
           <td><select name="status" form="u<?= (int) $u['id'] ?>" <?= $locked ? 'disabled' : '' ?>>

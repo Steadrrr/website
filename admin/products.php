@@ -55,6 +55,7 @@ if (is_post()) {
     // ── 상품 저장/삭제 ──
     $grp = post('grp');
     if (!isset(PRODUCT_GROUPS[$grp])) abort(400, '잘못된 값입니다.');
+    if ($id && !empty(products_all()[$id]['sys_key'])) abort(400, '쉬자파크숙박(입실·퇴실)은 자동 상품이라 수정·삭제할 수 없습니다.');
 
     if ($action === 'delete') {
         $st = $pdo->prepare('SELECT COUNT(*) FROM sales_lines WHERE product_id = ?');
@@ -128,6 +129,15 @@ $roomSeasons = array_filter(seasons_all(), fn($s) => $s['grp'] === 'room' && $s[
 function product_row(string $grp, ?array $p, int $sort, array $ticketSeasons): void
 {
     $fid = 'p' . ($p['id'] ?? 'new-' . $grp);
+    if ($p && !empty($p['sys_key'])): // 쉬자파크숙박 입실·퇴실: 수정·삭제 불가 ?>
+  <tr class="sys-row">
+    <td class="center muted">🔒</td>
+    <td><b><?= e($p['name']) ?></b></td>
+    <td><span class="badge">무료</span></td>
+    <td colspan="<?= 1 + count($ticketSeasons) ?>" class="small muted"><?= $p['sys_key'] === 'stay_in' ? '매출보고의 객실 입실인원 합계가 자동으로 들어갑니다' : '전날 매출보고의 입실인원 합계가 자동으로 들어갑니다' ?> (수정·삭제 불가)</td>
+    <td class="center">✔</td><td></td>
+  </tr>
+    <?php return; endif;
     $val = fn(string $k, mixed $d = '') => e($p[$k] ?? $d);
     $money = fn(string $k) => e(isset($p[$k]) && $p[$k] ? number_format((int) $p[$k]) : '');
     ?>

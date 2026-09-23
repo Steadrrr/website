@@ -118,6 +118,7 @@ CREATE TABLE IF NOT EXISTS products (
   dc_weekday    INT UNSIGNED NOT NULL DEFAULT 0,
   dc_weekend    INT UNSIGNED NOT NULL DEFAULT 0,
   max_people    SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+  sys_key       VARCHAR(20)  NULL COMMENT '시스템 상품 (stay_in / stay_out: 쉬자파크숙박 입실·퇴실, 수정·삭제 불가, 수량 자동)',
   sort_order    INT          NOT NULL DEFAULT 0,
   is_active     TINYINT(1)   NOT NULL DEFAULT 1,
   created_at    DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,

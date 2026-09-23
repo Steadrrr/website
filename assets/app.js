@@ -9,6 +9,10 @@
   function recalc() {
     let grand = 0;
 
+    // 쉬자파크숙박(입실) = 객실 판매 입실인원 합계 (자동, 수정 불가)
+    const stayIn = $(document, 'input[data-stay="in"]');
+    if (stayIn) stayIn.value = $$(document, 'table[data-room-table] [data-guests]').reduce((s, i) => s + num(i.value), 0);
+
     // 입장권: 단가 × 수량
     $$(document, 'table[data-ticket-table]').forEach((t) => {
       let qty = 0, amount = 0, free = 0;
@@ -187,6 +191,12 @@
       });
       const rate = seasonFor('room', md) ? 'peak' : (d.getDay() === 5 || d.getDay() === 6 ? 'weekend' : 'weekday');
       document.querySelectorAll('[data-rate]').forEach((s) => { s.value = rate; });
+      // 쉬자파크숙박(퇴실) = 전날 입실인원 합계 → 날짜를 바꾸면 다시 불러옴
+      const stayOut = document.querySelector('input[data-stay="out"]');
+      if (stayOut && window.STAY_API) {
+        fetch(window.STAY_API + '?date=' + dateInput.value, { credentials: 'same-origin' })
+          .then((r) => r.json()).then((j) => { stayOut.value = j.out || 0; recalc(); }).catch(() => {});
+      }
       recalc();
     });
   }

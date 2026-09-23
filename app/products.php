@@ -144,6 +144,54 @@ function rental_desc(?string $time, bool $night): string
     return implode(' + ', array_filter([$time ? (RENT_TIMES[$time][0] ?? $time) : null, $night ? RENT_NIGHT_LABEL : null]));
 }
 
+/* ───────────── 쉬자파크숙박 입실·퇴실 (자동 입장권) ───────────── */
+const STAY_PRODUCTS = ['stay_in' => '쉬자파크숙박(입실)', 'stay_out' => '쉬자파크숙박(퇴실)'];
+
+/** 그 날짜 매출보고의 객실 입실인원 합계 (없으면 0) */
+function stay_guests(string $date): int
+{
+    $st = db()->prepare("SELECT COALESCE(SUM(l.guests), 0) FROM journals j JOIN sales_lines l ON l.journal_id = j.id
+                          WHERE j.type = 'sales' AND j.work_date = ? AND l.grp = 'room'");
+    $st->execute([$date]);
+    return (int) $st->fetchColumn();
+}
+
+/** 퇴실 인원 = 전날 입실인원 합계 */
+function stay_out_guests(string $date): int
+{
+    return stay_guests(date('Y-m-d', strtotime("$date -1 day")));
+}
+
+/** 시스템 상품 sys_key => 상품 */
+function stay_products(): array
+{
+    $out = [];
+    foreach (products_all() as $p) if (!empty($p['sys_key'])) $out[$p['sys_key']] = $p;
+    return $out;
+}
+
+/**
+ * 어떤 날의 매출보고가 저장·삭제되면 다음 날 매출보고의 '쉬자파크숙박(퇴실)' 수량을 다시 맞춘다
+ * (다음 날 보고서가 이미 있을 때)
+ */
+function stay_sync_next(string $date): void
+{
+    $out = stay_products()['stay_out'] ?? null;
+    if (!$out) return;
+    $pdo = db();
+    $next = date('Y-m-d', strtotime("$date +1 day"));
+    $st = $pdo->prepare("SELECT id FROM journals WHERE type = 'sales' AND work_date = ?");
+    $st->execute([$next]);
+    $jid = (int) $st->fetchColumn();
+    if (!$jid) return;
+    $qty = stay_guests($date);
+    $pdo->prepare('DELETE FROM sales_lines WHERE journal_id = ? AND product_id = ?')->execute([$jid, $out['id']]);
+    if ($qty > 0) {
+        $pdo->prepare("INSERT INTO sales_lines (journal_id, product_id, grp, name, is_free, unit_price, qty, amount) VALUES (?, ?, 'ticket', ?, 1, 0, ?, 0)")
+            ->execute([$jid, $out['id'], $out['name'], $qty]);
+    }
+}
+
 function voucher_denoms(): array
 {
     return config('voucher_denoms', [1000, 5000, 10000]);

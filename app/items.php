@@ -102,7 +102,7 @@ function items_parse(string $type, string $workDate, int $journalId): array
         foreach ((array) ($_POST['ticket'] ?? []) as $pid => $row) {
             $p = $products[(int) $pid] ?? null;
             $qty = to_int($row['qty'] ?? 0);
-            if (!$p || $p['grp'] !== 'ticket' || $qty === 0) continue;
+            if (!$p || $p['grp'] !== 'ticket' || !empty($p['sys_key']) || $qty === 0) continue; // 쉬자파크숙박은 아래에서 자동
             [$unit, $season] = ticket_price($p, $workDate);
             $lines[] = [
                 'product_id' => (int) $p['id'], 'grp' => 'ticket', 'name' => $p['name'], 'is_free' => (int) $p['is_free'],
@@ -181,6 +181,17 @@ function items_parse(string $type, string $workDate, int $journalId): array
                 'rent_time' => null, 'night' => 0, 'dc_pct' => $pct,
             ];
         }
+        // 쉬자파크숙박 입실 = 이 보고서 객실 입실인원 합계, 퇴실 = 전날 입실인원 합계 (수정 불가, 무료 입장권으로 집계)
+        $roomGuests = array_sum(array_map(fn($l) => $l['grp'] === 'room' ? $l['guests'] : 0, $lines));
+        $stayLines = [];
+        foreach (stay_products() as $key => $p) {
+            $qty = $key === 'stay_in' ? $roomGuests : (valid_date($workDate) ? stay_out_guests($workDate) : 0);
+            if ($qty > 0) $stayLines[] = [
+                'product_id' => (int) $p['id'], 'grp' => 'ticket', 'name' => $p['name'], 'is_free' => 1,
+                'rate' => null, 'season' => null, 'discounted' => 0, 'unit_price' => 0, 'qty' => $qty, 'guests' => 0, 'amount' => 0,
+            ];
+        }
+        $lines = [...$stayLines, ...$lines];
         $payload['lines'] = $lines;
 
         // 입장권 현금 수입 (나머지는 카드로 본다)
@@ -255,6 +266,10 @@ function items_save(int $id, string $type, array $payload): void
         }
         $pdo->prepare('INSERT INTO sales_meta (journal_id, ticket_cash) VALUES (?, ?) ON DUPLICATE KEY UPDATE ticket_cash = VALUES(ticket_cash)')
             ->execute([$id, (int) $payload['ticket_cash']]);
+        // 오늘 입실인원이 바뀌면 다음 날 보고서의 '쉬자파크숙박(퇴실)'도 맞춘다
+        $st = $pdo->prepare('SELECT work_date FROM journals WHERE id = ?');
+        $st->execute([$id]);
+        stay_sync_next((string) $st->fetchColumn());
     }
 
     if ($type === 'sales' || $type === 'voucher') {
@@ -298,6 +313,7 @@ function items_form(string $type, array $payload, string $workDate, ?array $jour
   <div class="flash flash-error">등록된 판매 상품이 없습니다. 관리자에게 <b>상품관리</b>에서 입장권·객실·시설대관을 등록해 달라고 요청하세요.</div>
     <?php endif ?>
 
+<script>window.STAY_API = <?= json_encode(url('api/stay.php')) ?>;</script>
 <script>window.SEASONS = <?= json_encode(array_values(array_map(
     fn($s) => ['id' => (int) $s['id'], 'grp' => $s['grp'], 'label' => season_label($s), 'start' => $s['start_md'], 'end' => $s['end_md']],
     array_filter(seasons_all(), fn($s) => $s['is_active'])
@@ -316,10 +332,18 @@ function items_form(string $type, array $payload, string $workDate, ?array $jour
         foreach (season_prices() as $sid => $prices) if (isset($prices[$pid])) $sp[$sid] = $prices[$pid]; ?>
       <tr data-base="<?= $p['is_free'] ? 0 : (int) $p['price'] ?>" data-price="<?= ticket_price($p, $workDate)[0] ?>" data-free="<?= (int) $p['is_free'] ?>"
           data-seasons="<?= e(json_encode($sp ?: new stdClass())) ?>">
+        <?php if (!empty($p['sys_key'])): // 쉬자파크숙박 입실·퇴실: 수량 자동, 수정 불가 ?>
+        <td><?= e($p['name']) ?> <span class="badge auto-badge" title="<?= $p['sys_key'] === 'stay_in' ? '아래 객실 판매의 입실인원 합계' : '전날 매출보고의 입실인원 합계' ?>">자동</span>
+          <br><small class="muted"><?= $p['sys_key'] === 'stay_in' ? '객실 입실인원 합계' : '전날 입실인원 합계' ?></small></td>
+        <td><span class="badge">무료</span></td>
+        <td class="right" data-unit>0</td>
+        <td><input value="<?= e($p['sys_key'] === 'stay_in' ? ($l['qty'] ?? 0) : stay_out_guests($workDate)) ?>" class="num short" data-qty data-stay="<?= $p['sys_key'] === 'stay_in' ? 'in' : 'out' ?>" readonly tabindex="-1" title="자동 계산 (수정 불가)"></td>
+        <?php else: ?>
         <td><?= e($p['name']) ?><?= $p['is_active'] ? '' : ' <small class="muted">(판매중지)</small>' ?></td>
         <td><?= $p['is_free'] ? '<span class="badge">무료</span>' : '유료' ?></td>
         <td class="right" data-unit><?= number_format(ticket_price($p, $workDate)[0]) ?></td>
         <td><input name="ticket[<?= $pid ?>][qty]" value="<?= e($l['qty'] ?? '') ?>" inputmode="numeric" class="num short" data-money data-qty></td>
+        <?php endif ?>
         <td class="right" data-line-amount>0</td>
       </tr>
     <?php endforeach ?>

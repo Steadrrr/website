@@ -712,3 +712,6 @@ a.gcal-ev.bar { color: #fff; }
 .prog-paid .inline-check input { width: auto; margin: 0; }
 .menu-perms label { display: flex; align-items: center; gap: .25rem; margin: 0; font-weight: 400; line-height: 1.5; }
 .menu-perms input { width: auto; margin: 0; }
+.sys-row td { background: #f6f8f6; }
+.auto-badge { background: #e3efe6; color: var(--green-d); font-weight: 700; }
+input[data-stay] { background: #f1f5f2; color: var(--green-d); font-weight: 700; }

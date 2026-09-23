@@ -6,7 +6,7 @@ defined('APP_ROOT') || exit;
  * 새 버전 파일을 FTP로 덮어쓰기만 하면, 첫 접속 때 부족한 테이블/컬럼을 만든다.
  * (기존 자료는 그대로 유지)
  */
-const DB_VERSION = 15;
+const DB_VERSION = 16;
 
 function db_version(): int
 {
@@ -169,8 +169,28 @@ function db_migrate(): void
         $pdo->exec("ALTER TABLE users ADD menu_access VARCHAR(100) NULL AFTER off_days");
     }
 
+    // 16) v15 → v16: 입장권 시스템 상품 '쉬자파크숙박(입실)'·'쉬자파크숙박(퇴실)' (무료, 수량 자동)
+    if (!column_exists('products', 'sys_key')) {
+        $pdo->exec("ALTER TABLE products ADD sys_key VARCHAR(20) NULL AFTER max_people");
+    }
+    db_seed_stay_products();
+
     $pdo->prepare("INSERT INTO settings (name, value) VALUES ('db_version', ?) ON DUPLICATE KEY UPDATE value = VALUES(value)")
         ->execute([(string) DB_VERSION]);
+}
+
+/** 쉬자파크숙박 입실·퇴실 입장권 (없을 때만 만든다) */
+function db_seed_stay_products(): void
+{
+    $pdo = db();
+    foreach (STAY_PRODUCTS as $key => $name) {
+        $st = $pdo->prepare('SELECT COUNT(*) FROM products WHERE sys_key = ?');
+        $st->execute([$key]);
+        if (!(int) $st->fetchColumn()) {
+            $pdo->prepare("INSERT INTO products (grp, name, is_free, price, sys_key, sort_order, is_active) VALUES ('ticket', ?, 1, 0, ?, ?, 1)")
+                ->execute([$name, $key, $key === 'stay_in' ? 9000 : 9001]);
+        }
+    }
 }
 
 /** 기본 관리팀·기간요금 (비어 있을 때만) */
