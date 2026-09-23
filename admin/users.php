@@ -54,7 +54,7 @@ layout_header('회원관리', 'admin');
     <tbody>
     <?php foreach ($users as $u): $locked = $u['is_admin'] && !$me['is_admin']; ?>
       <tr class="<?= $u['status'] === 'pending' ? 'highlight' : '' ?>">
-        <td><?= e($u['name']) ?></td>
+        <td><a href="<?= e(url('member_photo.php?id=' . (int) $u['id'])) ?>" title="사진 올리기/바꾸기" class="user-cell"><?= avatar($u, 'avatar avatar-sm') ?> <?= e($u['name']) ?></a></td>
           <td><?= e($u['username']) ?><br><small class="muted">가입 <?= e(substr($u['created_at'], 0, 10)) ?></small></td>
           <td><?= e($u['phone']) ?></td>
           <td><select name="rank_level" form="u<?= (int) $u['id'] ?>" <?= $locked ? 'disabled' : '' ?>>

@@ -31,6 +31,10 @@ layout_header('내 정보');
 <form method="post" class="card narrow">
   <?= csrf_field() ?>
   <h1>내 정보</h1>
+  <div class="mypage-photo">
+    <?= avatar($user, 'avatar avatar-lg') ?>
+    <a class="btn small" href="<?= e(url('member_photo.php')) ?>"><?= $user['photo'] ? '사진 바꾸기' : '사진 올리기' ?></a>
+  </div>
   <p class="muted">아이디 <b><?= e($user['username']) ?></b> · 직급 <b><?= e(rank_name($user['rank_level'])) ?></b>
     · 팀 <b><?= e(team_name($user['team_id'] ? (int) $user['team_id'] : null) ?: '미지정') ?></b>
     · 보직 <b><?= e($user['position'] ?: '미지정') ?></b>

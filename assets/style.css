@@ -301,3 +301,54 @@ tr.pinned td { background: #fffaf8; }
 .users-table th, .users-table td { white-space: nowrap; padding: .45rem .35rem; }
 .users-table select { min-width: 5.5rem; width: auto; }
 .users-table .position-input { width: 9rem; }
+
+/* ── v7: 개인 사진 · 조직도 · 대시보드 프로필 ── */
+.avatar { width: 40px; height: 40px; border-radius: 50%; object-fit: cover; display: inline-flex; align-items: center; justify-content: center;
+  flex-shrink: 0; background: #dfe9e2; color: var(--green-d); font-weight: 700; vertical-align: middle; }
+.avatar-sm { width: 28px; height: 28px; font-size: .8rem; }
+.avatar-lg { width: 64px; height: 64px; font-size: 1.4rem; }
+.avatar-xl { width: 112px; height: 112px; font-size: 2.4rem; }
+.avatar-empty { border: 1px solid #c9d8cd; }
+.user-cell { display: inline-flex; align-items: center; gap: .4rem; color: var(--text); }
+.center-card { text-align: center; }
+.center-card input[type=file] { margin: .75rem auto; max-width: 22rem; }
+.photo-preview { margin: .5rem 0 .75rem; }
+.mypage-photo { display: flex; align-items: center; gap: .75rem; margin-bottom: .75rem; }
+
+.container:has(.dash-layout) { max-width: 1320px; }
+.dash-layout { display: grid; grid-template-columns: 240px minmax(0, 1fr); gap: 1rem; align-items: start; }
+.profile-card { position: sticky; top: 1rem; display: flex; flex-direction: column; align-items: center; text-align: center; gap: .3rem; }
+.profile-photo { display: block; margin: .25rem 0 .4rem; }
+.profile-photo:hover .avatar { box-shadow: 0 0 0 3px rgba(47,125,79,.35); }
+.profile-name { font-size: 1.2rem; }
+.profile-rank { color: var(--green-d); font-weight: 600; font-size: .9rem; }
+.profile-position { color: var(--muted); font-size: .9rem; }
+.profile-stats { list-style: none; padding: 0; margin: .75rem 0 .25rem; width: 100%; border-top: 1px solid var(--line); }
+.profile-stats li { display: flex; justify-content: space-between; padding: .45rem .1rem; font-size: .88rem; border-bottom: 1px dashed var(--line); }
+.profile-stats li a { display: flex; justify-content: space-between; width: 100%; color: var(--text); }
+.profile-links { font-size: .85rem; margin-top: .25rem; }
+
+.org-teams { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 1rem; }
+.org-team { border: 1px solid var(--line); border-radius: 10px; padding: .75rem; background: #fafcfa; }
+.org-team-name { text-align: center; background: var(--green-d); color: #fff; border-radius: 6px; padding: .45rem; margin: 0 0 .75rem; font-size: 1.05rem; }
+.org-team-name small { font-weight: 400; opacity: .8; font-size: .8rem; }
+.org-top { display: flex; justify-content: center; flex-wrap: wrap; gap: .5rem; padding-bottom: .75rem; margin-bottom: .75rem; border-bottom: 2px solid #cfe0d4; }
+.org-members { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: .5rem; }
+.member-card { display: flex; flex-direction: column; align-items: center; text-align: center; gap: .35rem; background: #fff; border: 1px solid var(--line); border-radius: 8px; padding: .7rem .5rem; }
+.member-card.leader { border-color: var(--green); box-shadow: 0 1px 6px rgba(47,125,79,.15); min-width: 170px; }
+.member-info { display: flex; flex-direction: column; align-items: center; gap: .1rem; }
+.member-info .rank { font-size: .78rem; color: var(--green-d); font-weight: 600; }
+.member-info .position { font-size: .85rem; color: var(--muted); }
+.member-info .phone { font-size: .85rem; }
+
+@media (max-width: 900px) {
+  .dash-layout { grid-template-columns: 1fr; }
+  .profile-card { position: static; flex-direction: row; flex-wrap: wrap; justify-content: center; text-align: left; }
+  .profile-card .avatar-xl { width: 72px; height: 72px; font-size: 1.6rem; }
+  .profile-stats, .profile-links { display: none; }
+}
+@media print {
+  .org-teams { grid-template-columns: 1fr 1fr; }
+  .member-card { break-inside: avoid; }
+  .org-team-name { background: none; color: #000; border: 1px solid #000; }
+}

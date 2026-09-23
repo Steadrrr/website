@@ -120,48 +120,46 @@ function photo_thumbs(string $type): array
 }
 
 /**
- * 업로드된 사진 저장 ($_FILES['photos'][])
- * 브라우저에서 미리 1600px로 줄여서 올리므로(app.js) 서버는 형식·크기만 검사한다.
- * @return string[] 오류 메시지
+ * 업로드된 사진 1장 저장 → uploads/{종류}/{년월}/임의이름.확장자
+ * 브라우저에서 미리 줄여서 올리므로(app.js) 서버는 형식·크기만 검사한다.
+ * @return array{0: ?string, 1: ?string} [저장 경로, 오류 메시지]  (파일이 없으면 [null, null])
  */
+function store_uploaded_image(string $name, string $tmp, int $err, string $type): array
+{
+    if ($err === UPLOAD_ERR_NO_FILE) return [null, null];
+    if ($err === UPLOAD_ERR_INI_SIZE || $err === UPLOAD_ERR_FORM_SIZE) return [null, "{$name}: 파일이 너무 큽니다."];
+    if ($err !== UPLOAD_ERR_OK) return [null, "{$name}: 업로드 실패 (오류 {$err})"];
+
+    $allowed = ['image/jpeg' => 'jpg', 'image/png' => 'png', 'image/gif' => 'gif', 'image/webp' => 'webp'];
+    $mime = (new finfo(FILEINFO_MIME_TYPE))->file($tmp);
+    if (!isset($allowed[$mime]) || @getimagesize($tmp) === false) {
+        return [null, "{$name}: 사진 파일(jpg, png, gif, webp)만 올릴 수 있습니다."];
+    }
+    $dirRel = 'uploads/' . $type . '/' . date('Ym');
+    $dirAbs = APP_ROOT . '/' . $dirRel;
+    if (!is_dir($dirAbs) && !@mkdir($dirAbs, 0755, true)) {
+        return [null, 'uploads 폴더를 만들 수 없습니다. FTP에서 uploads 폴더 권한을 707로 설정하세요.'];
+    }
+    $file = bin2hex(random_bytes(12)) . '.' . $allowed[$mime];
+    if (!move_uploaded_file($tmp, "$dirAbs/$file")) {
+        return [null, "{$name}: 저장 실패. uploads 폴더 쓰기 권한(707)을 확인하세요."];
+    }
+    return ["$dirRel/$file", null];
+}
+
+/** 시설물·장비 사진 여러 장 저장 ($_FILES['photos'][]) @return string[] 오류 메시지 */
 function photos_save_uploaded(string $type, int $ownerId, int $userId): array
 {
     $files = $_FILES['photos'] ?? null;
     if (!$files || !is_array($files['name'])) return [];
-
-    $allowed = ['image/jpeg' => 'jpg', 'image/png' => 'png', 'image/gif' => 'gif', 'image/webp' => 'webp'];
-    $dirRel = 'uploads/' . $type . '/' . date('Ym');
-    $dirAbs = APP_ROOT . '/' . $dirRel;
     $errors = [];
-
     foreach ($files['name'] as $i => $name) {
-        $err = $files['error'][$i];
-        if ($err === UPLOAD_ERR_NO_FILE) continue;
-        if ($err === UPLOAD_ERR_INI_SIZE || $err === UPLOAD_ERR_FORM_SIZE) {
-            $errors[] = "{$name}: 파일이 너무 큽니다.";
-            continue;
+        [$path, $error] = store_uploaded_image($name, $files['tmp_name'][$i], $files['error'][$i], $type);
+        if ($error) $errors[] = $error;
+        if ($path) {
+            db()->prepare('INSERT INTO photos (owner_type, owner_id, path, user_id) VALUES (?, ?, ?, ?)')
+                ->execute([$type, $ownerId, $path, $userId]);
         }
-        if ($err !== UPLOAD_ERR_OK) {
-            $errors[] = "{$name}: 업로드 실패 (오류 {$err})";
-            continue;
-        }
-        $tmp = $files['tmp_name'][$i];
-        $mime = (new finfo(FILEINFO_MIME_TYPE))->file($tmp);
-        if (!isset($allowed[$mime]) || @getimagesize($tmp) === false) {
-            $errors[] = "{$name}: 사진 파일(jpg, png, gif, webp)만 올릴 수 있습니다.";
-            continue;
-        }
-        if (!is_dir($dirAbs) && !@mkdir($dirAbs, 0755, true)) {
-            $errors[] = 'uploads 폴더를 만들 수 없습니다. FTP에서 uploads 폴더 권한을 707로 설정하세요.';
-            break;
-        }
-        $file = bin2hex(random_bytes(12)) . '.' . $allowed[$mime];
-        if (!move_uploaded_file($tmp, "$dirAbs/$file")) {
-            $errors[] = "{$name}: 저장 실패. uploads 폴더 쓰기 권한(707)을 확인하세요.";
-            continue;
-        }
-        db()->prepare('INSERT INTO photos (owner_type, owner_id, path, user_id) VALUES (?, ?, ?, ?)')
-            ->execute([$type, $ownerId, "$dirRel/$file", $userId]);
     }
     return $errors;
 }

@@ -27,8 +27,30 @@ $recent = db()->query(
       ORDER BY j.updated_at DESC LIMIT 10"
 )->fetchAll();
 
+// 왼쪽 프로필: 오늘 내가 쓴 일지 수, 결재 대기
+$st = db()->prepare("SELECT COUNT(*) FROM journals WHERE author_id = ? AND work_date = ? AND status <> 'draft'");
+$st->execute([$user['id'], $today]);
+$myToday = (int) $st->fetchColumn();
+$myWaiting = count(waiting_for_user($user));
+
 layout_header('대시보드', 'home');
 ?>
+<div class="dash-layout">
+<aside class="card profile-card">
+  <a href="<?= e(url('member_photo.php')) ?>" class="profile-photo" title="사진 바꾸기"><?= avatar($user, 'avatar avatar-xl') ?></a>
+  <b class="profile-name"><?= e($user['name']) ?></b>
+  <span class="profile-rank"><?= e(rank_name($user['rank_level'])) ?><?= $user['team_id'] ? ' · ' . e(team_name((int) $user['team_id'])) : '' ?></span>
+  <span class="profile-position"><?= e($user['position'] ?: '보직 미지정') ?></span>
+  <?php if (!$user['photo']): ?><a class="btn small" href="<?= e(url('member_photo.php')) ?>">사진 올리기</a><?php endif ?>
+  <ul class="profile-stats">
+    <li><span>오늘 작성한 일지</span><b><?= $myToday ?>건</b></li>
+    <li><a href="<?= e(url('approvals.php')) ?>"><span>내 결재 대기</span><b class="<?= $myWaiting ? 'warn' : '' ?>"><?= $myWaiting ?>건</b></a></li>
+  </ul>
+  <div class="profile-links">
+    <a href="<?= e(url('mypage.php')) ?>">내 정보</a> · <a href="<?= e(url('org.php')) ?>">조직도</a>
+  </div>
+</aside>
+<div class="dash-main">
 <section class="card notice-board">
   <div class="card-head">
     <h2>공지사항</h2>
@@ -131,6 +153,8 @@ layout_header('대시보드', 'home');
     </tbody>
   </table>
 </section>
+</div><!-- /dash-main -->
+</div><!-- /dash-layout -->
 
 <script>window.SALES_API = <?= json_encode(url('api/sales.php')) ?>;</script>
 <?php layout_footer([

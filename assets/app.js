@@ -164,8 +164,7 @@
 
 // 사진 업로드: 브라우저에서 긴 변 1600px JPEG로 줄여서 올림 (호스팅 업로드 제한·트래픽 절약)
 (function () {
-  const MAX = 1600;
-  async function shrink(file) {
+  async function shrink(file, MAX) {
     if (!file.type.startsWith('image/') || file.type === 'image/gif') return file;
     const bmp = await createImageBitmap(file, { imageOrientation: 'from-image' });
     const scale = Math.min(1, MAX / Math.max(bmp.width, bmp.height));
@@ -185,7 +184,8 @@
       buttons.forEach((b) => (b.disabled = true));
       try {
         const dt = new DataTransfer();
-        for (const f of input.files) dt.items.add(await shrink(f).catch(() => f));
+        const max = parseInt(input.dataset.resize, 10) || 1600; // data-resize="800" 처럼 크기 지정 가능
+        for (const f of input.files) dt.items.add(await shrink(f, max).catch(() => f));
         input.files = dt.files;
       } finally {
         buttons.forEach((b) => (b.disabled = false));

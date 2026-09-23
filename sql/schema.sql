@@ -13,6 +13,7 @@ CREATE TABLE IF NOT EXISTS users (
   can_delegate  TINYINT(1)   NOT NULL DEFAULT 0 COMMENT '전결 권한 (팀장 부재 시 주무관이 최종 결재)',
   team_id       INT UNSIGNED NULL COMMENT '소속 팀 (관리자가 승인 시 지정)',
   position      VARCHAR(50)  NULL COMMENT '보직 (관리자가 승인 시 입력)',
+  photo         VARCHAR(200) NULL COMMENT '개인 사진 경로 (uploads/members/...)',
   status        ENUM('pending','active','disabled') NOT NULL DEFAULT 'pending',
   created_at    DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
   last_login_at DATETIME     NULL

@@ -9,6 +9,7 @@ function layout_header(string $title, string $active = ''): void
     $nav = [
         'home'     => ['index.php', '대시보드'],
         'notices'  => ['notices.php', '공지'],
+        'org'      => ['org.php', '조직도'],
         'daily'    => ['journal.php?type=daily', '업무일지'],
         'sales'    => ['journal.php?type=sales', '매출보고'],
         'facility'   => ['journal.php?type=facility', '시설점검'],

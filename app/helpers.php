@@ -177,6 +177,15 @@ function is_new(string $datetime): bool
     return strtotime($datetime) >= strtotime('-3 days');
 }
 
+/** 회원 사진 (없으면 이름 첫 글자) */
+function avatar(array $u, string $class = 'avatar'): string
+{
+    if (!empty($u['photo'])) {
+        return '<img class="' . e($class) . '" src="' . e(url($u['photo'])) . '" alt="' . e($u['name']) . '">';
+    }
+    return '<span class="' . e($class) . ' avatar-empty">' . e(mb_substr((string) $u['name'], 0, 1)) . '</span>';
+}
+
 /** 결재 상태 + 수정됨 표시 */
 function journal_badges(array $j): string
 {
