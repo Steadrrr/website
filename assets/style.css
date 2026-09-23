@@ -572,3 +572,5 @@ a.nav-main:hover, .nav-main:hover, .nav-main.on, .nav-group.on > .nav-main, .nav
 .up-ev b { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .up-ev small { color: var(--muted); font-size: .75rem; }
 @media (max-width: 900px) { .upcoming { display: none; } }
+.today-events { border-left-color: #3f51b5; }
+.ev-badge { background: var(--c); color: #fff; font-weight: 600; }

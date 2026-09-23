@@ -101,6 +101,8 @@
     if (create) return openForm(null, create.dataset.create);
   });
 
+  if (data.openNew) openForm(null, data.openNew);
+
   // ── 분류 필터 (이 브라우저에 기억)
   const KEY = 'gcal-hidden';
   let hidden = [];

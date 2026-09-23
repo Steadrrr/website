@@ -32,7 +32,11 @@ $st = db()->prepare("SELECT COUNT(*) FROM journals WHERE author_id = ? AND work_
 $st->execute([$user['id'], $today]);
 $myToday = (int) $st->fetchColumn();
 $myWaiting = count(waiting_for_user($user));
-$upcoming = array_slice(events_between($today, date('Y-m-d', strtotime('+14 days'))), 0, 6); // 2주 안의 일정
+// 오늘의 일정 (오늘 진행 중인 여러 날 일정 포함) — 공지사항 아래 카드
+$todayEvents = events_between($today, $today);
+// 다가오는 일정: 내일부터 2주 안에 시작하는 일정 (오늘 일정은 위 카드에 있으므로 제외)
+$upcoming = array_slice(events_between(date('Y-m-d', strtotime('+1 day')), date('Y-m-d', strtotime('+14 days'))), 0, 6);
+$upcoming = array_values(array_filter($upcoming, fn($ev) => $ev['start_date'] > $today));
 
 layout_header('대시보드', 'home');
 ?>
@@ -58,7 +62,7 @@ layout_header('대시보드', 'home');
         <i></i><span><b><?= e($ev['title']) ?></b><small><?= e(event_when($ev, true)) ?></small></span>
       </a>
     <?php endforeach ?>
-    <?php if (!$upcoming): ?><p class="muted small">2주 안에 일정이 없습니다.</p><?php endif ?>
+    <?php if (!$upcoming): ?><p class="muted small">내일부터 2주 안에 일정이 없습니다.</p><?php endif ?>
   </div>
 </aside>
 <div class="dash-main">
@@ -78,6 +82,31 @@ layout_header('대시보드', 'home');
         <li class="<?= $n['is_pinned'] ? 'pinned' : '' ?>">
           <a href="<?= e(url('notices.php?id=' . $n['id'])) ?>"><?= $n['is_pinned'] ? '<span class="badge pin">중요</span> ' : '' ?><?= e($n['title']) ?><?= is_new($n['created_at']) ? ' <span class="new-dot">N</span>' : '' ?></a>
           <span class="muted small"><?= e($n['author_name']) ?> · <?= e(date('n/j', strtotime($n['created_at']))) ?></span>
+        </li>
+      <?php endforeach ?>
+    </ul>
+  <?php endif ?>
+</section>
+
+<section class="card notice-board today-events">
+  <div class="card-head">
+    <h2>오늘의 일정 <small class="muted"><?= e(date('n월 j일', strtotime($today))) ?> (<?= weekday_ko($today) ?>)</small></h2>
+    <div class="actions no-margin">
+      <a class="btn small" href="<?= e(url('schedule.php?new=' . $today)) ?>">+ 일정 추가</a>
+      <a class="btn small ghost" href="<?= e(url('schedule.php')) ?>">일정표 ›</a>
+    </div>
+  </div>
+  <?php if (!$todayEvents): ?>
+    <p class="muted small">오늘 일정이 없습니다.</p>
+  <?php else: ?>
+    <ul class="notice-list">
+      <?php foreach ($todayEvents as $ev): [$catLabel, $catColor] = EVENT_CATEGORIES[$ev['category']]; ?>
+        <li>
+          <a href="<?= e(url('schedule.php?ym=' . substr($today, 0, 7))) ?>" style="--c: <?= $catColor ?>">
+            <span class="badge ev-badge"><?= e($catLabel) ?></span> <?= e($ev['title']) ?>
+            <?= $ev['location'] ? '<small class="muted"> · ' . e($ev['location']) . '</small>' : '' ?>
+          </a>
+          <span class="muted small nowrap"><?= e(event_when($ev)) ?></span>
         </li>
       <?php endforeach ?>
     </ul>

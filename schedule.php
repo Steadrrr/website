@@ -285,6 +285,7 @@ layout_header('일정표 ' . $first->format('Y년 n월'), 'schedule');
 window.GCAL = {
   events: <?= json_encode($jsEvents, JSON_UNESCAPED_UNICODE) ?>,
   categories: <?= json_encode(array_map(fn($c) => ['label' => $c[0], 'color' => $c[1]], EVENT_CATEGORIES), JSON_UNESCAPED_UNICODE) ?>,
+  openNew: <?= json_encode(valid_date($_GET['new'] ?? '') ? $_GET['new'] : null) ?>, // 대시보드 '+ 일정 추가'에서 바로 만들기 창
 };
 </script>
 <?php layout_footer([url('assets/schedule.js')]);
