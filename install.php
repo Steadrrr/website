@@ -32,11 +32,7 @@ if (is_post()) {
     if ($name === '') $errors[] = '이름을 입력하세요';
 
     if (!$errors) {
-        $sql = file_get_contents(APP_ROOT . '/sql/schema.sql');
-        $sql = preg_replace('/^\s*--.*$/m', '', $sql);
-        foreach (array_filter(array_map('trim', explode(';', $sql))) as $stmt) {
-            db()->exec($stmt);
-        }
+        db_migrate(); // 테이블 생성 (이미 있으면 건너뜀)
         db()->prepare("INSERT INTO users (username, password_hash, name, rank_level, is_admin, status) VALUES (?, ?, ?, ?, 1, 'active')")
             ->execute([$username, password_hash($password, PASSWORD_DEFAULT), $name, RANK_LEADER]);
         flash('설치 완료! 지금 install.php 파일을 서버에서 삭제하세요.', 'success');

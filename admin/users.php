@@ -22,11 +22,12 @@ if (is_post()) {
         $rank   = (int) post('rank_level');
         $status = post('status');
         $admin  = $me['is_admin'] ? (int) (post('is_admin') === '1') : (int) $target['is_admin'];
+        $delegate = (int) (post('can_delegate') === '1' && $rank === RANK_OFFICER); // 전결은 주무관만
         if (!isset(RANKS[$rank]) || !in_array($status, ['pending', 'active', 'disabled'], true)) abort(400, '잘못된 값입니다.');
         if ($id === (int) $me['id'] && ($status !== 'active' || ($me['is_admin'] && !$admin))) {
             abort(400, '본인 계정을 중지하거나 관리자 권한을 해제할 수 없습니다.');
         }
-        db()->prepare('UPDATE users SET rank_level = ?, status = ?, is_admin = ? WHERE id = ?')->execute([$rank, $status, $admin, $id]);
+        db()->prepare('UPDATE users SET rank_level = ?, status = ?, is_admin = ?, can_delegate = ? WHERE id = ?')->execute([$rank, $status, $admin, $delegate, $id]);
         flash("{$target['name']}님 정보를 저장했습니다.", 'success');
     }
     redirect('admin/users.php');
@@ -40,10 +41,11 @@ layout_header('회원관리', 'admin');
 ?>
 <section class="card">
   <h1>회원관리</h1>
-  <p class="muted small">가입 신청자는 '승인대기' 상태입니다. 직급을 확인하고 상태를 '사용'으로 바꾸면 로그인할 수 있습니다.</p>
+  <p class="muted small">가입 신청자는 '승인대기' 상태입니다. 직급을 확인하고 상태를 '사용'으로 바꾸면 로그인할 수 있습니다.<br>
+    <b>전결권한</b>: 체크한 주무관은 팀장 부재 시 '전결' 버튼으로 팀장 결재 없이 문서를 최종 완료할 수 있습니다. (주무관 직급만 가능)</p>
   <div class="table-scroll">
   <table class="table">
-    <thead><tr><th>이름</th><th>아이디</th><th>연락처</th><th>직급</th><th>상태</th><?php if ($me['is_admin']): ?><th>관리자</th><?php endif ?><th></th></tr></thead>
+    <thead><tr><th>이름</th><th>아이디</th><th>연락처</th><th>직급</th><th>상태</th><th title="팀장 부재 시 주무관이 최종 결재">전결권한</th><?php if ($me['is_admin']): ?><th>관리자</th><?php endif ?><th></th></tr></thead>
     <tbody>
     <?php foreach ($users as $u): $locked = $u['is_admin'] && !$me['is_admin']; ?>
       <tr class="<?= $u['status'] === 'pending' ? 'highlight' : '' ?>">
@@ -58,6 +60,7 @@ layout_header('회원관리', 'admin');
               <option value="<?= $v ?>" <?= $u['status'] === $v ? 'selected' : '' ?>><?= $label ?></option>
             <?php endforeach ?>
           </select></td>
+          <td class="center"><?php if ((int) $u['rank_level'] === RANK_OFFICER): ?><input type="checkbox" name="can_delegate" value="1" form="u<?= (int) $u['id'] ?>" <?= $u['can_delegate'] ? 'checked' : '' ?> <?= $locked ? 'disabled' : '' ?>><?php else: ?><span class="muted">-</span><?php endif ?></td>
           <?php if ($me['is_admin']): ?>
             <td class="center"><input type="checkbox" name="is_admin" value="1" form="u<?= (int) $u['id'] ?>" <?= $u['is_admin'] ? 'checked' : '' ?>></td>
           <?php endif ?>

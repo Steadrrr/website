@@ -3,15 +3,8 @@ require __DIR__ . '/app/bootstrap.php';
 
 $user = require_login();
 
-$today     = date('Y-m-d');
-$weekStart = date('Y-m-d', strtotime('monday this week'));
-$monthStart = date('Y-m-01');
-
-$kpi = [
-    '오늘 매출'    => sales_total($today, $today),
-    '이번 주 매출' => sales_total($weekStart, $today),
-    '이번 달 매출' => sales_total($monthStart, $today),
-];
+$today = date('Y-m-d');
+$initial = dashboard_series('day'); // 첫 화면 숫자 (그래프는 JS가 API로 다시 불러옴)
 
 // 오늘 작성된 일지 현황
 $st = db()->prepare("SELECT type, COUNT(*) AS n FROM journals WHERE work_date = ? AND status <> 'draft' GROUP BY type");
@@ -29,34 +22,45 @@ $recent = db()->query(
 
 layout_header('대시보드', 'home');
 ?>
-<div class="kpis">
-  <?php foreach ($kpi as $label => $amount): ?>
-    <div class="kpi"><span><?= e($label) ?></span><b><?= e(won($amount)) ?></b></div>
-  <?php endforeach ?>
-  <div class="kpi"><span>내 결재 대기</span><b><a href="<?= e(url('approvals.php')) ?>"><?= count(waiting_for_user($user)) ?>건</a></b></div>
+<div class="card-head">
+  <h1>판매 현황</h1>
+  <div class="tabs" id="periodTabs">
+    <button data-period="day" class="on">일별</button>
+    <button data-period="week">주별</button>
+    <button data-period="month">월별</button>
+  </div>
 </div>
 
-<section class="card">
-  <div class="card-head">
-    <h2>매출 현황</h2>
-    <div class="tabs" id="periodTabs">
-      <button data-period="day" class="on">일별</button>
-      <button data-period="week">주별</button>
-      <button data-period="month">월별</button>
+<div class="grid2">
+  <section class="card">
+    <h2>입장권 판매 <small class="muted" data-current-label><?= e($initial['current']['label']) ?></small></h2>
+    <div class="kpis k3">
+      <div class="kpi"><span>무료</span><b><span data-kpi="free"><?= number_format($initial['current']['free']) ?></span>매</b></div>
+      <div class="kpi"><span>유료</span><b><span data-kpi="paid"><?= number_format($initial['current']['paid']) ?></span>매</b></div>
+      <div class="kpi total"><span>합계</span><b><span data-kpi="total"><?= number_format($initial['current']['total']) ?></span>매</b></div>
     </div>
-  </div>
-  <div class="chart-wrap"><canvas id="salesChart"></canvas></div>
-  <p class="muted small">
-    일별 최근 30일 · 주별 최근 12주(월요일 시작) · 월별 최근 12개월.
-    <?= config('chart_statuses') === ['approved'] ? '결재완료된 매출보고만 집계합니다.' : '결재중·결재완료 매출보고를 집계합니다.' ?>
-  </p>
-</section>
+    <div class="chart-wrap"><canvas id="ticketChart"></canvas></div>
+  </section>
+
+  <section class="card">
+    <h2>객실 판매 <small class="muted" data-current-label><?= e($initial['current']['label']) ?></small></h2>
+    <div class="kpis k2">
+      <div class="kpi"><span>판매 객실</span><b><span data-kpi="rooms"><?= number_format($initial['current']['rooms']) ?></span>실</b></div>
+      <div class="kpi"><span>입실 인원</span><b><span data-kpi="guests"><?= number_format($initial['current']['guests']) ?></span>명</b></div>
+    </div>
+    <div class="chart-wrap"><canvas id="roomChart"></canvas></div>
+  </section>
+</div>
+<p class="muted small">
+  일별 최근 30일 · 주별 최근 12주(월요일 시작) · 월별 최근 12개월.
+  <?= config('chart_statuses') === ['approved'] ? '결재완료된 매출보고만 집계합니다.' : '결재중·결재완료 매출보고를 집계합니다.' ?>
+</p>
 
 <div class="grid2">
   <section class="card">
     <h2>오늘(<?= e(date('n/j')) ?>) 일지 현황</h2>
     <ul class="list">
-      <?php foreach (JOURNAL_TYPES as $type => $label): ?>
+      <?php foreach (DAILY_TYPES as $type): $label = JOURNAL_TYPES[$type]; ?>
         <li>
           <a href="<?= e(url("journal.php?type=$type&date=$today")) ?>"><?= e($label) ?></a>
           <?php $n = (int) ($todayCounts[$type] ?? 0) ?>

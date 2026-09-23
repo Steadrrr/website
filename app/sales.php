@@ -1,88 +1,90 @@
 <?php
 defined('APP_ROOT') || exit;
 
-/** 그래프/합계에 포함할 상태 조건 SQL 조각과 파라미터 */
+/** 대시보드 집계에 포함할 상태 조건 SQL 조각과 파라미터 */
 function sales_status_filter(): array
 {
     $statuses = config('chart_statuses', ['pending', 'approved']);
     return ['j.status IN (' . implode(',', array_fill(0, count($statuses), '?')) . ')', $statuses];
 }
 
-function sales_total(string $from, string $to): int
-{
-    [$cond, $params] = sales_status_filter();
-    $st = db()->prepare(
-        "SELECT COALESCE(SUM(s.card + s.cash + s.transfer), 0)
-           FROM journals j JOIN sales_items s ON s.journal_id = j.id
-          WHERE j.type = 'sales' AND $cond AND j.work_date BETWEEN ? AND ?"
-    );
-    $st->execute([...$params, $from, $to]);
-    return (int) $st->fetchColumn();
-}
-
 /**
- * 기간별 매출 시계열 (Chart.js 형식)
+ * 기간 구간 정의
  * @param string $period day(최근 30일) | week(최근 12주, 월요일 시작) | month(최근 12개월)
+ * @return array{0: DateTimeImmutable, 1: string[], 2: string[], 3: string, 4: string, 5: DateTimeImmutable} [시작일, 키, 라벨, SQL 키식, 현재구간 이름, 종료일]
  */
-function sales_series(string $period): array
+function period_buckets(string $period): array
 {
     $today = new DateTimeImmutable('today');
-    $keys = [];
-    $labels = [];
+    $keys = $labels = [];
 
     switch ($period) {
         case 'week':
             $start = $today->modify('monday this week')->modify('-11 weeks');
-            $keyExpr = "DATE_FORMAT(DATE_SUB(j.work_date, INTERVAL WEEKDAY(j.work_date) DAY), '%Y-%m-%d')";
             for ($d = $start, $i = 0; $i < 12; $i++, $d = $d->modify('+1 week')) {
                 $keys[] = $d->format('Y-m-d');
                 $labels[] = $d->format('n/j') . '주';
             }
-            break;
+            return [$start, $keys, $labels, "DATE_FORMAT(DATE_SUB(j.work_date, INTERVAL WEEKDAY(j.work_date) DAY), '%Y-%m-%d')", '이번 주', $today->modify('sunday this week')];
         case 'month':
             $start = $today->modify('first day of this month')->modify('-11 months');
-            $keyExpr = "DATE_FORMAT(j.work_date, '%Y-%m')";
             for ($d = $start, $i = 0; $i < 12; $i++, $d = $d->modify('+1 month')) {
                 $keys[] = $d->format('Y-m');
                 $labels[] = $d->format('y.n월');
             }
-            break;
+            return [$start, $keys, $labels, "DATE_FORMAT(j.work_date, '%Y-%m')", '이번 달', $today->modify('last day of this month')];
         default:
             $start = $today->modify('-29 days');
-            $keyExpr = "DATE_FORMAT(j.work_date, '%Y-%m-%d')";
             for ($d = $start, $i = 0; $i < 30; $i++, $d = $d->modify('+1 day')) {
                 $keys[] = $d->format('Y-m-d');
                 $labels[] = $d->format('n/j');
             }
+            return [$start, $keys, $labels, "DATE_FORMAT(j.work_date, '%Y-%m-%d')", '오늘', $today];
     }
+}
 
+/**
+ * 대시보드 시계열: 입장권(무료/유료 매수), 객실(판매 객실수/입실인원)
+ * current = 마지막 구간(오늘/이번 주/이번 달) 값
+ */
+function dashboard_series(string $period): array
+{
+    [$start, $keys, $labels, $keyExpr, $currentLabel, $end] = period_buckets($period);
     [$cond, $params] = sales_status_filter();
+
     $st = db()->prepare(
-        "SELECT $keyExpr AS k, s.category, SUM(s.card + s.cash + s.transfer) AS amt
-           FROM journals j JOIN sales_items s ON s.journal_id = j.id
+        "SELECT $keyExpr AS k,
+                SUM(IF(l.grp = 'ticket' AND l.is_free = 1, l.qty, 0)) AS free,
+                SUM(IF(l.grp = 'ticket' AND l.is_free = 0, l.qty, 0)) AS paid,
+                SUM(IF(l.grp = 'room', l.qty, 0))    AS rooms,
+                SUM(IF(l.grp = 'room', l.guests, 0)) AS guests
+           FROM journals j JOIN sales_lines l ON l.journal_id = j.id
           WHERE j.type = 'sales' AND $cond AND j.work_date BETWEEN ? AND ?
-          GROUP BY k, s.category"
+          GROUP BY k"
     );
-    $st->execute([...$params, $start->format('Y-m-d'), $today->format('Y-m-d')]);
+    $st->execute([...$params, $start->format('Y-m-d'), $end->format('Y-m-d')]);
+    $rows = [];
+    foreach ($st as $r) $rows[$r['k']] = $r;
 
-    $categories = config('sales_categories', []);
-    $data = [];
-    foreach ($st as $row) {
-        if (!in_array($row['category'], $categories, true)) $categories[] = $row['category'];
-        $data[$row['category']][$row['k']] = (int) $row['amt'];
-    }
-
-    $datasets = [];
-    $totals = array_fill(0, count($keys), 0);
-    foreach ($categories as $cat) {
-        $series = [];
-        foreach ($keys as $i => $k) {
-            $v = $data[$cat][$k] ?? 0;
-            $series[] = $v;
-            $totals[$i] += $v;
+    $series = ['free' => [], 'paid' => [], 'rooms' => [], 'guests' => []];
+    foreach ($keys as $k) {
+        foreach ($series as $name => $_) {
+            $series[$name][] = (int) ($rows[$k][$name] ?? 0);
         }
-        $datasets[] = ['label' => $cat, 'data' => $series];
     }
+    $last = fn(string $name) => (int) end($series[$name]);
 
-    return ['period' => $period, 'labels' => $labels, 'datasets' => $datasets, 'totals' => $totals];
+    return [
+        'period'  => $period,
+        'labels'  => $labels,
+        'series'  => $series,
+        'current' => [
+            'label'  => $currentLabel,
+            'free'   => $last('free'),
+            'paid'   => $last('paid'),
+            'total'  => $last('free') + $last('paid'),
+            'rooms'  => $last('rooms'),
+            'guests' => $last('guests'),
+        ],
+    ];
 }

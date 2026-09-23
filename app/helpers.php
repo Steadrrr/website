@@ -17,7 +17,14 @@ const JOURNAL_TYPES = [
     'daily'    => '일일업무일지',
     'sales'    => '일일매출보고',
     'facility' => '시설물관리일지',
+    'voucher'  => '상품권입고',
 ];
+
+// 대시보드 '오늘 일지 현황'에 표시하는 매일 쓰는 일지
+const DAILY_TYPES = ['daily', 'sales', 'facility'];
+
+const PRODUCT_GROUPS = ['ticket' => '입장권', 'room' => '객실'];
+const RATE_TYPES = ['weekday' => '평일', 'weekend' => '주말·성수기'];
 
 const JOURNAL_STATUS = [
     'draft'    => '임시저장',

@@ -12,4 +12,4 @@ if (!current_user()) {
 $period = $_GET['period'] ?? 'day';
 if (!in_array($period, ['day', 'week', 'month'], true)) $period = 'day';
 
-echo json_encode(sales_series($period), JSON_UNESCAPED_UNICODE);
+echo json_encode(dashboard_series($period), JSON_UNESCAPED_UNICODE);

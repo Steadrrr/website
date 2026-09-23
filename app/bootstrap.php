@@ -19,8 +19,23 @@ error_reporting(E_ALL);
 require __DIR__ . '/helpers.php';
 require __DIR__ . '/auth.php';
 require __DIR__ . '/approval.php';
+require __DIR__ . '/migrate.php';
+require __DIR__ . '/products.php';
+require __DIR__ . '/items.php';
 require __DIR__ . '/sales.php';
 require __DIR__ . '/layout.php';
+
+// 새 버전 파일을 올린 뒤 첫 접속 시 DB 자동 업그레이드
+try {
+    db();
+    $dbReady = true;
+} catch (PDOException) {
+    $dbReady = false; // 접속 실패는 install.php 등에서 안내
+}
+if ($dbReady && db_version() < DB_VERSION) {
+    db_migrate();
+}
+unset($dbReady);
 
 $https = ($_SERVER['HTTPS'] ?? '') === 'on' || ($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '') === 'https';
 session_name('FORESTLOG');

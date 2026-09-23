@@ -11,6 +11,7 @@ function layout_header(string $title, string $active = ''): void
         'daily'    => ['journal.php?type=daily', '업무일지'],
         'sales'    => ['journal.php?type=sales', '매출보고'],
         'facility' => ['journal.php?type=facility', '시설물관리'],
+        'voucher'  => ['voucher.php', '상품권'],
         'approval' => ['approvals.php', '결재함'],
     ];
     ?>
@@ -33,6 +34,7 @@ function layout_header(string $title, string $active = ''): void
     <?php endforeach ?>
     <?php if (can_manage_users($user)): ?>
       <a href="<?= e(url('admin/users.php')) ?>" class="<?= $active === 'admin' ? 'on' : '' ?>">회원관리</a>
+      <a href="<?= e(url('admin/products.php')) ?>" class="<?= $active === 'products' ? 'on' : '' ?>">상품관리</a>
     <?php endif ?>
   </nav>
   <div class="me">
@@ -77,6 +79,7 @@ function render_approval_box(array $journal, array $approvals): void
       <td class="stamp-<?= e($a['status']) ?>">
         <?php if ($a['status'] === 'approved'): ?><b><?= e($a['approver_name']) ?></b><small>승인 <?= e(date('m/d H:i', strtotime($a['acted_at']))) ?></small>
         <?php elseif ($a['status'] === 'rejected'): ?><b><?= e($a['approver_name']) ?></b><small>반려 <?= e(date('m/d H:i', strtotime($a['acted_at']))) ?></small>
+        <?php elseif ($a['status'] === 'skipped'): ?><b class="delegated">전결</b><small><?= e($a['approver_name']) ?> <?= e(date('m/d', strtotime($a['acted_at']))) ?></small>
         <?php else: ?><small>대기</small><?php endif ?>
       </td>
     <?php endforeach ?>

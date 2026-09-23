@@ -21,7 +21,7 @@ $next  = $first->modify('+1 month')->format('Y-m');
 // 이 달의 일지 (남의 임시저장은 제외)
 $st = db()->prepare(
     "SELECT j.id, j.work_date, j.status, j.author_id, u.name AS author_name,
-            (SELECT COALESCE(SUM(s.card + s.cash + s.transfer), 0) FROM sales_items s WHERE s.journal_id = j.id) AS sales_amount
+            " . SALES_AMOUNT_SQL . " AS sales_amount
        FROM journals j JOIN users u ON u.id = j.author_id
       WHERE j.type = ? AND j.work_date BETWEEN ? AND ?
         AND (j.status <> 'draft' OR j.author_id = ?)
@@ -33,7 +33,7 @@ foreach ($st as $row) {
     $byDate[$row['work_date']][] = $row;
 }
 
-layout_header(JOURNAL_TYPES[$type], $type);
+layout_header(JOURNAL_TYPES[$type], $type === 'voucher' ? 'voucher' : $type);
 ?>
 <div class="card">
   <div class="card-head">

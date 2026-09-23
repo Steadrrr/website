@@ -17,14 +17,15 @@ if (is_post()) {
         switch ($action) {
             case 'approve':
             case 'reject':
+            case 'delegate':
                 if (!approvable_step($journal, $user)) abort(403, '결재 권한이 없습니다.');
                 $comment = mb_substr(post('comment'), 0, 500);
                 if ($action === 'reject' && $comment === '') {
                     flash('반려 사유를 입력하세요.', 'error');
                     redirect('view.php?id=' . $id);
                 }
-                journal_decide($journal, $user, $action === 'approve', $comment);
-                flash($action === 'approve' ? '승인했습니다.' : '반려했습니다.', 'success');
+                journal_decide($journal, $user, $action, $comment);
+                flash(['approve' => '승인했습니다.', 'reject' => '반려했습니다.', 'delegate' => '전결 처리했습니다. (결재완료)'][$action], 'success');
                 redirect('approvals.php');
             case 'submit':
                 if (!$editable) abort(403, '결재를 올릴 수 없는 상태입니다.');
@@ -35,7 +36,7 @@ if (is_post()) {
                 if (!$editable && !$user['is_admin']) abort(403, '삭제 권한이 없습니다.');
                 db()->prepare('DELETE FROM journals WHERE id = ?')->execute([$id]);
                 flash('삭제했습니다.', 'success');
-                redirect('journal.php?type=' . $journal['type'] . '&date=' . $journal['work_date']);
+                redirect($journal['type'] === 'voucher' ? 'voucher.php' : 'journal.php?type=' . $journal['type'] . '&date=' . $journal['work_date']);
         }
     } catch (RuntimeException $e) {
         flash($e->getMessage(), 'error');
@@ -46,18 +47,9 @@ if (is_post()) {
 $approvals = journal_approvals($id);
 $step = approvable_step($journal, $user);
 
-$sales = $facilities = [];
-if ($journal['type'] === 'sales') {
-    $st = db()->prepare('SELECT * FROM sales_items WHERE journal_id = ? ORDER BY id');
-    $st->execute([$id]);
-    $sales = $st->fetchAll();
-} elseif ($journal['type'] === 'facility') {
-    $st = db()->prepare('SELECT * FROM facility_items WHERE journal_id = ? ORDER BY id');
-    $st->execute([$id]);
-    $facilities = $st->fetchAll();
-}
+$delegatable = can_delegate($user, $step);
 
-layout_header(JOURNAL_TYPES[$journal['type']], $journal['type']);
+layout_header(JOURNAL_TYPES[$journal['type']], $journal['type'] === 'voucher' ? 'voucher' : $journal['type']);
 ?>
 <article class="card doc">
   <div class="doc-head">
@@ -72,49 +64,10 @@ layout_header(JOURNAL_TYPES[$journal['type']], $journal['type']);
     <?php render_approval_box($journal, $approvals) ?>
   </div>
 
-  <?php if ($journal['type'] === 'sales'):
-      $sum = ['qty' => 0, 'card' => 0, 'cash' => 0, 'transfer' => 0]; ?>
-    <div class="table-scroll">
-    <table class="table">
-      <thead><tr><th>구분</th><th class="right">건수</th><th class="right">카드</th><th class="right">현금</th><th class="right">계좌이체</th><th class="right">소계</th></tr></thead>
-      <tbody>
-      <?php foreach ($sales as $s):
-          foreach ($sum as $k => $_) $sum[$k] += (int) $s[$k]; ?>
-        <tr>
-          <td><?= e($s['category']) ?></td>
-          <td class="right"><?= number_format((int) $s['qty']) ?></td>
-          <td class="right"><?= number_format((int) $s['card']) ?></td>
-          <td class="right"><?= number_format((int) $s['cash']) ?></td>
-          <td class="right"><?= number_format((int) $s['transfer']) ?></td>
-          <td class="right"><b><?= number_format($s['card'] + $s['cash'] + $s['transfer']) ?></b></td>
-        </tr>
-      <?php endforeach ?>
-      </tbody>
-      <tfoot><tr>
-        <th>합계</th>
-        <th class="right"><?= number_format($sum['qty']) ?></th>
-        <th class="right"><?= number_format($sum['card']) ?></th>
-        <th class="right"><?= number_format($sum['cash']) ?></th>
-        <th class="right"><?= number_format($sum['transfer']) ?></th>
-        <th class="right"><?= e(won($sum['card'] + $sum['cash'] + $sum['transfer'])) ?></th>
-      </tr></tfoot>
-    </table>
-    </div>
-  <?php elseif ($journal['type'] === 'facility'): ?>
-    <div class="table-scroll">
-    <table class="table">
-      <thead><tr><th>시설</th><th>점검결과</th><th>내용 / 조치사항</th></tr></thead>
-      <tbody>
-      <?php foreach ($facilities as $f): ?>
-        <tr><td><?= e($f['facility']) ?></td><td><span class="result r-<?= e($f['result']) ?>"><?= e($f['result']) ?></span></td><td><?= e($f['note']) ?></td></tr>
-      <?php endforeach ?>
-      </tbody>
-    </table>
-    </div>
-  <?php endif ?>
+  <?php items_view($journal) ?>
 
   <?php if ($journal['content']): ?>
-    <h3><?= $journal['type'] === 'daily' ? '업무내용' : '메모' ?></h3>
+    <h3><?= ['daily' => '업무내용', 'voucher' => '적요'][$journal['type']] ?? '메모' ?></h3>
     <div class="pre"><?= e($journal['content']) ?></div>
   <?php endif ?>
   <?php if ($journal['remarks']): ?>
@@ -122,11 +75,13 @@ layout_header(JOURNAL_TYPES[$journal['type']], $journal['type']);
     <div class="pre"><?= e($journal['remarks']) ?></div>
   <?php endif ?>
 
-  <?php $comments = array_filter($approvals, fn($a) => $a['comment']); if ($comments): ?>
+  <?php
+  $delegated = in_array('skipped', array_column($approvals, 'status'), true);
+  $comments = array_filter($approvals, fn($a) => $a['comment'] && $a['status'] !== 'skipped'); if ($comments): ?>
     <h3>결재 의견</h3>
     <ul class="list">
       <?php foreach ($comments as $a): ?>
-        <li><span><b><?= e($a['approver_name']) ?></b> (<?= e(rank_name($a['required_rank'])) ?>, <?= $a['status'] === 'rejected' ? '반려' : '승인' ?>)</span><span><?= e($a['comment']) ?></span></li>
+        <li><span><b><?= e($a['approver_name']) ?></b> (<?= e(rank_name($a['required_rank'])) ?>, <?= $a['status'] === 'rejected' ? '반려' : ($delegated ? '전결' : '승인') ?>)</span><span><?= e($a['comment']) ?></span></li>
       <?php endforeach ?>
     </ul>
   <?php endif ?>
@@ -139,6 +94,9 @@ layout_header(JOURNAL_TYPES[$journal['type']], $journal['type']);
   <label>의견 (반려 시 필수)<textarea name="comment" rows="2"></textarea></label>
   <div class="actions">
     <button class="btn danger" name="action" value="reject">반려</button>
+    <?php if ($delegatable): ?>
+      <button class="btn" name="action" value="delegate" onclick="return confirm('팀장 결재 없이 전결로 최종 완료합니다. 진행할까요?')">전결</button>
+    <?php endif ?>
     <button class="btn primary" name="action" value="approve">승인</button>
   </div>
 </form>

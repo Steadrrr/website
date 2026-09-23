@@ -84,7 +84,20 @@ function approvable_step(array $journal, array $user): ?array
     return null;
 }
 
-function journal_decide(array $journal, array $user, bool $approve, string $comment): void
+/**
+ * 전결 가능 여부: 전결 권한이 있는 주무관이, 자기 차례의 결재 뒤에 팀장 결재가 남아 있을 때.
+ * (팀장 부재 시 주무관 결재로 문서를 최종 완료)
+ */
+function can_delegate(array $user, ?array $step): bool
+{
+    if (!$step || empty($user['can_delegate']) || (int) $user['rank_level'] !== RANK_OFFICER) return false;
+    $st = db()->prepare("SELECT COUNT(*) FROM approvals WHERE journal_id = ? AND status = 'waiting' AND step_order > ?");
+    $st->execute([$step['journal_id'], $step['step_order']]);
+    return (int) $st->fetchColumn() > 0;
+}
+
+/** @param string $action approve | reject | delegate(전결) */
+function journal_decide(array $journal, array $user, string $action, string $comment): void
 {
     $pdo = db();
     $pdo->beginTransaction();
@@ -96,13 +109,21 @@ function journal_decide(array $journal, array $user, bool $approve, string $comm
         if (!$step || (int) $step['required_rank'] !== (int) $user['rank_level']) {
             throw new RuntimeException('이미 처리되었거나 결재 권한이 없습니다.');
         }
+        if ($action === 'delegate' && !can_delegate($user, $step)) {
+            throw new RuntimeException('전결 권한이 없습니다.');
+        }
 
         $pdo->prepare('UPDATE approvals SET status = ?, approver_id = ?, comment = ?, acted_at = NOW() WHERE id = ?')
-            ->execute([$approve ? 'approved' : 'rejected', $user['id'], $comment ?: null, $step['id']]);
+            ->execute([$action === 'reject' ? 'rejected' : 'approved', $user['id'], $comment ?: null, $step['id']]);
 
-        if (!$approve) {
+        if ($action === 'reject') {
             $pdo->prepare("UPDATE journals SET status = 'rejected' WHERE id = ?")->execute([$journal['id']]);
         } else {
+            if ($action === 'delegate') {
+                // 남은 상위 결재(팀장)는 '전결'로 생략 처리
+                $pdo->prepare("UPDATE approvals SET status = 'skipped', approver_id = ?, acted_at = NOW() WHERE journal_id = ? AND status = 'waiting'")
+                    ->execute([$user['id'], $journal['id']]);
+            }
             $left = $pdo->prepare("SELECT COUNT(*) FROM approvals WHERE journal_id = ? AND status = 'waiting'");
             $left->execute([$journal['id']]);
             if ((int) $left->fetchColumn() === 0) {
