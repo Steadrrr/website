@@ -274,6 +274,36 @@ function att_when(array $r, bool $withAmount = true): string
 
 /* ───────────── 입력 검사 · 저장 ───────────── */
 
+/** 점심 휴게시간 [시작, 종료] 'HH:MM': 근무 시작 4시간 뒤 1시간 (근무가 4시간 이하이면 없음) */
+function att_break(array $u): ?array
+{
+    [$ws, $we] = att_work_hours($u);
+    $s = att_time_min($ws) + 240;
+    if (att_time_min($we) - att_time_min($ws) <= 240) return null;
+    return [sprintf('%02d:%02d', intdiv($s, 60), $s % 60), sprintf('%02d:%02d', intdiv($s + 60, 60), ($s + 60) % 60)];
+}
+
+/** 조퇴·외출로 실제 쓰는 시간(분) = 선택 시간 − 겹치는 휴게시간. 예) 9~18 근무: 9~13 = 4시간, 9~14 = 4시간 */
+function att_used_minutes(array $u, string $t1, string $t2): int
+{
+    $a = att_time_min($t1);
+    $b = att_time_min($t2);
+    $m = max(0, $b - $a);
+    if ($br = att_break($u)) {
+        $m -= max(0, min($b, att_time_min($br[1])) - max($a, att_time_min($br[0])));
+    }
+    return $m;
+}
+
+/** 조퇴·외출 시간 선택지: 근무 시작부터 종료까지 1시간 간격 ['09:00', '10:00', ...] */
+function att_hour_options(array $u): array
+{
+    [$ws, $we] = att_work_hours($u);
+    $out = [];
+    for ($m = att_time_min($ws); $m <= att_time_min($we); $m += 60) $out[] = sprintf('%02d:%02d', intdiv($m, 60), $m % 60);
+    return $out;
+}
+
 /** "HH:MM" → 분 */
 function att_time_min(string $t): int
 {
@@ -324,9 +354,15 @@ function att_validate(array $worker, array $in, int $excludeJournal = 0): array
             $errors[] = '초과근무는 공휴일 또는 근무자의 휴무일(' . att_off_label($worker) . ')에만 입력할 수 있습니다.';
         }
         if ($kind !== 'overtime') {
+            // 조퇴·외출: 근무 시작 시각부터 1시간 단위, 점심 휴게시간은 사용 시간에서 뺌
             if ($rest) $errors[] = '휴무일·공휴일에는 ' . att_kind_name($kind) . '을(를) 입력할 수 없습니다.';
             [$ws, $we] = att_work_hours($worker);
             if ($t1 < $ws || $t2 > $we) $errors[] = att_kind_name($kind) . " 시간은 근무시간({$ws}~{$we}) 안이어야 합니다.";
+            elseif ((att_time_min($t1) - att_time_min($ws)) % 60 || (att_time_min($t2) - att_time_min($ws)) % 60) {
+                $errors[] = att_kind_name($kind) . ' 시간은 1시간 단위로만 입력할 수 있습니다.';
+            }
+            $row['minutes'] = att_used_minutes($worker, $t1, $t2);
+            if (!$errors && $row['minutes'] <= 0) $errors[] = '점심 휴게시간만 선택했습니다. 사용 시간이 없습니다.';
         }
         foreach ($others as $o) {
             $overlapTime = att_is_time_kind($o['kind']) && substr((string) $o['start_time'], 0, 5) < $t2 && substr((string) $o['end_time'], 0, 5) > $t1;

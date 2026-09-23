@@ -45,20 +45,47 @@
   const check = form ? $('.att-check', form) : null;
   let timer = null;
 
+  // 시간 입력: 조퇴·외출은 근무시간 안에서 1시간 단위 선택(드롭박스), 초과근무는 자유 입력
+  const boxFree = form && $('[data-times="free"]', form);
+  const boxHour = form && $('[data-times="hour"]', form);
+  const hourMode = () => ['early', 'out'].includes(kind());
+  const box = () => (hourMode() ? boxHour : boxFree);
+  const st = () => box().querySelector('[name="start_time"]');
+  const et = () => box().querySelector('[name="end_time"]');
+
+  function fillHours(w) {
+    const opts = w ? w.options : [];
+    const [sSel, eSel] = boxHour.querySelectorAll('select');
+    const fill = (sel, list, keep) => {
+      sel.innerHTML = '<option value="">선택</option>' + list.map((t) => `<option value="${t}">${t}</option>`).join('');
+      if (list.includes(keep)) sel.value = keep;
+    };
+    fill(sSel, opts.slice(0, -1), sSel.value);
+    fill(eSel, opts.slice(1), eSel.value || (kind() === 'early' ? opts[opts.length - 1] : ''));
+    if (kind() === 'early' && !eSel.dataset.touched) eSel.value = opts[opts.length - 1] || '';
+    $('[data-break]', boxHour).textContent = w && w.break
+      ? `근무 ${w.hours[0]}~${w.hours[1]} · 점심 휴게 ${w.break[0]}~${w.break[1]}은 사용 시간에서 빠집니다. (예: ${w.hours[0]}~${w.break[1]}은 ${(parseInt(w.break[0]) - parseInt(w.hours[0]))}시간)`
+      : '';
+  }
+
+  let lastKind = '';
   function syncKind() {
     const time = unit() === 'time';
-    $('.ev-times', form).hidden = !time;
+    [boxFree, boxHour].forEach((b) => {
+      const on = time && b === box();
+      b.hidden = !on;
+      b.querySelectorAll('input, select').forEach((el) => { el.disabled = !on; el.required = on && el.name !== ''; });
+    });
     $('[data-day-only]', form).hidden = time;
-    F('start_time').required = F('end_time').required = time;
     $('[data-attach]', form).hidden = !['sick', 'official'].includes(kind());
-    // 기본 시간: 근무자의 근무시간 (조퇴는 끝나는 시간, 초과근무는 근무시간 그대로)
     const w = data.workers[F('worker_id').value];
     const [ws, we] = w ? w.hours : ['09:00', '18:00'];
-    if (time && !F('start_time').dataset.touched) {
-      if (kind() === 'early') { F('end_time').value = we; F('start_time').value = ''; }
-      else if (kind() === 'out') { F('start_time').value = ''; F('end_time').value = ''; }
-      else { F('start_time').value = ws; F('end_time').value = we; }
+    if (hourMode() && lastKind !== kind()) { // 종류를 바꾸면 시각을 새로 고름 (조퇴는 종료 = 퇴근 시각)
+      boxHour.querySelectorAll('select').forEach((sel) => { sel.value = ''; delete sel.dataset.touched; });
     }
+    lastKind = kind();
+    if (hourMode()) fillHours(w);
+    else if (time && !boxFree.dataset.touched) { st().value = ws; et().value = we; } // 초과근무 기본값
     runCheck();
   }
 
@@ -69,7 +96,7 @@
     timer = setTimeout(async () => {
       if (!F('worker_id').value) { check.innerHTML = '<p class="muted small">근무자를 고르세요.</p>'; return; }
       const q = new URLSearchParams({ user: F('worker_id').value, kind: kind(), start_date: F('start_date').value, end_date: F('end_date').value,
-        start_time: F('start_time').value, end_time: F('end_time').value });
+        start_time: unit() === 'time' ? st().value : '', end_time: unit() === 'time' ? et().value : '' });
       let res;
       try { res = await (await fetch(data.checkUrl + '&' + q.toString(), { credentials: 'same-origin' })).json(); } catch (e) { return; }
       check.innerHTML = '';
@@ -101,7 +128,8 @@
     form.reset();
     F('start_date').value = date;
     F('end_date').value = date;
-    delete F('start_time').dataset.touched;
+    delete boxFree.dataset.touched;
+    boxHour.querySelectorAll('select').forEach((sel) => { sel.value = ''; delete sel.dataset.touched; });
     syncKind();
     show('form');
   }
@@ -113,7 +141,9 @@
       if (!F('end_date').value || F('end_date').value < F('start_date').value) F('end_date').value = F('start_date').value;
       runCheck();
     });
-    ['end_date', 'start_time', 'end_time'].forEach((n) => F(n).addEventListener('change', () => { F('start_time').dataset.touched = '1'; runCheck(); }));
+    F('end_date').addEventListener('change', runCheck);
+    boxFree.querySelectorAll('input').forEach((el) => el.addEventListener('change', () => { boxFree.dataset.touched = '1'; runCheck(); }));
+    boxHour.querySelectorAll('select').forEach((el) => el.addEventListener('change', () => { el.dataset.touched = '1'; runCheck(); }));
     form.addEventListener('submit', (ev) => {
       if (form.dataset.cert && !F('attachment').files.length
           && !confirm('의사의 진단서를 첨부해야 하는 병가입니다.\n첨부 없이 올릴까요? (문서 화면에서 나중에 첨부할 수 있습니다)')) ev.preventDefault();

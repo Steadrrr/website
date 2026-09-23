@@ -62,6 +62,8 @@ if (($_GET['api'] ?? '') === 'check') {
             $out['notes'] = $notes;
             if ($row) {
                 $out['amount'] = att_is_time_kind($kind) ? att_fmt_min($row['minutes'], false) : $row['days'] . '일 (근무일 기준)';
+                if (in_array($kind, ['early', 'out'], true) && ($br = att_break($worker))
+                    && $row['start_time'] < $br[1] && $row['end_time'] > $br[0]) $out['amount'] .= " (점심 휴게 {$br[0]}~{$br[1]} 제외)";
                 $out['cert'] = (bool) $row['cert_required'];
             }
         }
@@ -410,9 +412,14 @@ layout_header('근태관리 ' . $first->format('Y년 n월'), 'attendance');
       <label>시작일<input type="date" name="start_date" required></label>
       <label data-day-only>종료일<input type="date" name="end_date"></label>
     </div>
-    <div class="ev-times" hidden>
+    <div class="ev-times" data-times="free" hidden>
       <label>시작 시간<input type="time" name="start_time" step="600"></label>
       <label>종료 시간<input type="time" name="end_time" step="600"></label>
+    </div>
+    <div class="ev-times" data-times="hour" hidden>
+      <label>시작 시각<select name="start_time" data-hour></select></label>
+      <label>종료 시각<select name="end_time" data-hour></select></label>
+      <p class="muted tiny-text" data-break></p>
     </div>
     <div class="att-check" aria-live="polite"></div>
     <label data-attach hidden>진단서 등 첨부 <small class="muted">(사진 또는 PDF)</small><input type="file" name="attachment" accept="image/*,application/pdf"></label>
@@ -429,7 +436,7 @@ window.ATT = {
   items: <?= json_encode(array_map(fn($i) => ['id' => $i['id'], 'kind' => $i['kind'], 'start_date' => $i['start_date'], 'end_date' => $i['end_date'],
       'title' => $i['title'], 'when' => $i['when'], 'pending' => $i['status'] === 'pending'], $items), JSON_UNESCAPED_UNICODE) ?>,
   kinds: <?= json_encode(array_map(fn($k) => ['label' => $k[0], 'color' => $k[1], 'unit' => $k[2]], ATT_KINDS), JSON_UNESCAPED_UNICODE) ?>,
-  workers: <?= json_encode(array_map(fn($w) => ['hours' => att_work_hours($w)], $workerMap) ?: new stdClass(), JSON_UNESCAPED_UNICODE) ?>,
+  workers: <?= json_encode(array_map(fn($w) => ['hours' => att_work_hours($w), 'options' => att_hour_options($w), 'break' => att_break($w)], $workerMap) ?: new stdClass(), JSON_UNESCAPED_UNICODE) ?>,
   viewUrl: <?= json_encode(url('view.php?id=')) ?>,
   checkUrl: <?= json_encode(url('attendance.php?api=check')) ?>,
   openNew: <?= json_encode(valid_date($_GET['new'] ?? '') ? $_GET['new'] : null) ?>,
