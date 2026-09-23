@@ -10,13 +10,11 @@ if (is_post()) {
     $password = post('password');
     $name     = post('name');
     $phone    = post('phone');
-    $rank     = (int) post('rank_level', '1');
 
     if (!preg_match('/^[a-zA-Z0-9_]{4,20}$/', $username)) $errors[] = '아이디는 영문/숫자 4~20자로 입력하세요.';
     if (mb_strlen($password) < 8) $errors[] = '비밀번호는 8자 이상이어야 합니다.';
     if ($password !== post('password2')) $errors[] = '비밀번호 확인이 일치하지 않습니다.';
     if ($name === '' || mb_strlen($name) > 50) $errors[] = '이름을 입력하세요.';
-    if (!isset(RANKS[$rank])) $errors[] = '직급을 선택하세요.';
 
     if (!$errors) {
         $st = db()->prepare('SELECT 1 FROM users WHERE username = ?');
@@ -25,9 +23,9 @@ if (is_post()) {
     }
 
     if (!$errors) {
-        // 가입 신청 직급은 참고용. 관리자/팀장이 승인하면서 최종 직급을 확정한다.
+        // 직급은 가입 때 고르지 않는다. 관리원으로 등록되고, 관리자(팀장)가 승인하면서 회원관리에서 직급을 정한다.
         db()->prepare("INSERT INTO users (username, password_hash, name, phone, rank_level, status) VALUES (?, ?, ?, ?, ?, 'pending')")
-            ->execute([$username, password_hash($password, PASSWORD_DEFAULT), $name, $phone ?: null, $rank]);
+            ->execute([$username, password_hash($password, PASSWORD_DEFAULT), $name, $phone ?: null, RANK_KEEPER]);
         flash('가입 신청이 완료되었습니다. 관리자 승인 후 로그인할 수 있습니다.', 'success');
         redirect('login.php');
     }
@@ -45,15 +43,8 @@ layout_header('회원가입');
     <label>비밀번호 확인<input type="password" name="password2" required minlength="8" autocomplete="new-password"></label>
     <label>이름<input name="name" value="<?= e(post('name')) ?>" required maxlength="50"></label>
     <label>연락처<input name="phone" value="<?= e(post('phone')) ?>" placeholder="010-0000-0000"></label>
-    <label>직급
-      <select name="rank_level">
-        <?php foreach (RANKS as $v => $label): ?>
-          <option value="<?= $v ?>" <?= (int) post('rank_level', '1') === $v ? 'selected' : '' ?>><?= e($label) ?></option>
-        <?php endforeach ?>
-      </select>
-    </label>
     <button class="btn primary block">가입 신청</button>
   </form>
-  <p class="center muted">가입 후 관리자(팀장)의 승인이 있어야 로그인됩니다.</p>
+  <p class="center muted">가입 후 관리자(팀장)의 승인이 있어야 로그인됩니다. 직급·팀·보직은 관리자가 승인하면서 정합니다.</p>
 </div>
 <?php layout_footer();
