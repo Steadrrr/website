@@ -194,7 +194,7 @@ if ($view === 'sheet') {
         <select name="user" onchange="this.form.submit()">
           <?php $tg = false; foreach ($allWorkers as $w): $tn = team_name($w['team_id'] ? (int) $w['team_id'] : null);
               if ($tg !== $tn): ?><?= $tg === false ? '' : '</optgroup>' ?><optgroup label="<?= e($tn) ?>"><?php $tg = $tn; endif ?>
-            <option value="<?= (int) $w['id'] ?>" <?= $worker && (int) $w['id'] === (int) $worker['id'] ? 'selected' : '' ?>><?= e($w['name']) ?></option>
+            <option value="<?= (int) $w['id'] ?>" <?= $worker && (int) $w['id'] === (int) $worker['id'] ? 'selected' : '' ?>><?= e($w['name']) ?><?= att_expired($w) ? ' (계약만료)' : '' ?></option>
           <?php endforeach ?><?= $tg === false ? '' : '</optgroup>' ?>
         </select>
       </label>
@@ -309,7 +309,7 @@ layout_header('근태관리 ' . $first->format('Y년 n월'), 'attendance');
         <select name="user" onchange="this.form.submit()">
           <option value="">전체</option>
           <?php foreach ($allWorkers as $w): if ($teamId && (int) $w['team_id'] !== $teamId) continue; ?>
-            <option value="<?= (int) $w['id'] ?>" <?= $personId === (int) $w['id'] ? 'selected' : '' ?>><?= e($w['name']) ?></option>
+            <option value="<?= (int) $w['id'] ?>" <?= $personId === (int) $w['id'] ? 'selected' : '' ?>><?= e($w['name']) ?><?= att_expired($w) ? ' (계약만료)' : '' ?></option>
           <?php endforeach ?>
         </select>
       </label>
@@ -393,7 +393,7 @@ layout_header('근태관리 ' . $first->format('Y년 n월'), 'attendance');
           <option value="">선택</option>
           <?php $tg = false; foreach ($allWorkers as $w): $tn = team_name($w['team_id'] ? (int) $w['team_id'] : null);
               if ($tg !== $tn): ?><?= $tg === false ? '' : '</optgroup>' ?><optgroup label="<?= e($tn) ?>"><?php $tg = $tn; endif ?>
-            <option value="<?= (int) $w['id'] ?>" <?= $personId === (int) $w['id'] ? 'selected' : '' ?>><?= e($w['name']) ?></option>
+            <option value="<?= (int) $w['id'] ?>" <?= $personId === (int) $w['id'] ? 'selected' : '' ?>><?= e($w['name']) ?><?= att_expired($w) ? ' (계약만료)' : '' ?></option>
           <?php endforeach ?><?= $tg === false ? '' : '</optgroup>' ?>
         </select>
       </label>

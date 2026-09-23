@@ -98,6 +98,13 @@ function att_off_days(array $u): array
     return array_values(array_unique(array_map('intval', array_filter(explode(',', $raw), fn($x) => $x !== '' && ctype_digit($x) && $x <= 6))));
 }
 
+/** 계약만료일이 지났는가 */
+function att_expired(array $u, ?string $today = null): bool
+{
+    $p = att_period($u);
+    return $p && $p[1] < ($today ?? date('Y-m-d'));
+}
+
 function att_off_label(array $u): string
 {
     $days = att_off_days($u);
@@ -112,7 +119,7 @@ function att_work_hours(array $u): array
 
 function att_work_configured(array $u): bool
 {
-    return !empty($u['hire_date']) && !empty($u['work_start']) && trim((string) $u['off_days']) !== '';
+    return !empty($u['hire_date']) && !empty($u['contract_end']) && !empty($u['work_start']) && trim((string) $u['off_days']) !== '';
 }
 
 /** 월 더하기 (1/31 + 1개월 = 2/28 처럼 말일을 넘지 않게) */
@@ -124,7 +131,7 @@ function att_add_months(string $date, int $n): string
     return $target->format('Y-m-') . sprintf('%02d', $day);
 }
 
-/** 계약 기간 [입사일, 계약종료일] (입사일 없으면 null). 종료일을 비우면 입사일 + 1년 - 1일 */
+/** 계약 기간 [입사일, 계약만료일] (입사일 없으면 null). 만료일이 없는 예전 자료는 입사일 + 1년 - 1일로 계산 */
 function att_period(array $u): ?array
 {
     if (empty($u['hire_date'])) return null;
@@ -291,6 +298,9 @@ function att_validate(array $worker, array $in, int $excludeJournal = 0): array
         'days' => 0, 'minutes' => 0, 'cert_required' => 0];
     $others = att_records(['user_id' => $worker['id'], 'from' => $start, 'to' => $end, 'exclude' => $excludeJournal]);
     $sum = att_summary($worker, null, $excludeJournal);
+    if ($sum['set'] && ($start < $sum['period'][0] || $end > $sum['period'][1])) {
+        return [null, ["계약기간({$sum['period'][0]} ~ {$sum['period'][1]}) 안의 날짜만 입력할 수 있습니다."], []];
+    }
 
     if (!att_is_time_kind($kind)) {
         $days = att_workdays($worker, $start, $end);
@@ -331,10 +341,8 @@ function att_validate(array $worker, array $in, int $excludeJournal = 0): array
         if (!$sum['set']) {
             $errors[] = '입사일이 등록되지 않아 연차를 계산할 수 없습니다. 관리자에게 회원관리 › 근무 설정을 요청하세요.';
         } else {
-            [$pFrom, $pTo] = $sum['period'];
             $need = $kind === 'annual' ? $row['days'] * ATT_DAY_MIN : $row['minutes'];
-            if ($start < $pFrom || $end > $pTo) $errors[] = "계약기간({$pFrom} ~ {$pTo}) 안의 날짜만 입력할 수 있습니다.";
-            elseif ($need > $sum['can_use_min']) {
+            if ($need > $sum['can_use_min']) {
                 $errors[] = '연차가 부족합니다. 최대 발생 연차 ' . $sum['max'] . '일 중 ' . att_fmt_min($sum['used_min']) . ' 사용(결재중 포함) · '
                           . '더 쓸 수 있는 연차 ' . att_fmt_min($sum['can_use_min']) . ' / 신청 ' . att_fmt_min($need);
             } elseif ($sum['used_min'] + $need > $sum['accrued'] * ATT_DAY_MIN) {

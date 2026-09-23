@@ -64,6 +64,7 @@ layout_header('대시보드', 'home');
         <li><span>남은 연차</span><b class="<?= $as['remain_min'] < 0 ? 'warn' : '' ?>"><?= e(att_fmt_min($as['remain_min'])) ?></b></li>
         <li><span>병가 사용</span><b><?= $as['sick_used'] ?>일 <small class="muted">/ <?= $as['sick_limit'] ?>일</small></b></li>
       </ul>
+      <p class="muted small">계약 <?= e(date('Y.n.j', strtotime($as['period'][0]))) ?> ~ <?= e(date('Y.n.j', strtotime($as['period'][1]))) ?> (<?= $as['months'] ?>개월)</p>
     <?php endif ?>
     <a class="btn small" href="<?= e(url('attendance.php?new=' . $today)) ?>">+ 근태 입력</a>
   </div>
