@@ -13,8 +13,15 @@ $todayCounts = array_column($st->fetchAll(), 'n', 'type');
 
 $waiting = waiting_for_user($user, 5);
 
+// 공지: 중요 공지 전부 + 최근 30일 공지 (합쳐서 최대 6개)
+$notices = db()->query(
+    "SELECT n.id, n.title, n.is_pinned, n.created_at, u.name AS author_name FROM notices n JOIN users u ON u.id = n.author_id
+      WHERE n.is_pinned = 1 OR n.created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)
+      ORDER BY n.is_pinned DESC, n.created_at DESC LIMIT 6"
+)->fetchAll();
+
 $recent = db()->query(
-    "SELECT j.id, j.type, j.work_date, j.status, u.name AS author_name
+    "SELECT j.*, u.name AS author_name
        FROM journals j JOIN users u ON u.id = j.author_id
       WHERE j.status <> 'draft'
       ORDER BY j.updated_at DESC LIMIT 10"
@@ -22,6 +29,28 @@ $recent = db()->query(
 
 layout_header('대시보드', 'home');
 ?>
+<section class="card notice-board">
+  <div class="card-head">
+    <h2>공지사항</h2>
+    <div class="actions no-margin">
+      <?php if (can_write_notice($user)): ?><a class="btn small" href="<?= e(url('notice_edit.php')) ?>">+ 공지 쓰기</a><?php endif ?>
+      <a class="btn small ghost" href="<?= e(url('notices.php')) ?>">전체 보기 ›</a>
+    </div>
+  </div>
+  <?php if (!$notices): ?>
+    <p class="muted small">최근 공지가 없습니다.</p>
+  <?php else: ?>
+    <ul class="notice-list">
+      <?php foreach ($notices as $n): ?>
+        <li class="<?= $n['is_pinned'] ? 'pinned' : '' ?>">
+          <a href="<?= e(url('notices.php?id=' . $n['id'])) ?>"><?= $n['is_pinned'] ? '<span class="badge pin">중요</span> ' : '' ?><?= e($n['title']) ?><?= is_new($n['created_at']) ? ' <span class="new-dot">N</span>' : '' ?></a>
+          <span class="muted small"><?= e($n['author_name']) ?> · <?= e(date('n/j', strtotime($n['created_at']))) ?></span>
+        </li>
+      <?php endforeach ?>
+    </ul>
+  <?php endif ?>
+</section>
+
 <div class="card-head">
   <h1>판매 현황</h1>
   <div class="tabs" id="periodTabs">
@@ -87,17 +116,18 @@ layout_header('대시보드', 'home');
 <section class="card">
   <h2>최근 일지</h2>
   <table class="table">
-    <thead><tr><th>일자</th><th>구분</th><th>작성자</th><th>상태</th></tr></thead>
+    <thead><tr><th>일자</th><th>구분</th><th>작성자</th><th>상태</th><th></th></tr></thead>
     <tbody>
     <?php foreach ($recent as $j): ?>
       <tr onclick="location.href='<?= e(url('view.php?id=' . $j['id'])) ?>'" class="clickable">
         <td><?= e($j['work_date']) ?></td>
         <td><?= e(JOURNAL_TYPES[$j['type']]) ?></td>
         <td><?= e($j['author_name']) ?></td>
-        <td><?= status_badge($j['status']) ?></td>
+        <td><?= journal_badges($j) ?></td>
+        <td class="right"><?= can_edit_journal($j, $user) ? edit_button($j, 'btn small') : '' ?></td>
       </tr>
     <?php endforeach ?>
-    <?php if (!$recent): ?><tr><td colspan="4" class="muted center">아직 작성된 일지가 없습니다.</td></tr><?php endif ?>
+    <?php if (!$recent): ?><tr><td colspan="5" class="muted center">아직 작성된 일지가 없습니다.</td></tr><?php endif ?>
     </tbody>
   </table>
 </section>

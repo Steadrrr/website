@@ -1,5 +1,8 @@
 <?php
-/** 일지 작성/수정: write.php?type=daily&date=2026-09-22  또는  write.php?id=12 */
+/**
+ * 일지 작성/수정: write.php?type=daily&date=2026-09-22  또는  write.php?id=12
+ * 상신된 일지는 모든 직원이 수정할 수 있고, 수정하면 이력이 남고 결재가 처음부터 다시 진행된다.
+ */
 require __DIR__ . '/app/bootstrap.php';
 
 $user = require_login();
@@ -10,8 +13,7 @@ $journal = null;
 
 if ($id) {
     $journal = journal_find($id) ?? abort(404, '일지를 찾을 수 없습니다.');
-    if ((int) $journal['author_id'] !== (int) $user['id']) abort(403, '본인이 작성한 일지만 수정할 수 있습니다.');
-    if (!in_array($journal['status'], ['draft', 'rejected'], true)) abort(403, '결재중이거나 결재완료된 일지는 수정할 수 없습니다.');
+    if (!can_edit_journal($journal, $user)) abort(403, '임시저장 문서는 작성자만 수정할 수 있습니다.');
     $type = $journal['type'];
     $workDate = $journal['work_date'];
     $teamId = $journal['team_id'] ? (int) $journal['team_id'] : null;
@@ -29,6 +31,7 @@ if ($id) {
     $payload = items_default($type, $teamId ?: null);
 }
 
+$revision = $journal && is_revision_edit($journal); // 상신된 적 있는 일지 수정 → 이력 + 결재 초기화
 $errors = [];
 
 if (is_post()) {
@@ -37,7 +40,12 @@ if (is_post()) {
     $weather  = mb_substr(post('weather'), 0, 30);
     $content  = post('content');
     $remarks  = post('remarks');
-    $submit   = post('action') === 'submit';
+    $submit   = $revision || post('action') === 'submit';
+    $reason   = mb_substr(post('edit_reason'), 0, 500);
+    if ($revision) {
+        $before = journal_snapshot($journal);
+        $prevApproval = approval_summary($journal);
+    }
 
     if (!valid_date($workDate)) $errors[] = '일자를 확인하세요.';
     if ($type === 'daily' && $content === '') $errors[] = '업무내용을 입력하세요.';
@@ -65,7 +73,17 @@ if (is_post()) {
         }
 
         foreach ($payload['warnings'] ?? [] as $w) flash('확인 필요 · ' . $w, 'error');
-        if ($submit) {
+        if ($revision) {
+            $fresh = journal_find($id);
+            $changes = snapshot_diff($before, journal_snapshot($fresh));
+            if (!$changes && $reason === '') {
+                flash('바뀐 내용이 없어 결재 상태를 그대로 두었습니다.', 'info');
+                redirect('view.php?id=' . $id);
+            }
+            revision_record($journal, $user, $changes, $prevApproval, $reason);
+            journal_submit($fresh, (int) $user['rank_level']); // 결재선은 수정한 사람 기준으로 처음부터
+            flash('수정했습니다. 결재 상태가 초기화되어 처음부터 다시 결재가 진행됩니다.', 'success');
+        } elseif ($submit) {
             journal_submit(journal_find($id));
             flash('결재를 올렸습니다.', 'success');
         } else {
@@ -87,6 +105,15 @@ layout_header(JOURNAL_TYPES[$type] . ($journal ? ' 수정' : ' 작성'), $type =
     <span class="muted small">결재선: 작성(<?= e(rank_name($user['rank_level'])) ?>)<?php foreach ($line as $r): ?> → <?= e(rank_name($r)) ?><?php endforeach ?><?= $line ? '' : ' (결재 생략)' ?></span>
   </div>
   <?php foreach ($errors as $err): ?><div class="flash flash-error"><?= e($err) ?></div><?php endforeach ?>
+
+  <?php if ($revision): ?>
+    <div class="flash flash-warn">
+      <b>수정 시 결재 상태가 초기화됩니다.</b> 저장하면 지금까지의 결재(<?= e(approval_summary($journal)) ?>)가 취소되고
+      수정한 사람(<?= e($user['name']) ?> <?= e(rank_name($user['rank_level'])) ?>) 기준으로 처음부터 다시 결재가 올라갑니다.
+      수정 전·후 내용은 <b>수정 이력</b>에 남습니다.
+      <?php if ((int) $journal['author_id'] !== (int) $user['id']): ?><br>작성자: <?= e($journal['author_name']) ?><?php endif ?>
+    </div>
+  <?php endif ?>
 
   <div class="row">
     <?php if ($type === 'facility'): ?>
@@ -123,8 +150,14 @@ layout_header(JOURNAL_TYPES[$type] . ($journal ? ' 수정' : ' 작성'), $type =
 
   <div class="actions">
     <a class="btn ghost" href="<?= e(url($journal ? 'view.php?id=' . $journal['id'] : ($type === 'voucher' ? 'voucher.php' : "journal.php?type=$type"))) ?>">취소</a>
-    <button class="btn" name="action" value="save">임시저장</button>
-    <button class="btn primary" name="action" value="submit"><?= $line ? '결재 올리기' : '저장(결재완료)' ?></button>
+    <?php if ($revision): ?>
+      <input name="edit_reason" value="<?= e(post('edit_reason')) ?>" placeholder="수정 사유 (선택)" class="reason-input" maxlength="500">
+      <button class="btn primary" name="action" value="submit" onclick="return confirm('결재 상태가 초기화되고 처음부터 다시 결재를 받습니다. 저장할까요?')">
+        수정 저장 · <?= $line ? '결재 다시 올리기' : '결재완료' ?></button>
+    <?php else: ?>
+      <button class="btn" name="action" value="save">임시저장</button>
+      <button class="btn primary" name="action" value="submit"><?= $line ? '결재 올리기' : '저장(결재완료)' ?></button>
+    <?php endif ?>
   </div>
 </form>
 <?php layout_footer();

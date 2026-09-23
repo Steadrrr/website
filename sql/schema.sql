@@ -26,6 +26,9 @@ CREATE TABLE IF NOT EXISTS journals (
   content      TEXT         NULL COMMENT '업무내용/메모',
   remarks      TEXT         NULL COMMENT '특이사항',
   status       ENUM('draft','pending','approved','rejected') NOT NULL DEFAULT 'draft',
+  revision     INT UNSIGNED NOT NULL DEFAULT 0 COMMENT '상신 후 수정 횟수 (0 = 수정 안 됨)',
+  last_edited_at DATETIME NULL,
+  last_edited_by INT UNSIGNED NULL,
   submitted_at DATETIME     NULL,
   completed_at DATETIME     NULL,
   created_at   DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -241,4 +244,32 @@ CREATE TABLE IF NOT EXISTS photos (
   user_id    INT UNSIGNED NULL,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   INDEX idx_owner (owner_type, owner_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 일지 수정 이력: 상신된 일지를 누군가 수정하면 수정 전·후 내용과 결재 상태를 남긴다
+CREATE TABLE IF NOT EXISTS journal_revisions (
+  id          INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  journal_id  INT UNSIGNED NOT NULL,
+  user_id     INT UNSIGNED NOT NULL,
+  edited_at   DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  prev_status VARCHAR(20) NOT NULL COMMENT '수정 전 결재 상태',
+  prev_approval VARCHAR(500) NULL COMMENT '수정 전 결재 진행 내역 (초기화됨)',
+  reason      VARCHAR(500) NULL,
+  changes     MEDIUMTEXT NULL COMMENT '변경 내역 JSON',
+  INDEX idx_journal (journal_id),
+  CONSTRAINT fk_rev_journal FOREIGN KEY (journal_id) REFERENCES journals(id) ON DELETE CASCADE,
+  CONSTRAINT fk_rev_user FOREIGN KEY (user_id) REFERENCES users(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 공지사항
+CREATE TABLE IF NOT EXISTS notices (
+  id         INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  title      VARCHAR(200) NOT NULL,
+  body       TEXT NULL,
+  is_pinned  TINYINT(1) NOT NULL DEFAULT 0 COMMENT '중요 공지 (대시보드 상단 고정)',
+  author_id  INT UNSIGNED NOT NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NULL,
+  INDEX idx_pinned (is_pinned, created_at),
+  CONSTRAINT fk_notice_author FOREIGN KEY (author_id) REFERENCES users(id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

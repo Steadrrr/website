@@ -165,6 +165,47 @@ function status_badge(string $status): string
     return '<span class="badge st-' . e($status) . '">' . e(JOURNAL_STATUS[$status] ?? $status) . '</span>';
 }
 
+/** 공지사항 작성 권한: 최고관리자, 팀장, 주무관 */
+function can_write_notice(array $u): bool
+{
+    return (bool) $u['is_admin'] || (int) $u['rank_level'] >= RANK_OFFICER;
+}
+
+/** 최근 3일 안에 올라온 글 */
+function is_new(string $datetime): bool
+{
+    return strtotime($datetime) >= strtotime('-3 days');
+}
+
+/** 결재 상태 + 수정됨 표시 */
+function journal_badges(array $j): string
+{
+    return status_badge($j['status']) . (!empty($j['revision'])
+        ? ' <span class="badge st-edited" title="상신 후 ' . (int) $j['revision'] . '회 수정됨">수정됨' . ((int) $j['revision'] > 1 ? ' ' . (int) $j['revision'] : '') . '</span>'
+        : '');
+}
+
+/** 이 사용자가 이 일지를 수정할 수 있는가: 임시저장은 작성자만, 상신된 일지는 모든 직원 */
+function can_edit_journal(array $journal, array $user): bool
+{
+    return $journal['status'] !== 'draft' || (int) $journal['author_id'] === (int) $user['id'];
+}
+
+/** 상신된 적 있는 일지를 고치는 것인가 (수정 이력 남기고 결재 초기화) */
+function is_revision_edit(array $journal): bool
+{
+    return $journal['submitted_at'] !== null;
+}
+
+/** 수정 버튼 (결재 초기화 확인창 포함) */
+function edit_button(array $journal, string $class = 'btn'): string
+{
+    $confirm = is_revision_edit($journal)
+        ? ' onclick="event.stopPropagation(); return confirm(\'수정하면 결재 상태가 초기화되고 처음부터 다시 결재를 받아야 합니다.\n수정할까요?\')"'
+        : ' onclick="event.stopPropagation()"';
+    return '<a class="' . e($class) . '" href="' . e(url('write.php?id=' . (int) $journal['id'])) . '"' . $confirm . '>수정</a>';
+}
+
 function weekday_ko(string $date): string
 {
     return ['일', '월', '화', '수', '목', '금', '토'][(int) date('w', strtotime($date))];

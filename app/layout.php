@@ -8,6 +8,7 @@ function layout_header(string $title, string $active = ''): void
     $waiting = $user ? count(waiting_for_user($user)) : 0;
     $nav = [
         'home'     => ['index.php', '대시보드'],
+        'notices'  => ['notices.php', '공지'],
         'daily'    => ['journal.php?type=daily', '업무일지'],
         'sales'    => ['journal.php?type=sales', '매출보고'],
         'facility'   => ['journal.php?type=facility', '시설점검'],

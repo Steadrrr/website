@@ -38,11 +38,14 @@ function journal_approvals(int $journalId): array
     return $st->fetchAll();
 }
 
-/** 결재 상신(재상신 포함). 기존 결재선은 새로 만든다. */
-function journal_submit(array $journal): void
+/**
+ * 결재 상신(재상신 포함). 기존 결재선은 지우고 처음부터 새로 만든다.
+ * $rank: 결재선을 정할 직급 (기본 = 작성자. 다른 사람이 수정했으면 수정한 사람의 직급)
+ */
+function journal_submit(array $journal, ?int $rank = null): void
 {
     $pdo = db();
-    $line = approval_line_for((int) $journal['author_rank']);
+    $line = approval_line_for($rank ?? (int) $journal['author_rank']);
 
     $pdo->beginTransaction();
     try {

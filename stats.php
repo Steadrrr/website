@@ -270,7 +270,7 @@ layout_header($title, 'stats');
         <td class="nowrap"><?= e($j['weather']) ?></td>
         <td class="pre-cell"><?= e($j['content']) ?></td>
         <td class="pre-cell"><?= e($j['remarks']) ?></td>
-        <td><?= status_badge($j['status']) ?></td>
+        <td><?= journal_badges($j) ?></td>
       </tr>
     <?php endforeach ?>
     <?php if (!$journals): ?><tr><td colspan="6" class="center muted">해당 기간의 업무일지가 없습니다.</td></tr><?php endif ?>

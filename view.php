@@ -48,6 +48,8 @@ $approvals = journal_approvals($id);
 $step = approvable_step($journal, $user);
 
 $delegatable = can_delegate($user, $step);
+$revisions = journal_revisions($id);
+$lastEditor = $revisions[0]['user_name'] ?? '';
 
 layout_header(JOURNAL_TYPES[$journal['type']], $journal['type'] === 'voucher' ? 'voucher' : $journal['type']);
 ?>
@@ -58,8 +60,12 @@ layout_header(JOURNAL_TYPES[$journal['type']], $journal['type'] === 'voucher' ? 
       <p class="muted">
         <?= e($journal['work_date']) ?> (<?= weekday_ko($journal['work_date']) ?>)
         <?php if ($journal['weather']): ?> · <?= e($journal['weather']) ?><?php endif ?>
-        · 문서번호 <?= (int) $journal['id'] ?> · <?= status_badge($journal['status']) ?>
+        · 문서번호 <?= (int) $journal['id'] ?> · <?= journal_badges($journal) ?>
       </p>
+      <?php if ($journal['revision']): ?>
+        <p class="muted small">마지막 수정: <?= e($lastEditor) ?> · <?= e(date('Y-m-d H:i', strtotime($journal['last_edited_at']))) ?>
+          (상신 후 <?= (int) $journal['revision'] ?>회 수정 · <a href="#revisions">수정 이력</a>)</p>
+      <?php endif ?>
     </div>
     <?php render_approval_box($journal, $approvals) ?>
   </div>
@@ -102,11 +108,13 @@ layout_header(JOURNAL_TYPES[$journal['type']], $journal['type'] === 'voucher' ? 
 </form>
 <?php endif ?>
 
+<div id="revisions"><?php render_revisions($revisions) ?></div>
+
 <div class="actions no-print">
   <a class="btn ghost" href="<?= e(url('journal.php?type=' . $journal['type'] . '&date=' . $journal['work_date'])) ?>">목록</a>
   <button class="btn ghost" onclick="window.print()">인쇄</button>
-  <?php if ($editable): ?>
-    <a class="btn" href="<?= e(url('write.php?id=' . $id)) ?>">수정</a>
+  <?php if (can_edit_journal($journal, $user)): ?>
+    <?= edit_button($journal) ?>
   <?php endif ?>
   <?php if ($editable || $user['is_admin']): ?>
     <form method="post" onsubmit="return confirm('삭제하시겠습니까?')">

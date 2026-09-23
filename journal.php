@@ -25,7 +25,7 @@ $next  = $first->modify('+1 month')->format('Y-m');
 
 // 이 달의 일지 (남의 임시저장은 제외)
 $st = db()->prepare(
-    "SELECT j.id, j.work_date, j.status, j.author_id, j.team_id, u.name AS author_name,
+    "SELECT j.id, j.work_date, j.status, j.author_id, j.team_id, j.revision, j.submitted_at, u.name AS author_name,
             " . SALES_AMOUNT_SQL . " AS sales_amount
        FROM journals j JOIN users u ON u.id = j.author_id
       WHERE j.type = ? AND j.work_date BETWEEN ? AND ?
@@ -89,7 +89,7 @@ layout_header(JOURNAL_TYPES[$type], $type === 'voucher' ? 'voucher' : $type);
           <span class="amt"><?= e(number_format(array_sum(array_column($items, 'sales_amount')))) ?></span>
         <?php endif ?>
         <?php foreach (array_slice($items, 0, 3) as $it): ?>
-          <span class="chip st-<?= e($it['status']) ?>"><?= e($it['author_name']) ?><?= $type === 'facility' && !$teamId && $it['team_id'] ? '·' . e(mb_substr(team_name((int) $it['team_id']), 0, 2)) : '' ?></span>
+          <span class="chip st-<?= e($it['status']) ?>"><?= $it['revision'] ? '✎' : '' ?><?= e($it['author_name']) ?><?= $type === 'facility' && !$teamId && $it['team_id'] ? '·' . e(mb_substr(team_name((int) $it['team_id']), 0, 2)) : '' ?></span>
         <?php endforeach ?>
         <?php if (count($items) > 3): ?><span class="more">+<?= count($items) - 3 ?></span><?php endif ?>
       </a>
@@ -111,14 +111,15 @@ layout_header(JOURNAL_TYPES[$type], $type === 'voucher' ? 'voucher' : $type);
     <p class="muted">작성된 일지가 없습니다.</p>
   <?php else: ?>
     <table class="table">
-      <thead><tr><th>작성자</th><?php if ($type === 'facility'): ?><th>관리팀</th><?php endif ?><?php if ($type === 'sales'): ?><th class="right">매출합계</th><?php endif ?><th>상태</th></tr></thead>
+      <thead><tr><th>작성자</th><?php if ($type === 'facility'): ?><th>관리팀</th><?php endif ?><?php if ($type === 'sales'): ?><th class="right">매출합계</th><?php endif ?><th>상태</th><th class="no-print"></th></tr></thead>
       <tbody>
       <?php foreach ($items as $it): ?>
         <tr class="clickable" onclick="location.href='<?= e(url('view.php?id=' . $it['id'])) ?>'">
           <td><?= e($it['author_name']) ?></td>
           <?php if ($type === 'facility'): ?><td><?= e(team_name($it['team_id'] ? (int) $it['team_id'] : null)) ?></td><?php endif ?>
           <?php if ($type === 'sales'): ?><td class="right"><?= e(won($it['sales_amount'])) ?></td><?php endif ?>
-          <td><?= status_badge($it['status']) ?></td>
+          <td><?= journal_badges($it) ?></td>
+          <td class="right no-print"><?= can_edit_journal($it, $user) ? edit_button($it, 'btn small') : '' ?></td>
         </tr>
       <?php endforeach ?>
       </tbody>
