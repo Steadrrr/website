@@ -47,7 +47,10 @@ layout_header('상품권 재고', 'voucher');
 <section class="card">
   <div class="card-head">
     <h1>지역상품권 재고</h1>
-    <a class="btn primary" href="<?= e(url('write.php?type=voucher')) ?>">+ 입고 등록</a>
+    <div class="actions no-margin no-print">
+      <button class="btn ghost" onclick="window.print()">인쇄</button>
+      <a class="btn primary" href="<?= e(url('write.php?type=voucher')) ?>">+ 입고 등록</a>
+    </div>
   </div>
   <div class="kpis k<?= count($denoms) + 1 ?>">
     <?php foreach ($denoms as $d): ?>

@@ -14,12 +14,19 @@ if ($id) {
     if (!in_array($journal['status'], ['draft', 'rejected'], true)) abort(403, '결재중이거나 결재완료된 일지는 수정할 수 없습니다.');
     $type = $journal['type'];
     $workDate = $journal['work_date'];
+    $teamId = $journal['team_id'] ? (int) $journal['team_id'] : null;
     $payload = items_load($journal);
 } else {
     $type = $_GET['type'] ?? 'daily';
     if (!isset(JOURNAL_TYPES[$type])) abort(404, '알 수 없는 일지 종류입니다.');
     $workDate = valid_date($_GET['date'] ?? '') ? $_GET['date'] : date('Y-m-d');
-    $payload = items_default($type);
+    // 시설점검은 관리팀별로 작성
+    $teamId = null;
+    if ($type === 'facility') {
+        $teamId = (int) ($_GET['team'] ?? 0);
+        if (!isset(teams_all()[$teamId])) $teamId = (int) array_key_first(teams_all());
+    }
+    $payload = items_default($type, $teamId ?: null);
 }
 
 $errors = [];
@@ -41,12 +48,13 @@ if (is_post()) {
     if (!$errors) {
         $pdo->beginTransaction();
         try {
+            $teamId = $payload['team_id'] ?? null;
             if ($id) {
-                $pdo->prepare('UPDATE journals SET work_date = ?, weather = ?, content = ?, remarks = ? WHERE id = ?')
-                    ->execute([$workDate, $weather ?: null, $content, $remarks, $id]);
+                $pdo->prepare('UPDATE journals SET work_date = ?, team_id = ?, weather = ?, content = ?, remarks = ? WHERE id = ?')
+                    ->execute([$workDate, $teamId, $weather ?: null, $content, $remarks, $id]);
             } else {
-                $pdo->prepare("INSERT INTO journals (type, work_date, author_id, weather, content, remarks, status) VALUES (?, ?, ?, ?, ?, ?, 'draft')")
-                    ->execute([$type, $workDate, $user['id'], $weather ?: null, $content, $remarks]);
+                $pdo->prepare("INSERT INTO journals (type, team_id, work_date, author_id, weather, content, remarks, status) VALUES (?, ?, ?, ?, ?, ?, ?, 'draft')")
+                    ->execute([$type, $teamId, $workDate, $user['id'], $weather ?: null, $content, $remarks]);
                 $id = (int) $pdo->lastInsertId();
             }
             items_save($id, $type, $payload);
@@ -80,6 +88,17 @@ layout_header(JOURNAL_TYPES[$type] . ($journal ? ' 수정' : ' 작성'), $type =
   <?php foreach ($errors as $err): ?><div class="flash flash-error"><?= e($err) ?></div><?php endforeach ?>
 
   <div class="row">
+    <?php if ($type === 'facility'): ?>
+      <label>관리팀
+        <?php if ($journal): ?>
+          <input type="hidden" name="team_id" value="<?= (int) $teamId ?>"><input value="<?= e(team_name($teamId)) ?>" disabled>
+        <?php else: ?>
+          <select name="team_id" onchange="location.href='?type=facility&date=' + this.form.work_date.value + '&team=' + this.value">
+            <?php foreach (teams_all() as $t): ?><option value="<?= (int) $t['id'] ?>" <?= (int) $t['id'] === (int) ($payload['team_id'] ?? 0) ? 'selected' : '' ?>><?= e($t['name']) ?></option><?php endforeach ?>
+          </select>
+        <?php endif ?>
+      </label>
+    <?php endif ?>
     <label>일자<input type="date" name="work_date" value="<?= e($workDate) ?>" required></label>
     <?php if ($type !== 'voucher'): ?>
     <label>날씨<input name="weather" value="<?= $v('weather') ?>" placeholder="맑음 / 18℃" list="weathers"></label>

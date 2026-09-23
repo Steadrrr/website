@@ -44,7 +44,7 @@ hr { border: 0; border-top: 1px solid var(--line); margin: 1rem 0; }
 
 .muted { color: var(--muted); }
 .small { font-size: .85rem; }
-.center { text-align: center; }
+.center, .table .center { text-align: center; }
 .right, .table .right { text-align: right; }
 .nowrap { white-space: nowrap; }
 
@@ -183,3 +183,77 @@ tr.new-row td { background: #fbfdf9; border-top: 2px dashed var(--line); }
   .kpis.k3, .kpis.k4 { grid-template-columns: 1fr 1fr; }
 }
 .product-table input[name="name"] { min-width: 11rem; }
+
+/* ── v3: 시설물·장비·통계·인쇄 ── */
+.actions.no-margin { margin-top: 0; }
+.tabs a { padding: .35rem .85rem; color: var(--text); }
+.tabs a:hover { text-decoration: none; background: #f0f3f0; }
+.tabs a.on { background: var(--green); color: #fff; }
+.team-tabs { margin-bottom: .75rem; flex-wrap: wrap; }
+.team-tabs .link-tab { margin-left: auto; color: var(--green-d); }
+.team-head { margin: 1.25rem 0 .25rem; padding-bottom: .3rem; border-bottom: 2px solid var(--green); }
+.area-head { margin: 1rem 0 .5rem; color: var(--green-d); }
+.crumbs { margin: 0 0 .2rem; }
+.inline-check { display: inline-flex; align-items: center; gap: .35rem; font-weight: 400; margin: 0 0 .5rem; }
+.inline-check input { margin: 0; }
+.filter { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; margin-bottom: .75rem; }
+.filter input, .filter select { width: auto; margin: 0; }
+.filter .inline-check { margin: 0; }
+input.md { max-width: 6rem; text-align: center; }
+.season-tag { color: var(--amber); font-weight: 600; font-size: .8rem; }
+.season-col small { font-weight: 400; }
+tr.pay-row td { background: #fafbfa; font-size: .9rem; padding-top: .3rem; padding-bottom: .3rem; }
+tr.area-row th { background: #eef4ef; color: var(--green-d); text-align: left; font-size: .85rem; padding: .35rem .5rem; }
+tr.issue td { background: #fff7f5; }
+.facility-check td:first-child { min-width: 10rem; }
+
+.asset-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: .75rem; }
+.asset-card { display: flex; flex-direction: column; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; color: var(--text); background: #fff; }
+.asset-card:hover { text-decoration: none; border-color: var(--green); box-shadow: 0 2px 8px rgba(0,0,0,.06); }
+.asset-card.inactive { opacity: .55; }
+.asset-thumb { height: 120px; background: #eef1ee; display: flex; align-items: center; justify-content: center; color: var(--muted); font-size: .8rem; }
+.asset-thumb img { width: 100%; height: 100%; object-fit: cover; }
+.asset-body { padding: .55rem .65rem; display: flex; flex-direction: column; gap: .15rem; }
+.asset-body small { font-size: .78rem; }
+.mini-thumb { width: 56px; }
+.mini-thumb img { width: 48px; height: 36px; object-fit: cover; border-radius: 4px; display: block; }
+
+.gallery { display: flex; flex-wrap: wrap; gap: .5rem; margin: .5rem 0 1rem; }
+.gallery .thumb { display: flex; flex-direction: column; align-items: center; gap: .25rem; font-weight: 400; font-size: .8rem; margin: 0; }
+.gallery img { width: 180px; height: 135px; object-fit: cover; border-radius: 6px; border: 1px solid var(--line); }
+.photo-editor { border: 1px dashed var(--line); border-radius: 8px; padding: .75rem; margin: .5rem 0 1rem; }
+.info-table th { width: 8rem; background: #f7f9f7; color: var(--muted); font-weight: 600; }
+.danger-zone { border-color: #efcfca; }
+.result-counts { margin-top: 1rem; }
+.result-counts .kpi b { font-size: 1.15rem; }
+a.kpi { color: var(--text); }
+a.kpi:hover { text-decoration: none; border-color: var(--green); }
+
+.stats-table td, .stats-table th { font-size: .85rem; padding: .4rem .45rem; }
+.stats-table tr.zero td { color: #b5bdb7; }
+.stats-table td.strong { font-weight: 700; }
+.pre-cell { white-space: pre-wrap; min-width: 14rem; font-size: .88rem; }
+
+.print-only { display: none; }
+@media print {
+  .print-only { display: block; }
+  .print-head { display: flex; gap: .5rem; align-items: baseline; border-bottom: 1px solid #999; padding-bottom: .3rem; margin-bottom: .6rem; font-size: 10pt; }
+  .print-head span { margin-left: auto; color: #555; font-size: 9pt; }
+  .container { max-width: none; padding: 0; }
+  .card { break-inside: avoid-page; margin-bottom: .6rem; }
+  .table-scroll { overflow: visible; }
+  .table th, .table td { padding: .25rem .35rem; font-size: 9pt; }
+  .tabs, .filter, .inline-check, .photo-editor { display: none !important; }
+  .grid2 { grid-template-columns: 1fr 1fr; }
+  .kpis { gap: .4rem; }
+  .kpi { padding: .4rem .6rem; }
+  .asset-grid { grid-template-columns: repeat(4, 1fr); }
+  .asset-thumb { height: 80px; }
+  a { color: inherit; }
+  tr.clickable { cursor: default; }
+  .chart-wrap { height: 200px; }
+}
+@media (max-width: 760px) {
+  .team-tabs .link-tab { margin-left: 0; }
+  .gallery img { width: 140px; height: 105px; }
+}

@@ -5,19 +5,16 @@ defined('APP_ROOT') || exit;
  * 일지 종류별 세부 항목 처리 (불러오기 / 입력값 검사 / 저장 / 입력폼 / 보기)
  *
  * payload 형태
- *   facility : ['facility' => [[facility, result, note], ...]]
- *   sales    : ['lines' => [판매내역...], 'vouchers' => [권종 => 출고매수], 'legacy' => [구버전 항목]]
+ *   facility : ['team_id' => 관리팀, 'facility' => [[facility_id, area, facility, result, note], ...]]
+ *   sales    : ['lines' => [판매내역...], 'ticket_cash' => 입장권 현금, 'vouchers' => [권종 => 출고매수], 'legacy' => [구버전 항목]]
  *   voucher  : ['vouchers' => [권종 => 입고매수]]
  */
 
-function items_default(string $type): array
+function items_default(string $type, ?int $teamId = null): array
 {
     return match ($type) {
-        'facility' => ['facility' => array_map(
-            fn($f) => ['facility' => $f, 'result' => '정상', 'note' => ''],
-            config('facilities', [])
-        )],
-        'sales'    => ['lines' => [], 'vouchers' => array_fill_keys(voucher_denoms(), 0), 'legacy' => []],
+        'facility' => ['team_id' => $teamId, 'facility' => []], // 등록 시설은 폼에서 채움
+        'sales'    => ['lines' => [], 'ticket_cash' => 0, 'vouchers' => array_fill_keys(voucher_denoms(), 0), 'legacy' => []],
         'voucher'  => ['vouchers' => array_fill_keys(voucher_denoms(), 0)],
         default    => [],
     };
@@ -40,9 +37,10 @@ function items_load(array $journal): array
     };
 
     return match ($journal['type']) {
-        'facility' => ['facility' => $q('SELECT * FROM facility_items WHERE journal_id = ? ORDER BY id')],
+        'facility' => ['team_id' => $journal['team_id'] ? (int) $journal['team_id'] : null, 'facility' => $q('SELECT * FROM facility_items WHERE journal_id = ? ORDER BY id')],
         'sales'    => [
             'lines'    => $q('SELECT * FROM sales_lines WHERE journal_id = ? ORDER BY grp DESC, id'),
+            'ticket_cash' => (int) ($q('SELECT ticket_cash FROM sales_meta WHERE journal_id = ?')[0]['ticket_cash'] ?? 0),
             'vouchers' => $vouchers('out'),
             'legacy'   => $q('SELECT * FROM sales_items WHERE journal_id = ? ORDER BY id'),
         ],
@@ -55,19 +53,25 @@ function items_load(array $journal): array
 function items_parse(string $type, string $workDate, int $journalId): array
 {
     $errors = [];
-    $payload = items_default($type);
+    $teamId = (int) ($_POST['team_id'] ?? 0);
+    $payload = items_default($type, isset(teams_all()[$teamId]) ? $teamId : null);
 
     if ($type === 'facility') {
         $results = config('facility_results', ['정상']);
+        $registered = facilities_list(null, false);
         $rows = [];
         foreach ((array) ($_POST['fac'] ?? []) as $row) {
+            $f = $registered[(int) ($row['facility_id'] ?? 0)] ?? null;
             $item = [
-                'facility' => mb_substr(trim((string) ($row['facility'] ?? '')), 0, 100),
+                'facility_id' => $f ? (int) $f['id'] : null,
+                'area'     => $f['area'] ?? null,
+                'facility' => $f ? $f['name'] : mb_substr(trim((string) ($row['facility'] ?? '')), 0, 100),
                 'result'   => in_array($row['result'] ?? '', $results, true) ? $row['result'] : $results[0],
                 'note'     => mb_substr(trim((string) ($row['note'] ?? '')), 0, 500),
             ];
             if ($item['facility'] !== '') $rows[] = $item;
         }
+        if (!$payload['team_id']) $errors[] = '관리팀을 선택하세요.';
         if (!$rows) $errors[] = '점검 항목을 1개 이상 입력하세요.';
         $payload['facility'] = $rows;
     }
@@ -80,10 +84,10 @@ function items_parse(string $type, string $workDate, int $journalId): array
             $p = $products[(int) $pid] ?? null;
             $qty = to_int($row['qty'] ?? 0);
             if (!$p || $p['grp'] !== 'ticket' || $qty === 0) continue;
-            $unit = product_unit_price($p);
+            [$unit, $season] = ticket_price($p, $workDate);
             $lines[] = [
                 'product_id' => (int) $p['id'], 'grp' => 'ticket', 'name' => $p['name'], 'is_free' => (int) $p['is_free'],
-                'rate' => null, 'discounted' => 0, 'unit_price' => $unit, 'qty' => $qty, 'guests' => 0, 'amount' => $unit * $qty,
+                'rate' => null, 'season' => $season, 'discounted' => 0, 'unit_price' => $unit, 'qty' => $qty, 'guests' => 0, 'amount' => $unit * $qty,
             ];
         }
 
@@ -100,14 +104,22 @@ function items_parse(string $type, string $workDate, int $journalId): array
             } elseif ($max > 0 && $guests > $max) {
                 $errors[] = "{$p['name']}: 입실인원 {$guests}명이 최대인원({$max}명)을 넘습니다.";
             }
-            $unit = product_unit_price($p, $rate, $dc);
+            $unit = room_price($p, $rate, $dc);
+            $roomSeason = $rate === 'weekend' ? season_for('room', $workDate) : null;
             $lines[] = [
                 'product_id' => (int) $p['id'], 'grp' => 'room', 'name' => $p['name'], 'is_free' => 0,
-                'rate' => $rate, 'discounted' => (int) ($dc && $unit !== product_unit_price($p, $rate)),
+                'rate' => $rate, 'season' => $roomSeason['name'] ?? null, 'discounted' => (int) ($dc && $unit !== room_price($p, $rate)),
                 'unit_price' => $unit, 'qty' => $qty, 'guests' => $guests, 'amount' => $unit * $qty,
             ];
         }
         $payload['lines'] = $lines;
+
+        // 입장권 현금 수입 (나머지는 카드로 본다)
+        $ticketAmount = array_sum(array_map(fn($l) => $l['grp'] === 'ticket' ? $l['amount'] : 0, $lines));
+        $payload['ticket_cash'] = to_int($_POST['ticket_cash'] ?? 0);
+        if ($payload['ticket_cash'] > $ticketAmount) {
+            $errors[] = '입장권 현금 금액이 입장권 판매금액(' . number_format($ticketAmount) . '원)보다 큽니다.';
+        }
 
         foreach (voucher_denoms() as $d) {
             $payload['vouchers'][$d] = to_int($_POST['voucher_out'][$d] ?? 0);
@@ -141,22 +153,24 @@ function items_save(int $id, string $type, array $payload): void
 
     if ($type === 'facility') {
         $pdo->prepare('DELETE FROM facility_items WHERE journal_id = ?')->execute([$id]);
-        $ins = $pdo->prepare('INSERT INTO facility_items (journal_id, facility, result, note) VALUES (?, ?, ?, ?)');
+        $ins = $pdo->prepare('INSERT INTO facility_items (journal_id, facility_id, area, facility, result, note) VALUES (?, ?, ?, ?, ?, ?)');
         foreach ($payload['facility'] as $it) {
-            $ins->execute([$id, $it['facility'], $it['result'], $it['note']]);
+            $ins->execute([$id, $it['facility_id'] ?? null, $it['area'] ?? null, $it['facility'], $it['result'], $it['note']]);
         }
     }
 
     if ($type === 'sales') {
         $pdo->prepare('DELETE FROM sales_lines WHERE journal_id = ?')->execute([$id]);
         $ins = $pdo->prepare(
-            'INSERT INTO sales_lines (journal_id, product_id, grp, name, is_free, rate, discounted, unit_price, qty, guests, amount)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+            'INSERT INTO sales_lines (journal_id, product_id, grp, name, is_free, rate, season, discounted, unit_price, qty, guests, amount)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
         );
         foreach ($payload['lines'] as $l) {
-            $ins->execute([$id, $l['product_id'], $l['grp'], $l['name'], $l['is_free'], $l['rate'],
+            $ins->execute([$id, $l['product_id'], $l['grp'], $l['name'], $l['is_free'], $l['rate'], $l['season'] ?? null,
                 $l['discounted'], $l['unit_price'], $l['qty'], $l['guests'], $l['amount']]);
         }
+        $pdo->prepare('INSERT INTO sales_meta (journal_id, ticket_cash) VALUES (?, ?) ON DUPLICATE KEY UPDATE ticket_cash = VALUES(ticket_cash)')
+            ->execute([$id, (int) $payload['ticket_cash']]);
     }
 
     if ($type === 'sales' || $type === 'voucher') {
@@ -174,29 +188,7 @@ function items_save(int $id, string $type, array $payload): void
 function items_form(string $type, array $payload, string $workDate, ?array $journal): void
 {
     if ($type === 'facility') {
-        $rows = $payload['facility'];
-        $rows[] = ['facility' => '', 'result' => '정상', 'note' => ''];
-        $rows[] = ['facility' => '', 'result' => '정상', 'note' => ''];
-        ?>
-<div class="table-scroll">
-<table class="table">
-  <thead><tr><th>시설</th><th>점검결과</th><th>내용 / 조치사항</th></tr></thead>
-  <tbody>
-  <?php foreach ($rows as $i => $it): ?>
-    <tr>
-      <td><input name="fac[<?= $i ?>][facility]" value="<?= e($it['facility']) ?>" placeholder="시설명 추가"></td>
-      <td><select name="fac[<?= $i ?>][result]">
-        <?php foreach (config('facility_results', ['정상']) as $r): ?>
-          <option <?= $it['result'] === $r ? 'selected' : '' ?>><?= e($r) ?></option>
-        <?php endforeach ?>
-      </select></td>
-      <td><input name="fac[<?= $i ?>][note]" value="<?= e($it['note']) ?>"></td>
-    </tr>
-  <?php endforeach ?>
-  </tbody>
-</table>
-</div>
-        <?php
+        facility_form_rows($payload);
         return;
     }
 
@@ -218,25 +210,38 @@ function items_form(string $type, array $payload, string $workDate, ?array $jour
   <div class="flash flash-error">등록된 판매 상품이 없습니다. 관리자에게 <b>상품관리</b>에서 입장권·객실을 등록해 달라고 요청하세요.</div>
     <?php endif ?>
 
-<script>window.PEAK_SEASONS = <?= json_encode(config('peak_seasons', [['07-15', '08-24']])) ?>;</script>
+<script>window.SEASONS = <?= json_encode(array_values(array_map(
+    fn($s) => ['id' => (int) $s['id'], 'grp' => $s['grp'], 'label' => season_label($s), 'start' => $s['start_md'], 'end' => $s['end_md']],
+    array_filter(seasons_all(), fn($s) => $s['is_active'])
+)), JSON_UNESCAPED_UNICODE) ?>;</script>
 <div data-sales-form>
   <?php if ($tickets): ?>
-  <h3>입장권 판매</h3>
+  <?php $ts = season_for('ticket', $workDate); ?>
+  <h3>입장권 판매 <small class="season-tag" data-ticket-season><?= $ts ? e(season_label($ts)) . ' 요금 적용' : '' ?></small></h3>
   <div class="table-scroll">
   <table class="table" data-ticket-table>
     <thead><tr><th>상품</th><th>구분</th><th class="right">단가</th><th>수량(매)</th><th class="right">금액</th></tr></thead>
     <tbody>
-    <?php foreach ($tickets as $pid => $p): $l = $byProduct[$pid] ?? null; ?>
-      <tr data-price="<?= product_unit_price($p) ?>" data-free="<?= (int) $p['is_free'] ?>">
+    <?php foreach ($tickets as $pid => $p):
+        $l = $byProduct[$pid] ?? null;
+        $sp = [];
+        foreach (season_prices() as $sid => $prices) if (isset($prices[$pid])) $sp[$sid] = $prices[$pid]; ?>
+      <tr data-base="<?= $p['is_free'] ? 0 : (int) $p['price'] ?>" data-price="<?= ticket_price($p, $workDate)[0] ?>" data-free="<?= (int) $p['is_free'] ?>"
+          data-seasons="<?= e(json_encode($sp ?: new stdClass())) ?>">
         <td><?= e($p['name']) ?><?= $p['is_active'] ? '' : ' <small class="muted">(판매중지)</small>' ?></td>
         <td><?= $p['is_free'] ? '<span class="badge">무료</span>' : '유료' ?></td>
-        <td class="right"><?= number_format(product_unit_price($p)) ?></td>
+        <td class="right" data-unit><?= number_format(ticket_price($p, $workDate)[0]) ?></td>
         <td><input name="ticket[<?= $pid ?>][qty]" value="<?= e($l['qty'] ?? '') ?>" inputmode="numeric" class="num short" data-money data-qty></td>
         <td class="right" data-line-amount>0</td>
       </tr>
     <?php endforeach ?>
     </tbody>
-    <tfoot><tr><th colspan="3">입장권 합계 <small class="muted" data-ticket-breakdown></small></th><th class="right" data-ticket-qty>0</th><th class="right" data-ticket-amount>0</th></tr></tfoot>
+    <tfoot>
+      <tr><th colspan="3">입장권 합계 <small class="muted" data-ticket-breakdown></small></th><th class="right" data-ticket-qty>0</th><th class="right" data-ticket-amount>0</th></tr>
+      <tr class="pay-row"><td colspan="3" class="right">결제수단 · <b>현금</b></td>
+        <td colspan="2"><input name="ticket_cash" value="<?= e(($payload['ticket_cash'] ?? 0) ? number_format($payload['ticket_cash']) : '') ?>" inputmode="numeric" class="num" data-money data-ticket-cash placeholder="0"></td></tr>
+      <tr class="pay-row"><td colspan="3" class="right"><b>카드</b> <small class="muted">(합계 − 현금, 자동)</small></td><td colspan="2" class="right" data-ticket-card>0</td></tr>
+    </tfoot>
   </table>
   </div>
   <?php endif ?>
@@ -283,6 +288,60 @@ function items_form(string $type, array $payload, string $workDate, ?array $jour
     <?php
 }
 
+/** 시설점검 입력표: 관리팀의 등록 시설(구역별) + 직접 입력 행 */
+function facility_form_rows(array $payload): void
+{
+    $normal = normal_result();
+    $registered = $payload['team_id'] ? facilities_list($payload['team_id']) : [];
+    $byFac = $free = [];
+    foreach ($payload['facility'] as $r) {
+        if (!empty($r['facility_id'])) $byFac[(int) $r['facility_id']] = $r; else $free[] = $r;
+    }
+    $rows = [];
+    foreach ($registered as $fid => $f) {
+        $rows[] = $byFac[$fid] ?? ['facility_id' => $fid, 'area' => $f['area'], 'facility' => $f['name'], 'result' => $normal, 'note' => ''];
+        unset($byFac[$fid]);
+    }
+    $rows = [...$rows, ...array_values($byFac)]; // 지금은 사용안함인 시설의 기존 기록
+    $blank = ['facility_id' => null, 'area' => null, 'facility' => '', 'result' => $normal, 'note' => ''];
+    $free = [...$free, $blank, $blank];
+    if (!$registered) {
+        echo '<div class="flash flash-info">이 관리팀에 등록된 세부시설이 없습니다. <a href="' . e(url('facilities.php')) . '">시설물</a> 메뉴에서 등록하면 점검표가 자동으로 만들어집니다. 지금은 아래에 직접 입력할 수 있습니다.</div>';
+        $free = [...$free, $blank, $blank];
+    }
+    $area = false;
+    ?>
+<p class="muted small">정상이 아닌 항목은 결과를 바꾸고 내용·조치사항을 적어 주세요. 시설별 '이상 이력'에 모입니다.</p>
+<div class="table-scroll">
+<table class="table facility-check">
+  <thead><tr><th>시설</th><th>점검결과</th><th>내용 / 조치사항</th></tr></thead>
+  <tbody>
+  <?php foreach ([...$rows, ...$free] as $i => $it):
+      $isFree = empty($it['facility_id']);
+      $rowArea = $isFree ? '기타 (직접 입력)' : $it['area'];
+      if ($rowArea !== $area): $area = $rowArea; ?>
+        <tr class="area-row"><th colspan="3"><?= e($area) ?></th></tr>
+      <?php endif ?>
+    <tr>
+      <td><?php if ($isFree): ?>
+            <input name="fac[<?= $i ?>][facility]" value="<?= e($it['facility']) ?>" placeholder="시설명 직접 입력">
+          <?php else: ?>
+            <input type="hidden" name="fac[<?= $i ?>][facility_id]" value="<?= (int) $it['facility_id'] ?>"><?= e($it['facility']) ?>
+          <?php endif ?></td>
+      <td><select name="fac[<?= $i ?>][result]" data-result>
+        <?php foreach (config('facility_results', ['정상']) as $r): ?>
+          <option <?= $it['result'] === $r ? 'selected' : '' ?>><?= e($r) ?></option>
+        <?php endforeach ?>
+      </select></td>
+      <td><input name="fac[<?= $i ?>][note]" value="<?= e($it['note']) ?>"></td>
+    </tr>
+  <?php endforeach ?>
+  </tbody>
+</table>
+</div>
+    <?php
+}
+
 /** 권종별 매수 입력표 (입고/출고 공용) */
 function voucher_qty_table(string $field, string $label, array $values, array $stock): void
 {
@@ -312,13 +371,23 @@ function items_view(array $journal): void
 {
     $payload = items_load($journal);
 
-    if ($journal['type'] === 'facility'): ?>
+    if ($journal['type'] === 'facility'):
+        $normal = normal_result();
+        $issues = count(array_filter($payload['facility'], fn($f) => $f['result'] !== $normal));
+        $area = false; ?>
+<p><?= $payload['team_id'] ? '<span class="badge">' . e(team_name($payload['team_id'])) . '</span> ' : '' ?>
+  점검 <?= count($payload['facility']) ?>개 · <?= $issues ? '<b class="warn">이상 ' . $issues . '건</b>' : '모두 정상' ?></p>
 <div class="table-scroll">
 <table class="table">
   <thead><tr><th>시설</th><th>점검결과</th><th>내용 / 조치사항</th></tr></thead>
   <tbody>
-  <?php foreach ($payload['facility'] as $f): ?>
-    <tr><td><?= e($f['facility']) ?></td><td><span class="result r-<?= e($f['result']) ?>"><?= e($f['result']) ?></span></td><td><?= e($f['note']) ?></td></tr>
+  <?php foreach ($payload['facility'] as $f):
+      if ($f['area'] !== $area): $area = $f['area']; ?>
+        <tr class="area-row"><th colspan="3"><?= e($area ?? '기타 (직접 입력)') ?></th></tr>
+      <?php endif ?>
+    <tr class="<?= $f['result'] !== $normal ? 'issue' : '' ?>">
+      <td><?= $f['facility_id'] ? '<a href="' . e(url('facility.php?id=' . $f['facility_id'])) . '">' . e($f['facility']) . '</a>' : e($f['facility']) ?></td>
+      <td><span class="result r-<?= e($f['result']) ?>"><?= e($f['result']) ?></span></td><td><?= e($f['note']) ?></td></tr>
   <?php endforeach ?>
   </tbody>
 </table>
@@ -348,13 +417,15 @@ function items_view(array $journal): void
     <thead><tr><th>상품</th><th>구분</th><th class="right">단가</th><th class="right">수량</th><th class="right">금액</th></tr></thead>
     <tbody>
     <?php foreach ($tickets as $l): ?>
-      <tr><td><?= e($l['name']) ?></td><td><?= $l['is_free'] ? '무료' : '유료' ?></td>
+      <tr><td><?= e($l['name']) ?><?= $l['season'] ? ' <span class="badge st-pending">' . e($l['season']) . '</span>' : '' ?></td><td><?= $l['is_free'] ? '무료' : '유료' ?></td>
         <td class="right"><?= number_format($l['unit_price']) ?></td><td class="right"><?= number_format($l['qty']) ?></td>
         <td class="right"><?= number_format($l['amount']) ?></td></tr>
     <?php endforeach ?>
     </tbody>
     <tfoot><tr><th colspan="3">합계 <small class="muted">유료 <?= number_format($sum($tickets, 'qty') - $free) ?> · 무료 <?= number_format($free) ?></small></th>
-      <th class="right"><?= number_format($sum($tickets, 'qty')) ?></th><th class="right"><?= e(won($sum($tickets, 'amount'))) ?></th></tr></tfoot>
+      <th class="right"><?= number_format($sum($tickets, 'qty')) ?></th><th class="right"><?= e(won($sum($tickets, 'amount'))) ?></th></tr>
+      <tr class="pay-row"><td colspan="4" class="right">현금</td><td class="right"><?= e(won($payload['ticket_cash'])) ?></td></tr>
+      <tr class="pay-row"><td colspan="4" class="right">카드</td><td class="right"><?= e(won($sum($tickets, 'amount') - $payload['ticket_cash'])) ?></td></tr></tfoot>
   </table>
   </div>
     <?php endif;
@@ -367,7 +438,7 @@ function items_view(array $journal): void
     <tbody>
     <?php foreach ($rooms as $l): ?>
       <tr><td><?= e($l['name']) ?></td>
-        <td><?= e(RATE_TYPES[$l['rate']] ?? '') ?><?= $l['discounted'] ? ' <span class="badge st-pending">할인</span>' : '' ?></td>
+        <td><?= e(RATE_TYPES[$l['rate']] ?? '') ?><?= $l['season'] ? ' <small class="muted">(' . e($l['season']) . ')</small>' : '' ?><?= $l['discounted'] ? ' <span class="badge st-pending">할인</span>' : '' ?></td>
         <td class="right"><?= number_format($l['unit_price']) ?></td><td class="right"><?= number_format($l['qty']) ?></td>
         <td class="right"><?= number_format($l['guests']) ?></td><td class="right"><?= number_format($l['amount']) ?></td></tr>
     <?php endforeach ?>

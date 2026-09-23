@@ -22,6 +22,12 @@
       setText($(t, '[data-ticket-qty]'), fmt(qty));
       setText($(t, '[data-ticket-amount]'), fmt(amount) + '원');
       setText($(t, '[data-ticket-breakdown]'), `유료 ${fmt(qty - free)} · 무료 ${fmt(free)}`);
+      const cashInput = $(t, '[data-ticket-cash]');
+      if (cashInput) {
+        const cash = num(cashInput.value);
+        setText($(t, '[data-ticket-card]'), fmt(Math.max(amount - cash, 0)) + '원');
+        cashInput.classList.toggle('invalid', cash > amount);
+      }
       grand += amount;
     });
 
@@ -77,18 +83,60 @@
   });
   document.querySelectorAll('[data-rate], [data-dc]').forEach((el) => el.addEventListener('change', recalc));
 
-  // 매출보고: 일자를 바꾸면 요금구분 기본값(금·토=주말)을 다시 맞춤
+  // 매출보고: 일자를 바꾸면 기간요금(동절기 등)과 객실 요금구분(금·토, 성수기=주말)을 다시 맞춤
+  const seasonFor = (grp, md) => (window.SEASONS || []).find((s) =>
+    s.grp === grp && (s.start <= s.end ? md >= s.start && md <= s.end : md >= s.start || md <= s.end));
   const dateInput = document.querySelector('[data-sales-form]') && document.querySelector('input[name="work_date"]');
-  if (dateInput && window.PEAK_SEASONS) {
+  if (dateInput) {
     dateInput.addEventListener('change', () => {
       const d = new Date(dateInput.value + 'T00:00:00');
       if (isNaN(d)) return;
       const md = dateInput.value.slice(5);
-      const weekend = d.getDay() === 5 || d.getDay() === 6 || window.PEAK_SEASONS.some(([f, t]) => md >= f && md <= t);
+      const ts = seasonFor('ticket', md);
+      setText($(document, '[data-ticket-season]'), ts ? ts.label + ' 요금 적용' : '');
+      document.querySelectorAll('table[data-ticket-table] tbody tr').forEach((tr) => {
+        const sp = JSON.parse(tr.dataset.seasons || '{}');
+        const price = ts && sp[ts.id] !== undefined ? sp[ts.id] : num(tr.dataset.base);
+        tr.dataset.price = price;
+        setText($(tr, '[data-unit]'), fmt(price));
+      });
+      const weekend = d.getDay() === 5 || d.getDay() === 6 || !!seasonFor('room', md);
       document.querySelectorAll('[data-rate]').forEach((s) => { s.value = weekend ? 'weekend' : 'weekday'; });
       recalc();
     });
   }
 
   recalc();
+})();
+
+// 사진 업로드: 브라우저에서 긴 변 1600px JPEG로 줄여서 올림 (호스팅 업로드 제한·트래픽 절약)
+(function () {
+  const MAX = 1600;
+  async function shrink(file) {
+    if (!file.type.startsWith('image/') || file.type === 'image/gif') return file;
+    const bmp = await createImageBitmap(file, { imageOrientation: 'from-image' });
+    const scale = Math.min(1, MAX / Math.max(bmp.width, bmp.height));
+    if (scale === 1 && file.size < 1.5 * 1024 * 1024) return file;
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.round(bmp.width * scale);
+    canvas.height = Math.round(bmp.height * scale);
+    canvas.getContext('2d').drawImage(bmp, 0, 0, canvas.width, canvas.height);
+    const blob = await new Promise((r) => canvas.toBlob(r, 'image/jpeg', 0.85));
+    return blob ? new File([blob], file.name.replace(/\.\w+$/, '') + '.jpg', { type: 'image/jpeg' }) : file;
+  }
+  document.querySelectorAll('input[type=file][data-resize]').forEach((input) => {
+    input.addEventListener('change', async () => {
+      if (!window.DataTransfer || !window.createImageBitmap) return; // 구형 브라우저는 원본 그대로
+      const form = input.form;
+      const buttons = form ? form.querySelectorAll('button') : [];
+      buttons.forEach((b) => (b.disabled = true));
+      try {
+        const dt = new DataTransfer();
+        for (const f of input.files) dt.items.add(await shrink(f).catch(() => f));
+        input.files = dt.files;
+      } finally {
+        buttons.forEach((b) => (b.disabled = false));
+      }
+    });
+  });
 })();

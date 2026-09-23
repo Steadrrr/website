@@ -19,6 +19,7 @@ CREATE TABLE IF NOT EXISTS users (
 CREATE TABLE IF NOT EXISTS journals (
   id           INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   type         ENUM('daily','sales','facility','voucher') NOT NULL COMMENT '업무일지/매출보고/시설물관리/상품권입고',
+  team_id      INT UNSIGNED NULL COMMENT '시설점검일지의 관리팀',
   work_date    DATE         NOT NULL,
   author_id    INT UNSIGNED NOT NULL,
   weather      VARCHAR(30)  NULL,
@@ -65,6 +66,8 @@ CREATE TABLE IF NOT EXISTS sales_items (
 CREATE TABLE IF NOT EXISTS facility_items (
   id         INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   journal_id INT UNSIGNED NOT NULL,
+  facility_id INT UNSIGNED NULL COMMENT '등록 시설 (NULL = 직접 입력 항목)',
+  area       VARCHAR(100) NULL COMMENT '구역·건물명 (작성 당시)',
   facility   VARCHAR(100) NOT NULL,
   result     VARCHAR(20)  NOT NULL DEFAULT '정상',
   note       VARCHAR(500) NULL,
@@ -105,6 +108,7 @@ CREATE TABLE IF NOT EXISTS sales_lines (
   name       VARCHAR(100) NOT NULL,
   is_free    TINYINT(1)   NOT NULL DEFAULT 0,
   rate       ENUM('weekday','weekend') NULL COMMENT '객실 요금 구분',
+  season     VARCHAR(50)  NULL COMMENT '적용된 기간요금 이름 (예: 동절기)',
   discounted TINYINT(1)   NOT NULL DEFAULT 0,
   unit_price INT UNSIGNED NOT NULL DEFAULT 0,
   qty        INT UNSIGNED NOT NULL DEFAULT 0 COMMENT '입장권 매수 / 객실 수',
@@ -123,4 +127,112 @@ CREATE TABLE IF NOT EXISTS voucher_moves (
   denom      INT UNSIGNED NOT NULL COMMENT '권종(원)',
   qty        INT UNSIGNED NOT NULL COMMENT '매수',
   CONSTRAINT fk_vm_journal FOREIGN KEY (journal_id) REFERENCES journals(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 매출보고 부가정보 (입장권 현금 수입 등)
+CREATE TABLE IF NOT EXISTS sales_meta (
+  journal_id  INT UNSIGNED NOT NULL PRIMARY KEY,
+  ticket_cash BIGINT UNSIGNED NOT NULL DEFAULT 0 COMMENT '입장권 현금 수입 (나머지는 카드)',
+  CONSTRAINT fk_meta_journal FOREIGN KEY (journal_id) REFERENCES journals(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 기간요금: 입장권(기간 중 상품별 가격) / 객실(기간 중 주말·성수기 요금 자동 적용)
+--   start_md, end_md 는 'MM-DD'. 11-01 ~ 02-29 처럼 해를 넘겨도 된다.
+CREATE TABLE IF NOT EXISTS seasons (
+  id         INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  grp        ENUM('ticket','room') NOT NULL,
+  name       VARCHAR(50) NOT NULL,
+  start_md   CHAR(5)     NOT NULL,
+  end_md     CHAR(5)     NOT NULL,
+  sort_order INT         NOT NULL DEFAULT 0,
+  is_active  TINYINT(1)  NOT NULL DEFAULT 1
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS season_prices (
+  season_id  INT UNSIGNED NOT NULL,
+  product_id INT UNSIGNED NOT NULL,
+  price      INT UNSIGNED NOT NULL,
+  PRIMARY KEY (season_id, product_id),
+  CONSTRAINT fk_sp_season FOREIGN KEY (season_id) REFERENCES seasons(id) ON DELETE CASCADE,
+  CONSTRAINT fk_sp_product FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 관리팀 (대분류): 휴양림팀, 산림문화팀
+CREATE TABLE IF NOT EXISTS teams (
+  id         INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  name       VARCHAR(50) NOT NULL,
+  sort_order INT         NOT NULL DEFAULT 0
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 중분류: 시설물은 구역·건물, 장비는 장비 분류
+CREATE TABLE IF NOT EXISTS asset_groups (
+  id         INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  kind       ENUM('facility','equipment') NOT NULL,
+  team_id    INT UNSIGNED NOT NULL,
+  name       VARCHAR(100) NOT NULL,
+  sort_order INT          NOT NULL DEFAULT 0,
+  is_active  TINYINT(1)   NOT NULL DEFAULT 1,
+  INDEX idx_kind (kind, team_id, sort_order),
+  CONSTRAINT fk_group_team FOREIGN KEY (team_id) REFERENCES teams(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 세부시설
+CREATE TABLE IF NOT EXISTS facilities (
+  id         INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  group_id   INT UNSIGNED NOT NULL,
+  name       VARCHAR(100) NOT NULL,
+  spec       TEXT NULL COMMENT '규격·스펙 (설비류)',
+  note       TEXT NULL,
+  sort_order INT  NOT NULL DEFAULT 0,
+  is_active  TINYINT(1) NOT NULL DEFAULT 1,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT fk_fac_group FOREIGN KEY (group_id) REFERENCES asset_groups(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 장비
+CREATE TABLE IF NOT EXISTS equipment (
+  id             INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  group_id       INT UNSIGNED NOT NULL,
+  name           VARCHAR(100) NOT NULL,
+  model          VARCHAR(100) NULL,
+  serial_no      VARCHAR(100) NULL,
+  spec           TEXT NULL,
+  acquired_on    DATE NULL,
+  acquired_cost  INT UNSIGNED NULL,
+  location       VARCHAR(100) NULL COMMENT '보관 위치',
+  status         ENUM('active','repair','disposed') NOT NULL DEFAULT 'active',
+  disposed_on    DATE NULL,
+  dispose_reason VARCHAR(500) NULL,
+  note           TEXT NULL,
+  created_at     DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_status (status),
+  CONSTRAINT fk_eq_group FOREIGN KEY (group_id) REFERENCES asset_groups(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 장비 이력: 등록·점검·수리·관리·불용·복구
+CREATE TABLE IF NOT EXISTS equipment_logs (
+  id           INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  equipment_id INT UNSIGNED NOT NULL,
+  log_date     DATE NOT NULL,
+  kind         ENUM('register','inspect','repair','maintain','other','dispose','restore') NOT NULL,
+  content      TEXT NULL,
+  cost         INT UNSIGNED NULL,
+  vendor       VARCHAR(100) NULL,
+  status_after ENUM('active','repair','disposed') NULL,
+  user_id      INT UNSIGNED NOT NULL,
+  created_at   DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_eq (equipment_id, log_date),
+  CONSTRAINT fk_eqlog_eq FOREIGN KEY (equipment_id) REFERENCES equipment(id) ON DELETE CASCADE,
+  CONSTRAINT fk_eqlog_user FOREIGN KEY (user_id) REFERENCES users(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 사진 (시설물·장비 공용). 파일은 uploads/ 폴더에 저장
+CREATE TABLE IF NOT EXISTS photos (
+  id         INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  owner_type ENUM('facility','equipment') NOT NULL,
+  owner_id   INT UNSIGNED NOT NULL,
+  path       VARCHAR(200) NOT NULL,
+  user_id    INT UNSIGNED NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_owner (owner_type, owner_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

@@ -6,7 +6,7 @@ defined('APP_ROOT') || exit;
  * 새 버전 파일을 FTP로 덮어쓰기만 하면, 첫 접속 때 부족한 테이블/컬럼을 만든다.
  * (기존 자료는 그대로 유지)
  */
-const DB_VERSION = 2;
+const DB_VERSION = 3;
 
 function db_version(): int
 {
@@ -41,6 +41,36 @@ function db_migrate(): void
     $pdo->exec("ALTER TABLE journals MODIFY type ENUM('daily','sales','facility','voucher') NOT NULL");
     $pdo->exec("ALTER TABLE approvals MODIFY status ENUM('waiting','approved','rejected','skipped') NOT NULL DEFAULT 'waiting'");
 
+    // 3) v2 → v3: 시설점검 관리팀, 등록시설 연결, 기간요금 이름
+    if (!column_exists('journals', 'team_id')) {
+        $pdo->exec("ALTER TABLE journals ADD team_id INT UNSIGNED NULL AFTER type");
+    }
+    if (!column_exists('facility_items', 'facility_id')) {
+        $pdo->exec("ALTER TABLE facility_items ADD facility_id INT UNSIGNED NULL AFTER journal_id, ADD area VARCHAR(100) NULL AFTER facility_id, ADD INDEX idx_fac (facility_id)");
+    }
+    if (!column_exists('sales_lines', 'season')) {
+        $pdo->exec("ALTER TABLE sales_lines ADD season VARCHAR(50) NULL AFTER rate");
+    }
+    db_seed_v3();
+
     $pdo->prepare("INSERT INTO settings (name, value) VALUES ('db_version', ?) ON DUPLICATE KEY UPDATE value = VALUES(value)")
         ->execute([(string) DB_VERSION]);
+}
+
+/** 기본 관리팀·기간요금 (비어 있을 때만) */
+function db_seed_v3(): void
+{
+    $pdo = db();
+    if ((int) $pdo->query('SELECT COUNT(*) FROM teams')->fetchColumn() === 0) {
+        $pdo->exec("INSERT INTO teams (name, sort_order) VALUES ('휴양림팀', 10), ('산림문화팀', 20)");
+    }
+    if ((int) $pdo->query('SELECT COUNT(*) FROM seasons')->fetchColumn() === 0) {
+        $pdo->exec("INSERT INTO seasons (grp, name, start_md, end_md, sort_order) VALUES ('room', '성수기', '07-01', '08-31', 10)");
+        $pdo->exec("INSERT INTO seasons (grp, name, start_md, end_md, sort_order) VALUES ('ticket', '동절기', '11-01', '02-29', 10)");
+        // 이미 등록된 유료 입장권은 동절기 50% 가격으로 채워 둔다 (상품관리에서 수정 가능)
+        $sid = (int) $pdo->lastInsertId();
+        $pdo->prepare("INSERT INTO season_prices (season_id, product_id, price)
+                       SELECT ?, id, FLOOR(price / 2) FROM products WHERE grp = 'ticket' AND is_free = 0")
+            ->execute([$sid]);
+    }
 }

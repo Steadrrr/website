@@ -10,9 +10,12 @@ function layout_header(string $title, string $active = ''): void
         'home'     => ['index.php', '대시보드'],
         'daily'    => ['journal.php?type=daily', '업무일지'],
         'sales'    => ['journal.php?type=sales', '매출보고'],
-        'facility' => ['journal.php?type=facility', '시설물관리'],
-        'voucher'  => ['voucher.php', '상품권'],
-        'approval' => ['approvals.php', '결재함'],
+        'facility'   => ['journal.php?type=facility', '시설점검'],
+        'facilities' => ['facilities.php', '시설물'],
+        'equipment'  => ['equipment.php', '장비'],
+        'voucher'    => ['voucher.php', '상품권'],
+        'stats'      => ['stats.php', '통계'],
+        'approval'   => ['approvals.php', '결재함'],
     ];
     ?>
 <!doctype html>
@@ -44,6 +47,7 @@ function layout_header(string $title, string $active = ''): void
   <?php endif ?>
 </header>
 <main class="container">
+<div class="print-only print-head"><b><?= e($site) ?></b> · <?= e($title) ?><span>출력 <?= e(date('Y-m-d H:i')) ?><?= $user ? ' · ' . e($user['name']) : '' ?></span></div>
 <?php foreach (take_flashes() as $f): ?>
   <div class="flash flash-<?= e($f['type']) ?>"><?= e($f['msg']) ?></div>
 <?php endforeach ?>

@@ -23,28 +23,81 @@ function products_for_form(string $grp, array $includeIds = []): array
     );
 }
 
-/** 상품 단가 계산 (서버에서 항상 다시 계산한다. 화면 입력값은 믿지 않음) */
-function product_unit_price(array $p, ?string $rate = null, bool $discount = false): int
+/** @return array<int,array> 기간요금 id => 기간 */
+function seasons_all(): array
 {
-    if ($p['grp'] === 'ticket') {
-        return $p['is_free'] ? 0 : (int) $p['price'];
+    static $cache = null;
+    if ($cache === null) {
+        $cache = [];
+        foreach (db()->query('SELECT * FROM seasons ORDER BY grp, sort_order, id') as $s) {
+            $cache[(int) $s['id']] = $s;
+        }
     }
+    return $cache;
+}
+
+/** @return array<int,array<int,int>> [season_id][product_id] => 기간 가격 */
+function season_prices(): array
+{
+    static $cache = null;
+    if ($cache === null) {
+        $cache = [];
+        foreach (db()->query('SELECT * FROM season_prices') as $r) {
+            $cache[(int) $r['season_id']][(int) $r['product_id']] = (int) $r['price'];
+        }
+    }
+    return $cache;
+}
+
+/** 'MM-DD' 가 기간 안에 있는지 (11-01 ~ 02-29 처럼 해를 넘기는 기간 포함) */
+function md_in_range(string $md, string $from, string $to): bool
+{
+    return $from <= $to ? ($md >= $from && $md <= $to) : ($md >= $from || $md <= $to);
+}
+
+/** 해당 날짜에 적용되는 기간요금 (없으면 null) */
+function season_for(string $grp, string $date): ?array
+{
+    $md = date('m-d', strtotime($date));
+    foreach (seasons_all() as $s) {
+        if ($s['grp'] === $grp && $s['is_active'] && md_in_range($md, $s['start_md'], $s['end_md'])) return $s;
+    }
+    return null;
+}
+
+function season_label(array $s): string
+{
+    return $s['name'] . ' (' . str_replace('-', '/', $s['start_md']) . '~' . str_replace('-', '/', $s['end_md']) . ')';
+}
+
+/**
+ * 입장권 단가: 기간요금(예: 동절기)이 적용되는 날이고 그 상품의 기간 가격이 있으면 기간 가격
+ * @return array{0: int, 1: ?string} [단가, 적용된 기간 이름]
+ */
+function ticket_price(array $p, string $date): array
+{
+    if ($p['is_free']) return [0, null];
+    $s = season_for('ticket', $date);
+    if ($s && isset(season_prices()[(int) $s['id']][(int) $p['id']])) {
+        return [season_prices()[(int) $s['id']][(int) $p['id']], $s['name']];
+    }
+    return [(int) $p['price'], null];
+}
+
+/** 객실 단가 (서버에서 항상 다시 계산한다. 화면 입력값은 믿지 않음) */
+function room_price(array $p, string $rate, bool $discount = false): int
+{
     $weekend = $rate === 'weekend';
     $normal  = (int) ($weekend ? $p['price_weekend'] : $p['price']);
     $dc      = (int) ($weekend ? $p['dc_weekend'] : $p['dc_weekday']);
     return $discount && $dc > 0 ? $dc : $normal; // 할인가 미설정(0)이면 정상가
 }
 
-/** 해당 날짜 숙박의 기본 요금구분: 금·토요일 또는 성수기 → 주말·성수기 */
+/** 해당 날짜 숙박의 기본 요금구분: 금·토요일 또는 객실 성수기 기간 → 주말·성수기 */
 function rate_for_date(string $date): string
 {
-    $ts = strtotime($date);
-    if (in_array((int) date('w', $ts), [5, 6], true)) return 'weekend';
-    $md = date('m-d', $ts);
-    foreach (config('peak_seasons', [['07-15', '08-24']]) as [$from, $to]) {
-        if ($md >= $from && $md <= $to) return 'weekend';
-    }
-    return 'weekday';
+    if (in_array((int) date('w', strtotime($date)), [5, 6], true)) return 'weekend';
+    return season_for('room', $date) ? 'weekend' : 'weekday';
 }
 
 function voucher_denoms(): array
