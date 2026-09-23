@@ -165,6 +165,9 @@ CREATE TABLE IF NOT EXISTS voucher_moves (
 CREATE TABLE IF NOT EXISTS sales_meta (
   journal_id  INT UNSIGNED NOT NULL PRIMARY KEY,
   ticket_cash BIGINT UNSIGNED NOT NULL DEFAULT 0 COMMENT '입장권 현금 수입 (나머지는 카드)',
+  rent_dc_rule VARCHAR(20) NULL COMMENT '시설대관·대관 숙박시설 통합 할인 기준 (lodge5 / lodge9 / youth20)',
+  rent_dc_pct  TINYINT UNSIGNED NOT NULL DEFAULT 0 COMMENT '통합 할인율(%)',
+  rent_youth   SMALLINT UNSIGNED NOT NULL DEFAULT 0 COMMENT '초등·청소년 인원 (30% 할인 근거)',
   CONSTRAINT fk_meta_journal FOREIGN KEY (journal_id) REFERENCES journals(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 

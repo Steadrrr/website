@@ -286,7 +286,8 @@ settings_nav('products');
 
 <section class="card" id="lodge">
   <h1>상품관리 · 대관 숙박시설</h1>
-  <p class="muted small">정액제로 운영하는 대관용 숙박시설입니다. 할인 대상이면 매출보고 작성 때 <b>할인율(%)</b>을 입력하면 금액이 계산됩니다 (10원 단위 버림).</p>
+  <p class="muted small">정액제로 운영하는 대관용 숙박시설입니다. 매출보고에서 실 수를 입력하고, 할인은 시설대관과 합친 금액에 <b>통합 할인</b>
+    (5실 이상 10% · 9실 이상 20% · 초등·청소년 20명 이상 30%)으로 적용합니다.</p>
   <div class="table-scroll">
   <table class="table product-table">
     <thead><tr><th>순서</th><th>시설명</th><th>정액 요금(원)</th><th>판매</th><th></th></tr></thead>

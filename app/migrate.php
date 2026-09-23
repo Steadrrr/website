@@ -6,7 +6,7 @@ defined('APP_ROOT') || exit;
  * 새 버전 파일을 FTP로 덮어쓰기만 하면, 첫 접속 때 부족한 테이블/컬럼을 만든다.
  * (기존 자료는 그대로 유지)
  */
-const DB_VERSION = 17;
+const DB_VERSION = 18;
 
 function db_version(): int
 {
@@ -181,6 +181,12 @@ function db_migrate(): void
     }
     if (!column_exists('program_sessions', 'staff')) {
         $pdo->exec("ALTER TABLE program_sessions ADD staff VARCHAR(100) NULL AFTER group_name");
+    }
+
+    // 18) v17 → v18: 시설대관·대관 숙박시설 통합 할인 (매출보고 1건에 하나)
+    if (!column_exists('sales_meta', 'rent_dc_rule')) {
+        $pdo->exec("ALTER TABLE sales_meta ADD rent_dc_rule VARCHAR(20) NULL AFTER ticket_cash, ADD rent_dc_pct TINYINT UNSIGNED NOT NULL DEFAULT 0 AFTER rent_dc_rule,
+                    ADD rent_youth SMALLINT UNSIGNED NOT NULL DEFAULT 0 AFTER rent_dc_pct");
     }
 
     $pdo->prepare("INSERT INTO settings (name, value) VALUES ('db_version', ?) ON DUPLICATE KEY UPDATE value = VALUES(value)")

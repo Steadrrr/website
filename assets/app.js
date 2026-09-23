@@ -100,10 +100,14 @@
         setText($(sum, '[data-left-amt-total]'), fmt(leftA) + '원');
       }
     });
-    // 시설대관: 대관 시간 요금 + 야간 추가요금, × 건수 (시간·야간을 고르면 건수 기본 1)
-    $$(document, 'table[data-rental-table]').forEach((t) => {
-      let count = 0, amount = 0;
-      $$(t, 'tbody tr').forEach((tr) => {
+    // 시설대관 + 대관 숙박시설: 한 덩어리로 합계를 내고 통합 할인 적용
+    //   시설대관 = (대관 시간 요금 + 야간 추가요금) × 건수(비우면 1), 대관 숙박시설 = 정액 요금 × 실 수
+    //   할인: 대관 숙박시설 5실 이상 10%, 9실 이상 20% (자동 선택), 초등·청소년 20명 이상 30% (직접 선택)
+    const rb = $(document, '[data-rent-block]');
+    if (rb) {
+      const amounts = [];
+      let rentCount = 0, lodgeRooms = 0;
+      $$(rb, 'table[data-rental-table] tbody tr').forEach((tr) => {
         const prices = JSON.parse(tr.dataset.prices || '{}');
         const time = $(tr, '[data-rent-time]').value;
         const night = $(tr, '[data-rent-night]').checked;
@@ -114,34 +118,35 @@
         setText($(tr, '[data-line-amount]'), used ? fmt(unit * q) : '');
         tr.classList.toggle('sold', used);
         $(tr, '[data-rent-qty]').classList.toggle('invalid', !used && num($(tr, '[data-rent-qty]').value) > 0);
-        count += q; amount += unit * q;
+        if (used) amounts.push(unit * q);
+        rentCount += q;
       });
-      setText($(t, '[data-rent-count]'), `${count}건`);
-      setText($(t, '[data-rent-amount]'), fmt(amount) + '원');
-      grand += amount;
-    });
-
-    // 대관 숙박시설: 정액 요금 × (100 − 할인율)%, 10원 단위 버림 × 건수
-    $$(document, 'table[data-lodge-table]').forEach((t) => {
-      let count = 0, amount = 0;
-      $$(t, 'tbody tr').forEach((tr) => {
-        const dcInp = $(tr, '[data-lodge-dc]');
-        const raw = dcInp.value.trim();
-        const bad = raw !== '' && (!/^\d+$/.test(raw) || +raw > 100);
-        dcInp.classList.toggle('invalid', bad);
-        const pct = bad ? 0 : +raw || 0;
-        const base = num(tr.dataset.price);
-        const unit = pct > 0 ? Math.floor(base * (100 - pct) / 1000) * 10 : base;
+      $$(rb, 'table[data-lodge-table] tbody tr').forEach((tr) => {
         const q = num($(tr, '[data-lodge-qty]').value);
-        setText($(tr, '[data-unit]'), fmt(unit));
-        setText($(tr, '[data-line-amount]'), q ? fmt(unit * q) : '');
+        setText($(tr, '[data-line-amount]'), q ? fmt(num(tr.dataset.price) * q) : '');
         tr.classList.toggle('sold', q > 0);
-        count += q; amount += unit * q;
+        if (q) amounts.push(num(tr.dataset.price) * q);
+        lodgeRooms += q;
       });
-      setText($(t, '[data-lodge-count]'), `${count}건`);
-      setText($(t, '[data-lodge-amount]'), fmt(amount) + '원');
-      grand += amount;
-    });
+      const sel = $(rb, '[data-rent-dc]');
+      if (!sel.dataset.touched) sel.value = lodgeRooms >= 9 ? 'lodge9' : (lodgeRooms >= 5 ? 'lodge5' : '');
+      const rule = sel.value;
+      const pct = num(sel.selectedOptions[0] ? sel.selectedOptions[0].dataset.pct : 0);
+      const youthBox = $(rb, '[data-youth-box]');
+      youthBox.hidden = rule !== 'youth20';
+      const youth = num($(rb, '[data-rent-youth]').value);
+      const bad = (rule === 'lodge5' && lodgeRooms < 5) || (rule === 'lodge9' && lodgeRooms < 9) || (rule === 'youth20' && youth < 20);
+      sel.classList.toggle('invalid', bad);
+      $(rb, '[data-rent-youth]').classList.toggle('invalid', rule === 'youth20' && youth < 20);
+      const gross = amounts.reduce((s, a) => s + a, 0);
+      const net = amounts.reduce((s, a) => s + (pct ? Math.floor(a * (100 - pct) / 1000) * 10 : a), 0); // 줄마다 10원 단위 버림 (서버와 같음)
+      setText($(rb, '[data-rent-count]'), `${rentCount}건`);
+      setText($(rb, '[data-lodge-count]'), `${lodgeRooms}실`);
+      setText($(rb, '[data-rent-gross]'), fmt(gross) + '원');
+      setText($(rb, '[data-rent-dc-amount]'), pct && gross ? `− ${fmt(gross - net)}원 (${pct}%)` : '');
+      setText($(rb, '[data-rent-net]'), fmt(net) + '원');
+      grand += net;
+    }
 
     setText($(document, '[data-grand]'), fmt(grand) + '원');
 
@@ -170,7 +175,8 @@
   });
   document.querySelectorAll('[data-rate], [data-dc]').forEach((el) => el.addEventListener('change', recalc));
   document.querySelectorAll('[data-rent-time], [data-rent-night]').forEach((el) => el.addEventListener('change', recalc));
-  document.querySelectorAll('[data-lodge-dc]').forEach((el) => el.addEventListener('input', recalc));
+  document.querySelectorAll('[data-rent-dc]').forEach((el) => el.addEventListener('change', () => { el.dataset.touched = '1'; recalc(); }));
+  document.querySelectorAll('[data-rent-youth]').forEach((el) => el.addEventListener('input', recalc));
 
   // 매출보고: 일자를 바꾸면 기간요금(동절기 등)과 객실 요금구분(금·토, 성수기=주말)을 다시 맞춤
   const seasonFor = (grp, md) => (window.SEASONS || []).find((s) =>

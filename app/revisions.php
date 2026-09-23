@@ -29,7 +29,7 @@ function journal_snapshot(array $journal): array
             if ($l['grp'] === 'rental') {
                 $lines[] = "{$l['name']} · " . rental_desc($l['rent_time'] ?? null, !empty($l['night'])) . ' × ' . $l['qty'] . '건 = ' . number_format($l['amount']) . '원';
             } elseif ($l['grp'] === 'lodge') {
-                $lines[] = "{$l['name']} · " . (!empty($l['dc_pct']) ? $l['dc_pct'] . '% 할인 · ' : '') . $l['qty'] . '건 = ' . number_format($l['amount']) . '원';
+                $lines[] = "{$l['name']} · " . $l['qty'] . '실 × ' . number_format($l['unit_price']) . ' = ' . number_format($l['amount']) . '원';
             } elseif ($l['grp'] === 'ticket') {
                 $lines[] = "{$l['name']} " . number_format($l['qty']) . '매 × ' . number_format($l['unit_price']) . ' = ' . number_format($l['amount']) . '원';
             } else {
@@ -40,6 +40,8 @@ function journal_snapshot(array $journal): array
         }
         $snap['판매 내역'] = $lines;
         $snap['입장권 현금'] = number_format($p['ticket_cash']) . '원';
+        $rule = $p['rent_dc_rule'] ?? null;
+        $snap['대관 통합 할인'] = $rule ? (RENT_DC_RULES[$rule][0] ?? $rule) . ' ' . (int) $p['rent_dc_pct'] . '%' . ($rule === 'youth20' ? " (초등·청소년 {$p['rent_youth']}명)" : '') : '없음';
         $snap['매출 합계'] = number_format(array_sum(array_column($p['lines'], 'amount'))) . '원';
         if (array_sum($p['vouchers']) > 0) $snap['객실 미지정 환급'] = $vouchersText($p['vouchers']);
     } elseif ($journal['type'] === 'facility') {

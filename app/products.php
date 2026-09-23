@@ -131,11 +131,17 @@ function rental_price(array $p, ?string $time, bool $night): int
     return ($time && isset(RENT_TIMES[$time]) ? (int) $p[RENT_TIMES[$time][1]] : 0) + ($night ? (int) $p['price_night'] : 0);
 }
 
-/** 대관 숙박시설 단가 = 정액 요금에서 할인율(%) 적용, 10원 단위 버림 */
-function lodge_price(array $p, int $pct): int
+/** 할인 적용 금액 (10원 단위 버림) */
+function dc_amount(int $amount, int $pct): int
 {
     $pct = max(0, min(100, $pct));
-    return $pct > 0 ? intdiv((int) $p['price'] * (100 - $pct), 1000) * 10 : (int) $p['price'];
+    return $pct > 0 ? intdiv($amount * (100 - $pct), 1000) * 10 : $amount;
+}
+
+/** 대관 숙박시설 실 수로 정해지는 할인 기준 (9실 이상 20%, 5실 이상 10%) */
+function rent_dc_auto(int $lodgeRooms): ?string
+{
+    return $lodgeRooms >= 9 ? 'lodge9' : ($lodgeRooms >= 5 ? 'lodge5' : null);
 }
 
 /** 시설대관 매출 한 줄 설명: "4시간 + 야간" */
