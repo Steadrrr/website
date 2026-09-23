@@ -81,7 +81,9 @@ CREATE TABLE IF NOT EXISTS settings (
 
 -- 판매 상품 (관리자 상품관리 페이지에서 편집)
 --   입장권: price = 판매가 (is_free=1 이면 무료)
---   객실  : price = 평일 요금, price_weekend = 주말·성수기 요금, dc_* = 할인 요금, max_people = 최대인원
+--   객실  : price = 비수기 평일, price_weekend = 비수기 주말, price_peak = 성수기 요금,
+--           refund_amount = 지역상품권 환급액, max_people = 최대인원
+--           (할인은 settings 의 요금구분별 할인율로 일괄 적용. dc_* 는 이전 버전 컬럼으로 사용 안 함)
 CREATE TABLE IF NOT EXISTS products (
   id            INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   grp           ENUM('ticket','room') NOT NULL,
@@ -89,6 +91,8 @@ CREATE TABLE IF NOT EXISTS products (
   is_free       TINYINT(1)   NOT NULL DEFAULT 0,
   price         INT UNSIGNED NOT NULL DEFAULT 0,
   price_weekend INT UNSIGNED NOT NULL DEFAULT 0,
+  price_peak    INT UNSIGNED NOT NULL DEFAULT 0,
+  refund_amount INT UNSIGNED NOT NULL DEFAULT 0 COMMENT '객실 지역상품권 환급액',
   dc_weekday    INT UNSIGNED NOT NULL DEFAULT 0,
   dc_weekend    INT UNSIGNED NOT NULL DEFAULT 0,
   max_people    SMALLINT UNSIGNED NOT NULL DEFAULT 0,
@@ -107,12 +111,13 @@ CREATE TABLE IF NOT EXISTS sales_lines (
   grp        ENUM('ticket','room') NOT NULL,
   name       VARCHAR(100) NOT NULL,
   is_free    TINYINT(1)   NOT NULL DEFAULT 0,
-  rate       ENUM('weekday','weekend') NULL COMMENT '객실 요금 구분',
+  rate       ENUM('weekday','weekend','peak') NULL COMMENT '객실 요금 구분: 비수기평일/비수기주말/성수기',
   season     VARCHAR(50)  NULL COMMENT '적용된 기간요금 이름 (예: 동절기)',
   discounted TINYINT(1)   NOT NULL DEFAULT 0,
   unit_price INT UNSIGNED NOT NULL DEFAULT 0,
   qty        INT UNSIGNED NOT NULL DEFAULT 0 COMMENT '입장권 매수 / 객실 수',
   guests     INT UNSIGNED NOT NULL DEFAULT 0 COMMENT '객실 입실인원',
+  refund_expected INT UNSIGNED NULL COMMENT '작성 당시 객실 기준 환급액',
   amount     BIGINT UNSIGNED NOT NULL DEFAULT 0,
   INDEX idx_grp (grp),
   CONSTRAINT fk_line_journal FOREIGN KEY (journal_id) REFERENCES journals(id) ON DELETE CASCADE,
@@ -123,6 +128,7 @@ CREATE TABLE IF NOT EXISTS sales_lines (
 CREATE TABLE IF NOT EXISTS voucher_moves (
   id         INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   journal_id INT UNSIGNED NOT NULL,
+  line_id    INT UNSIGNED NULL COMMENT '환급한 객실 (sales_lines.id)',
   direction  ENUM('in','out') NOT NULL,
   denom      INT UNSIGNED NOT NULL COMMENT '권종(원)',
   qty        INT UNSIGNED NOT NULL COMMENT '매수',

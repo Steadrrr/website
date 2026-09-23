@@ -6,7 +6,8 @@ defined('APP_ROOT') || exit;
  *
  * payload 형태
  *   facility : ['team_id' => 관리팀, 'facility' => [[facility_id, area, facility, result, note], ...]]
- *   sales    : ['lines' => [판매내역...], 'ticket_cash' => 입장권 현금, 'vouchers' => [권종 => 출고매수], 'legacy' => [구버전 항목]]
+ *   sales    : ['lines' => [판매내역... (객실은 'vouchers' => [권종 => 환급매수])], 'ticket_cash' => 입장권 현금,
+ *               'vouchers' => [권종 => 객실 미지정 환급매수 (이전 버전 자료)], 'legacy' => [구버전 항목], 'warnings' => [...]]
  *   voucher  : ['vouchers' => [권종 => 입고매수]]
  */
 
@@ -36,14 +37,28 @@ function items_load(array $journal): array
         return $v;
     };
 
+    if ($journal['type'] === 'sales') {
+        $lines = $q('SELECT * FROM sales_lines WHERE journal_id = ? ORDER BY grp DESC, id');
+        $unassigned = array_fill_keys(voucher_denoms(), 0);
+        $byLine = [];
+        foreach ($q("SELECT line_id, denom, SUM(qty) AS qty FROM voucher_moves WHERE journal_id = ? AND direction = 'out' GROUP BY line_id, denom") as $r) {
+            if ($r['line_id']) $byLine[(int) $r['line_id']][(int) $r['denom']] = (int) $r['qty'];
+            else $unassigned[(int) $r['denom']] = (int) $r['qty'];
+        }
+        foreach ($lines as &$l) {
+            $l['vouchers'] = array_replace(array_fill_keys(voucher_denoms(), 0), $byLine[(int) $l['id']] ?? []);
+        }
+        unset($l);
+        return [
+            'lines'       => $lines,
+            'ticket_cash' => (int) ($q('SELECT ticket_cash FROM sales_meta WHERE journal_id = ?')[0]['ticket_cash'] ?? 0),
+            'vouchers'    => $unassigned,
+            'legacy'      => $q('SELECT * FROM sales_items WHERE journal_id = ? ORDER BY id'),
+        ];
+    }
+
     return match ($journal['type']) {
         'facility' => ['team_id' => $journal['team_id'] ? (int) $journal['team_id'] : null, 'facility' => $q('SELECT * FROM facility_items WHERE journal_id = ? ORDER BY id')],
-        'sales'    => [
-            'lines'    => $q('SELECT * FROM sales_lines WHERE journal_id = ? ORDER BY grp DESC, id'),
-            'ticket_cash' => (int) ($q('SELECT ticket_cash FROM sales_meta WHERE journal_id = ?')[0]['ticket_cash'] ?? 0),
-            'vouchers' => $vouchers('out'),
-            'legacy'   => $q('SELECT * FROM sales_items WHERE journal_id = ? ORDER BY id'),
-        ],
         'voucher'  => ['vouchers' => $vouchers('in')],
         default    => [],
     };
@@ -91,25 +106,35 @@ function items_parse(string $type, string $workDate, int $journalId): array
             ];
         }
 
+        // 객실: 객실명마다 한 실이므로 입실인원을 입력하면 판매로 본다
+        $payload['warnings'] = [];
         foreach ((array) ($_POST['room'] ?? []) as $pid => $row) {
             $p = $products[(int) $pid] ?? null;
-            $qty = to_int($row['qty'] ?? 0);
-            if (!$p || $p['grp'] !== 'room' || $qty === 0) continue;
-            $rate = isset(RATE_TYPES[$row['rate'] ?? '']) ? $row['rate'] : rate_for_date($workDate);
-            $dc = !empty($row['dc']);
+            if (!$p || $p['grp'] !== 'room') continue;
             $guests = to_int($row['guests'] ?? 0);
-            $max = (int) $p['max_people'] * $qty;
-            if ($guests < 1) {
-                $errors[] = "{$p['name']}: 입실인원을 입력하세요.";
-            } elseif ($max > 0 && $guests > $max) {
+            $vouchers = [];
+            foreach (voucher_denoms() as $d) $vouchers[$d] = to_int($row['v'][$d] ?? 0);
+            if ($guests === 0) {
+                if (array_sum($vouchers) > 0) $errors[] = "{$p['name']}: 상품권 환급을 입력했지만 입실인원이 없습니다.";
+                continue;
+            }
+            $max = (int) $p['max_people'];
+            if ($max > 0 && $guests > $max) {
                 $errors[] = "{$p['name']}: 입실인원 {$guests}명이 최대인원({$max}명)을 넘습니다.";
             }
+            $rate = isset(RATE_TYPES[$row['rate'] ?? '']) ? $row['rate'] : rate_for_date($workDate);
+            $dc = !empty($row['dc']);
             $unit = room_price($p, $rate, $dc);
-            $roomSeason = $rate === 'weekend' ? season_for('room', $workDate) : null;
+            $roomSeason = $rate === 'peak' ? season_for('room', $workDate) : null;
+            $refund = voucher_amount($vouchers);
+            if ($refund !== (int) $p['refund_amount']) {
+                $payload['warnings'][] = "{$p['name']}: 지역상품권 환급액 " . number_format($refund) . '원이 기준 환급액 ' . number_format((int) $p['refund_amount']) . '원과 다릅니다.';
+            }
             $lines[] = [
                 'product_id' => (int) $p['id'], 'grp' => 'room', 'name' => $p['name'], 'is_free' => 0,
                 'rate' => $rate, 'season' => $roomSeason['name'] ?? null, 'discounted' => (int) ($dc && $unit !== room_price($p, $rate)),
-                'unit_price' => $unit, 'qty' => $qty, 'guests' => $guests, 'amount' => $unit * $qty,
+                'unit_price' => $unit, 'qty' => 1, 'guests' => $guests, 'amount' => $unit,
+                'refund_expected' => (int) $p['refund_amount'], 'vouchers' => $vouchers,
             ];
         }
         $payload['lines'] = $lines;
@@ -121,6 +146,7 @@ function items_parse(string $type, string $workDate, int $journalId): array
             $errors[] = '입장권 현금 금액이 입장권 판매금액(' . number_format($ticketAmount) . '원)보다 큽니다.';
         }
 
+        // 이전 버전 자료의 객실 미지정 환급분 (있을 때만 화면에 나옴)
         foreach (voucher_denoms() as $d) {
             $payload['vouchers'][$d] = to_int($_POST['voucher_out'][$d] ?? 0);
         }
@@ -159,26 +185,32 @@ function items_save(int $id, string $type, array $payload): void
         }
     }
 
+    if ($type === 'sales' || $type === 'voucher') {
+        $pdo->prepare('DELETE FROM voucher_moves WHERE journal_id = ?')->execute([$id]);
+    }
+    $moveIns = $pdo->prepare('INSERT INTO voucher_moves (journal_id, line_id, direction, denom, qty) VALUES (?, ?, ?, ?, ?)');
+
     if ($type === 'sales') {
         $pdo->prepare('DELETE FROM sales_lines WHERE journal_id = ?')->execute([$id]);
         $ins = $pdo->prepare(
-            'INSERT INTO sales_lines (journal_id, product_id, grp, name, is_free, rate, season, discounted, unit_price, qty, guests, amount)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+            'INSERT INTO sales_lines (journal_id, product_id, grp, name, is_free, rate, season, discounted, unit_price, qty, guests, refund_expected, amount)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
         );
         foreach ($payload['lines'] as $l) {
             $ins->execute([$id, $l['product_id'], $l['grp'], $l['name'], $l['is_free'], $l['rate'], $l['season'] ?? null,
-                $l['discounted'], $l['unit_price'], $l['qty'], $l['guests'], $l['amount']]);
+                $l['discounted'], $l['unit_price'], $l['qty'], $l['guests'], $l['refund_expected'] ?? null, $l['amount']]);
+            $lineId = (int) $pdo->lastInsertId();
+            foreach ($l['vouchers'] ?? [] as $denom => $qty) {
+                if ($qty > 0) $moveIns->execute([$id, $lineId, 'out', $denom, $qty]);
+            }
         }
         $pdo->prepare('INSERT INTO sales_meta (journal_id, ticket_cash) VALUES (?, ?) ON DUPLICATE KEY UPDATE ticket_cash = VALUES(ticket_cash)')
             ->execute([$id, (int) $payload['ticket_cash']]);
     }
 
     if ($type === 'sales' || $type === 'voucher') {
-        $dir = $type === 'sales' ? 'out' : 'in';
-        $pdo->prepare('DELETE FROM voucher_moves WHERE journal_id = ?')->execute([$id]);
-        $ins = $pdo->prepare('INSERT INTO voucher_moves (journal_id, direction, denom, qty) VALUES (?, ?, ?, ?)');
         foreach ($payload['vouchers'] as $denom => $qty) {
-            if ($qty > 0) $ins->execute([$id, $dir, $denom, $qty]);
+            if ($qty > 0) $moveIns->execute([$id, null, $type === 'sales' ? 'out' : 'in', $denom, $qty]);
         }
     }
 }
@@ -246,41 +278,76 @@ function items_form(string $type, array $payload, string $workDate, ?array $jour
   </div>
   <?php endif ?>
 
-  <?php if ($rooms): ?>
-  <h3>객실 판매</h3>
-  <p class="muted small">요금구분은 날짜에 따라 자동 선택됩니다(금·토, 성수기 = 주말·성수기). 할인 대상이면 '할인'에 체크하세요.</p>
+  <?php if ($rooms):
+    $denoms = voucher_denoms();
+    $rateSeason = season_for('room', $workDate);
+    // 수정 중인 보고서의 기존 환급분은 이미 재고에서 빠져 있으므로 되돌려서 보여준다
+    $stock = voucher_stock();
+    if ($journal && $journal['status'] !== 'draft') {
+        foreach (journal_vouchers_out((int) $journal['id']) as $d => $q) $stock[$d] += $q;
+    }
+    $unassigned = array_sum($payload['vouchers'] ?? []) > 0; ?>
+  <script>window.ROOM_DC = <?= json_encode(array_map(fn($k) => room_dc_pct($k), array_combine(array_keys(RATE_TYPES), array_keys(RATE_TYPES)))) ?>;</script>
+  <h3>객실 판매 · 지역상품권 환급</h3>
+  <p class="muted small">
+    판매한 객실의 <b>입실인원</b>을 입력하세요. 요금구분은 날짜로 자동 선택됩니다(성수기 기간 → 성수기, 금·토 → 비수기 주말).
+    할인 대상이면 '할인'에 체크하세요 (<?= e(implode(', ', array_map(fn($k, $v) => $v . ' ' . room_dc_pct($k) . '%', array_keys(RATE_TYPES), RATE_TYPES))) ?>).
+    지역상품권은 환급한 권종별 매수를 입력하며, 객실별 기준 환급액과 다르면 붉게 표시되고 저장할 때 알려 드립니다.
+  </p>
   <div class="table-scroll">
-  <table class="table" data-room-table>
-    <thead><tr><th>객실</th><th>요금구분</th><th>할인</th><th class="right">단가</th><th>객실수</th><th>입실인원</th><th class="right">금액</th></tr></thead>
+  <table class="table room-table" data-room-table>
+    <thead>
+      <tr><th rowspan="2">객실</th><th rowspan="2">요금구분</th><th rowspan="2">할인</th><th rowspan="2" class="right">단가</th><th rowspan="2">입실인원</th><th rowspan="2" class="right">금액</th>
+        <th colspan="<?= count($denoms) + 1 ?>" class="center refund-head">지역상품권 환급 (매수)</th></tr>
+      <tr><?php foreach ($denoms as $d): ?><th class="refund-head"><?= e(denom_label($d)) ?></th><?php endforeach ?><th class="right refund-head">환급액 / 기준</th></tr>
+    </thead>
     <tbody>
-    <?php foreach ($rooms as $pid => $p): $l = $byProduct[$pid] ?? null; $rate = $l['rate'] ?? $defaultRate; ?>
-      <tr data-weekday="<?= (int) $p['price'] ?>" data-weekend="<?= (int) $p['price_weekend'] ?>"
-          data-dc-weekday="<?= (int) $p['dc_weekday'] ?>" data-dc-weekend="<?= (int) $p['dc_weekend'] ?>" data-max="<?= (int) $p['max_people'] ?>">
+    <?php foreach ($rooms as $pid => $p): $l = $byProduct[$pid] ?? null; $rate = $l['rate'] ?? rate_for_date($workDate); ?>
+      <tr data-weekday="<?= (int) $p['price'] ?>" data-weekend="<?= (int) $p['price_weekend'] ?>" data-peak="<?= (int) $p['price_peak'] ?>"
+          data-max="<?= (int) $p['max_people'] ?>" data-refund="<?= (int) $p['refund_amount'] ?>" data-name="<?= e($p['name']) ?>">
         <td><?= e($p['name']) ?> <small class="muted">최대 <?= (int) $p['max_people'] ?>인</small><?= $p['is_active'] ? '' : ' <small class="muted">(판매중지)</small>' ?></td>
         <td><select name="room[<?= $pid ?>][rate]" data-rate>
           <?php foreach (RATE_TYPES as $k => $label): ?><option value="<?= $k ?>" <?= $rate === $k ? 'selected' : '' ?>><?= e($label) ?></option><?php endforeach ?>
         </select></td>
-        <td class="center"><input type="checkbox" name="room[<?= $pid ?>][dc]" value="1" data-dc <?= !empty($l['discounted']) ? 'checked' : '' ?>></td>
+        <td class="nowrap"><label class="inline-check dc-check"><input type="checkbox" name="room[<?= $pid ?>][dc]" value="1" data-dc <?= !empty($l['discounted']) ? 'checked' : '' ?>><span data-dc-pct></span></label></td>
         <td class="right" data-unit>0</td>
-        <td><input name="room[<?= $pid ?>][qty]" value="<?= e($l['qty'] ?? '') ?>" inputmode="numeric" class="num short" data-money data-qty></td>
-        <td><input name="room[<?= $pid ?>][guests]" value="<?= e(($l['guests'] ?? 0) ?: '') ?>" inputmode="numeric" class="num short" data-money data-guests></td>
+        <td><input name="room[<?= $pid ?>][guests]" value="<?= e(($l['guests'] ?? 0) ?: '') ?>" inputmode="numeric" class="num tiny" data-money data-guests></td>
         <td class="right" data-line-amount>0</td>
+        <?php foreach ($denoms as $d): ?>
+          <td class="refund-cell"><input name="room[<?= $pid ?>][v][<?= $d ?>]" value="<?= e(($l['vouchers'][$d] ?? 0) ?: '') ?>" inputmode="numeric" class="num tiny" data-money data-vdenom="<?= $d ?>"></td>
+        <?php endforeach ?>
+        <td class="right refund-cell nowrap"><b data-refund-amt>0</b><br><small class="muted">기준 <?= number_format((int) $p['refund_amount']) ?></small></td>
       </tr>
     <?php endforeach ?>
+    <?php if ($unassigned): ?>
+      <tr class="unassigned"><td colspan="6">객실 미지정 환급 <small class="muted">(이전 버전에서 입력한 자료)</small></td>
+        <?php foreach ($denoms as $d): ?>
+          <td class="refund-cell"><input name="voucher_out[<?= $d ?>]" value="<?= e(($payload['vouchers'][$d] ?? 0) ?: '') ?>" inputmode="numeric" class="num tiny" data-money data-vdenom="<?= $d ?>"></td>
+        <?php endforeach ?>
+        <td class="refund-cell"></td></tr>
+    <?php endif ?>
     </tbody>
-    <tfoot><tr><th colspan="4">객실 합계</th><th class="right" data-room-qty>0</th><th class="right" data-room-guests>0</th><th class="right" data-room-amount>0</th></tr></tfoot>
+    <tfoot><tr><th colspan="4">객실 합계 <small class="muted" data-room-count></small></th><th class="right" data-room-guests>0</th><th class="right" data-room-amount>0</th>
+      <?php foreach ($denoms as $d): ?><th class="right refund-cell" data-vsum="<?= $d ?>">0</th><?php endforeach ?><th class="right refund-cell" data-vsum-amt>0</th></tr></tfoot>
   </table>
   </div>
 
-  <h3>지역상품권 환급(출고)</h3>
-  <?php
-    // 수정 중인 보고서의 기존 출고분은 이미 재고에서 빠져 있으므로 되돌려서 보여준다
-    $stock = voucher_stock();
-    if ($journal && $journal['status'] !== 'draft') {
-        foreach (items_load($journal)['vouchers'] as $d => $q) $stock[$d] += $q;
-    }
-    voucher_qty_table('voucher_out', '출고 매수', $payload['vouchers'], $stock);
-  ?>
+  <h3>지역상품권 환급 합계 · 재고</h3>
+  <div class="table-scroll">
+  <table class="table" data-voucher-summary>
+    <thead><tr><th>권종</th><th class="right">현재고</th><th class="right">이번 환급(매)</th><th class="right">환급 금액</th><th class="right">남은 재고(매)</th><th class="right">남은 재고 금액</th></tr></thead>
+    <tbody>
+    <?php foreach ($denoms as $d): ?>
+      <tr data-denom="<?= $d ?>" data-stock="<?= (int) ($stock[$d] ?? 0) ?>">
+        <td><?= e(denom_label($d)) ?></td><td class="right"><?= number_format($stock[$d] ?? 0) ?></td>
+        <td class="right" data-out>0</td><td class="right" data-out-amt>0</td><td class="right" data-left>0</td><td class="right" data-left-amt>0</td>
+      </tr>
+    <?php endforeach ?>
+    </tbody>
+    <tfoot><tr><th>합계</th><th class="right"><?= number_format(array_sum($stock)) ?></th><th class="right" data-out-total>0</th><th class="right" data-out-amt-total>0</th>
+      <th class="right" data-left-total>0</th><th class="right" data-left-amt-total>0</th></tr></tfoot>
+  </table>
+  </div>
   <?php endif ?>
 
   <div class="grand">매출 합계 <b data-grand>0원</b></div>
@@ -430,28 +497,37 @@ function items_view(array $journal): void
   </div>
     <?php endif;
 
-    if ($rooms): ?>
-  <h3>객실 판매</h3>
+    if ($rooms):
+        $denoms = voucher_denoms(); ?>
+  <h3>객실 판매 · 지역상품권 환급</h3>
   <div class="table-scroll">
   <table class="table">
-    <thead><tr><th>객실</th><th>요금구분</th><th class="right">단가</th><th class="right">객실수</th><th class="right">입실인원</th><th class="right">금액</th></tr></thead>
+    <thead><tr><th>객실</th><th>요금구분</th><th class="right">단가</th><th class="right">입실인원</th><th class="right">금액</th>
+      <?php foreach ($denoms as $d): ?><th class="right"><?= e(denom_label($d)) ?></th><?php endforeach ?><th class="right">환급액</th></tr></thead>
     <tbody>
-    <?php foreach ($rooms as $l): ?>
-      <tr><td><?= e($l['name']) ?></td>
+    <?php foreach ($rooms as $l):
+        $refund = voucher_amount($l['vouchers']);
+        $mismatch = $l['refund_expected'] !== null && $refund !== (int) $l['refund_expected']; ?>
+      <tr class="<?= $mismatch ? 'issue' : '' ?>"><td><?= e($l['name']) ?></td>
         <td><?= e(RATE_TYPES[$l['rate']] ?? '') ?><?= $l['season'] ? ' <small class="muted">(' . e($l['season']) . ')</small>' : '' ?><?= $l['discounted'] ? ' <span class="badge st-pending">할인</span>' : '' ?></td>
-        <td class="right"><?= number_format($l['unit_price']) ?></td><td class="right"><?= number_format($l['qty']) ?></td>
-        <td class="right"><?= number_format($l['guests']) ?></td><td class="right"><?= number_format($l['amount']) ?></td></tr>
+        <td class="right"><?= number_format($l['unit_price']) ?></td>
+        <td class="right"><?= number_format($l['guests']) ?></td><td class="right"><?= number_format($l['amount']) ?></td>
+        <?php foreach ($denoms as $d): ?><td class="right"><?= $l['vouchers'][$d] ? number_format($l['vouchers'][$d]) : '' ?></td><?php endforeach ?>
+        <td class="right nowrap"><?= number_format($refund) ?><?= $mismatch ? '<br><small class="warn">기준 ' . number_format($l['refund_expected']) . '</small>' : '' ?></td></tr>
     <?php endforeach ?>
     </tbody>
-    <tfoot><tr><th colspan="3">합계</th><th class="right"><?= number_format($sum($rooms, 'qty')) ?></th>
-      <th class="right"><?= number_format($sum($rooms, 'guests')) ?></th><th class="right"><?= e(won($sum($rooms, 'amount'))) ?></th></tr></tfoot>
+    <tfoot><tr><th colspan="3">합계 <small class="muted"><?= count($rooms) ?>실</small></th>
+      <th class="right"><?= number_format($sum($rooms, 'guests')) ?></th><th class="right"><?= e(won($sum($rooms, 'amount'))) ?></th>
+      <?php foreach ($denoms as $d): ?><th class="right"><?= number_format(array_sum(array_map(fn($l) => $l['vouchers'][$d], $rooms))) ?></th><?php endforeach ?>
+      <th class="right"><?= e(won(array_sum(array_map(fn($l) => voucher_amount($l['vouchers']), $rooms)))) ?></th></tr></tfoot>
   </table>
   </div>
     <?php endif;
 
-    if (array_sum($payload['vouchers']) > 0) {
-        echo '<h3>지역상품권 환급(출고)</h3>';
-        voucher_view_table($payload['vouchers'], '출고');
+    $allOut = journal_vouchers_out((int) $journal['id']);
+    if (array_sum($allOut) > 0) {
+        echo '<h3>지역상품권 환급 합계</h3>';
+        voucher_view_table($allOut, '환급');
     }
 
     if ($payload['legacy']):
@@ -488,6 +564,16 @@ function voucher_view_table(array $vouchers, string $label): void
 </table>
 </div>
     <?php
+}
+
+/** 문서 1건의 지역상품권 출고(환급) 권종별 매수 합계 */
+function journal_vouchers_out(int $journalId): array
+{
+    $out = array_fill_keys(voucher_denoms(), 0);
+    $st = db()->prepare("SELECT denom, SUM(qty) AS qty FROM voucher_moves WHERE journal_id = ? AND direction = 'out' GROUP BY denom");
+    $st->execute([$journalId]);
+    foreach ($st as $r) $out[(int) $r['denom']] = (int) $r['qty'];
+    return $out;
 }
 
 /** 매출보고 1건의 매출 합계 SQL (별칭 j) — 달력 등에서 사용 */

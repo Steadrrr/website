@@ -6,7 +6,7 @@ defined('APP_ROOT') || exit;
  * 새 버전 파일을 FTP로 덮어쓰기만 하면, 첫 접속 때 부족한 테이블/컬럼을 만든다.
  * (기존 자료는 그대로 유지)
  */
-const DB_VERSION = 3;
+const DB_VERSION = 4;
 
 function db_version(): int
 {
@@ -52,6 +52,26 @@ function db_migrate(): void
         $pdo->exec("ALTER TABLE sales_lines ADD season VARCHAR(50) NULL AFTER rate");
     }
     db_seed_v3();
+
+    // 4) v3 → v4: 객실 요금 3구분(비수기 평일/비수기 주말/성수기), 객실별 상품권 환급
+    if (!column_exists('products', 'price_peak')) {
+        $pdo->exec("ALTER TABLE products ADD price_peak INT UNSIGNED NOT NULL DEFAULT 0 AFTER price_weekend");
+        // 이전의 '주말·성수기' 요금을 성수기 요금으로도 채워 둔다 (상품관리에서 수정)
+        $pdo->exec("UPDATE products SET price_peak = price_weekend WHERE grp = 'room'");
+    }
+    if (!column_exists('products', 'refund_amount')) {
+        $pdo->exec("ALTER TABLE products ADD refund_amount INT UNSIGNED NOT NULL DEFAULT 0 AFTER price_peak");
+    }
+    $pdo->exec("ALTER TABLE sales_lines MODIFY rate ENUM('weekday','weekend','peak') NULL");
+    // 이전 보고서 중 성수기 기간에 '주말·성수기'로 저장된 객실은 성수기로 분류
+    $pdo->exec("UPDATE sales_lines SET rate = 'peak' WHERE grp = 'room' AND rate = 'weekend' AND season IS NOT NULL");
+    if (!column_exists('sales_lines', 'refund_expected')) {
+        $pdo->exec("ALTER TABLE sales_lines ADD refund_expected INT UNSIGNED NULL AFTER guests");
+    }
+    if (!column_exists('voucher_moves', 'line_id')) {
+        $pdo->exec("ALTER TABLE voucher_moves ADD line_id INT UNSIGNED NULL AFTER journal_id");
+    }
+    $pdo->exec("INSERT IGNORE INTO settings (name, value) VALUES ('room_dc_weekday', '30'), ('room_dc_weekend', '10'), ('room_dc_peak', '10')");
 
     $pdo->prepare("INSERT INTO settings (name, value) VALUES ('db_version', ?) ON DUPLICATE KEY UPDATE value = VALUES(value)")
         ->execute([(string) DB_VERSION]);

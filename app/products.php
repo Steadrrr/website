@@ -84,20 +84,35 @@ function ticket_price(array $p, string $date): array
     return [(int) $p['price'], null];
 }
 
-/** 객실 단가 (서버에서 항상 다시 계산한다. 화면 입력값은 믿지 않음) */
-function room_price(array $p, string $rate, bool $discount = false): int
+/** 객실 요금구분별 할인율(%) — 상품관리에서 일괄 설정 */
+function room_dc_pct(string $rate): int
 {
-    $weekend = $rate === 'weekend';
-    $normal  = (int) ($weekend ? $p['price_weekend'] : $p['price']);
-    $dc      = (int) ($weekend ? $p['dc_weekend'] : $p['dc_weekday']);
-    return $discount && $dc > 0 ? $dc : $normal; // 할인가 미설정(0)이면 정상가
+    return (int) setting('room_dc_' . $rate, (string) (RATE_DC_DEFAULT[$rate] ?? 0));
 }
 
-/** 해당 날짜 숙박의 기본 요금구분: 금·토요일 또는 객실 성수기 기간 → 주말·성수기 */
+/** 요금구분별 정상 요금 */
+function room_base_price(array $p, string $rate): int
+{
+    return (int) match ($rate) {
+        'weekend' => $p['price_weekend'],
+        'peak'    => $p['price_peak'],
+        default   => $p['price'],
+    };
+}
+
+/** 객실 단가 (서버에서 항상 다시 계산한다. 화면 입력값은 믿지 않음). 할인가는 10원 단위 버림 */
+function room_price(array $p, string $rate, bool $discount = false): int
+{
+    $base = room_base_price($p, $rate);
+    $pct = room_dc_pct($rate);
+    return $discount && $pct > 0 ? intdiv($base * (100 - $pct), 1000) * 10 : $base;
+}
+
+/** 해당 날짜 숙박의 기본 요금구분: 객실 성수기 기간 → 성수기, 금·토요일 → 비수기 주말, 그 외 → 비수기 평일 */
 function rate_for_date(string $date): string
 {
-    if (in_array((int) date('w', strtotime($date)), [5, 6], true)) return 'weekend';
-    return season_for('room', $date) ? 'weekend' : 'weekday';
+    if (season_for('room', $date)) return 'peak';
+    return in_array((int) date('w', strtotime($date)), [5, 6], true) ? 'weekend' : 'weekday';
 }
 
 function voucher_denoms(): array

@@ -31,30 +31,67 @@
       grand += amount;
     });
 
-    // 객실: 요금구분/할인에 따른 단가 × 객실수, 입실인원 최대인원 확인
+    // 객실: 입실인원을 넣으면 판매. 요금구분(비수기 평일/주말, 성수기) + 할인율, 객실별 상품권 환급
+    const dc = window.ROOM_DC || {};
     $$(document, 'table[data-room-table]').forEach((t) => {
-      let rooms = 0, guests = 0, amount = 0;
+      let rooms = 0, guests = 0, amount = 0, refundTotal = 0;
+      const vsum = {};
       $$(t, 'tbody tr').forEach((tr) => {
-        const rate = $(tr, '[data-rate]').value; // weekday | weekend
+        let refund = 0;
+        $$(tr, 'input[data-vdenom]').forEach((inp) => {
+          const d = inp.dataset.vdenom, q = num(inp.value);
+          vsum[d] = (vsum[d] || 0) + q;
+          refund += q * num(d);
+        });
+        refundTotal += refund;
+        const rateSel = $(tr, '[data-rate]');
+        if (!rateSel) return; // 객실 미지정 환급 행
+        const rate = rateSel.value;
+        const pct = dc[rate] || 0;
         const dcBox = $(tr, '[data-dc]');
-        const dcPrice = num(tr.dataset[rate === 'weekend' ? 'dcWeekend' : 'dcWeekday']);
-        dcBox.disabled = dcPrice === 0; // 할인가 미설정이면 체크 불가
+        setText($(tr, '[data-dc-pct]'), pct + '%');
+        dcBox.disabled = pct === 0;
         if (dcBox.disabled) dcBox.checked = false;
-        const unit = dcBox.checked ? dcPrice : num(tr.dataset[rate]);
-        const q = num($(tr, '[data-qty]').value);
+        const base = num(tr.dataset[rate]);
+        const unit = dcBox.checked ? Math.floor(base * (100 - pct) / 1000) * 10 : base;
         const g = num($(tr, '[data-guests]').value);
-        const max = num(tr.dataset.max) * Math.max(q, 1);
-        const a = unit * q;
+        const sold = g > 0;
+        const max = num(tr.dataset.max);
         setText($(tr, '[data-unit]'), fmt(unit));
-        setText($(tr, '[data-line-amount]'), fmt(a));
-        $(tr, '[data-guests]').classList.toggle('invalid', (q > 0 && g === 0) || (max > 0 && g > max));
-        tr.classList.toggle('sold', q > 0);
-        rooms += q; guests += g; amount += a;
+        setText($(tr, '[data-line-amount]'), sold ? fmt(unit) : '');
+        setText($(tr, '[data-refund-amt]'), fmt(refund));
+        $(tr, '[data-guests]').classList.toggle('invalid', (max > 0 && g > max) || (!sold && refund > 0));
+        const mismatch = sold ? refund !== num(tr.dataset.refund) : refund > 0;
+        tr.classList.toggle('sold', sold);
+        tr.classList.toggle('refund-mismatch', mismatch);
+        tr.dataset.mismatch = mismatch ? `${tr.dataset.name}: 환급 ${fmt(refund)}원 / 기준 ${fmt(num(tr.dataset.refund))}원` : '';
+        if (sold) { rooms += 1; guests += g; amount += unit; }
       });
-      setText($(t, '[data-room-qty]'), fmt(rooms));
+      setText($(t, '[data-room-count]'), `${rooms}실`);
       setText($(t, '[data-room-guests]'), fmt(guests));
       setText($(t, '[data-room-amount]'), fmt(amount) + '원');
+      $$(t, '[data-vsum]').forEach((c) => setText(c, fmt(vsum[c.dataset.vsum] || 0)));
+      setText($(t, '[data-vsum-amt]'), fmt(refundTotal) + '원');
       grand += amount;
+
+      // 환급 합계 · 남은 재고
+      const sum = $(document, 'table[data-voucher-summary]');
+      if (sum) {
+        let outQ = 0, outA = 0, leftQ = 0, leftA = 0;
+        $$(sum, 'tbody tr').forEach((tr) => {
+          const d = num(tr.dataset.denom), q = vsum[tr.dataset.denom] || 0, left = num(tr.dataset.stock) - q;
+          setText($(tr, '[data-out]'), fmt(q));
+          setText($(tr, '[data-out-amt]'), fmt(q * d));
+          setText($(tr, '[data-left]'), fmt(left));
+          setText($(tr, '[data-left-amt]'), fmt(left * d));
+          tr.classList.toggle('issue', left < 0);
+          outQ += q; outA += q * d; leftQ += left; leftA += left * d;
+        });
+        setText($(sum, '[data-out-total]'), fmt(outQ));
+        setText($(sum, '[data-out-amt-total]'), fmt(outA) + '원');
+        setText($(sum, '[data-left-total]'), fmt(leftQ));
+        setText($(sum, '[data-left-amt-total]'), fmt(leftA) + '원');
+      }
     });
     setText($(document, '[data-grand]'), fmt(grand) + '원');
 
@@ -100,9 +137,25 @@
         tr.dataset.price = price;
         setText($(tr, '[data-unit]'), fmt(price));
       });
-      const weekend = d.getDay() === 5 || d.getDay() === 6 || !!seasonFor('room', md);
-      document.querySelectorAll('[data-rate]').forEach((s) => { s.value = weekend ? 'weekend' : 'weekday'; });
+      const rate = seasonFor('room', md) ? 'peak' : (d.getDay() === 5 || d.getDay() === 6 ? 'weekend' : 'weekday');
+      document.querySelectorAll('[data-rate]').forEach((s) => { s.value = rate; });
       recalc();
+    });
+  }
+
+  // 저장 전 확인: 객실 상품권 환급액이 기준과 다르거나 재고가 모자라면 팝업으로 알림
+  const roomTable = document.querySelector('table[data-room-table]');
+  if (roomTable && roomTable.closest('form')) {
+    const form = roomTable.closest('form');
+    form.addEventListener('submit', (ev) => {
+      recalc();
+      const msgs = $$(roomTable, 'tbody tr').map((tr) => tr.dataset.mismatch).filter(Boolean);
+      const short = $$(document, 'table[data-voucher-summary] tbody tr.issue').map((tr) => tr.cells[0].textContent.trim());
+      if (!msgs.length && !short.length) return;
+      let text = '';
+      if (msgs.length) text += '지역상품권 환급액이 객실 기준 환급액과 다릅니다.\n\n· ' + msgs.join('\n· ') + '\n\n';
+      if (short.length) text += '상품권 재고가 부족합니다: ' + short.join(', ') + '\n\n';
+      if (!confirm(text + '이대로 저장할까요?')) ev.preventDefault();
     });
   }
 

@@ -1,5 +1,5 @@
 <?php
-/** 상품관리: 입장권·객실 상품, 가격, 할인가, 최대인원, 기간요금 (최고관리자·팀장) */
+/** 상품관리: 입장권·객실 상품, 가격, 할인율, 상품권 환급액, 최대인원, 기간요금 (최고관리자·팀장) */
 require dirname(__DIR__) . '/app/bootstrap.php';
 
 $me = require_manager();
@@ -15,6 +15,15 @@ if (is_post()) {
     csrf_verify();
     $id = (int) post('id');
     $action = post('action');
+
+    // ── 객실 할인율 (요금구분별 일괄 적용) ──
+    if (post('target') === 'room_dc') {
+        foreach (array_keys(RATE_TYPES) as $rate) {
+            setting_set('room_dc_' . $rate, (string) max(0, min(100, (int) post('dc_' . $rate))));
+        }
+        flash('객실 할인율을 저장했습니다. (이미 작성된 매출보고의 금액은 바뀌지 않습니다)', 'success');
+        redirect('admin/products.php#room');
+    }
 
     // ── 기간요금 저장/삭제 ──
     if (post('target') === 'season') {
@@ -65,8 +74,8 @@ if (is_post()) {
         'is_free'       => $grp === 'ticket' && post('is_free') === '1' ? 1 : 0,
         'price'         => to_int(post('price')),
         'price_weekend' => $grp === 'room' ? to_int(post('price_weekend')) : 0,
-        'dc_weekday'    => $grp === 'room' ? to_int(post('dc_weekday')) : 0,
-        'dc_weekend'    => $grp === 'room' ? to_int(post('dc_weekend')) : 0,
+        'price_peak'    => $grp === 'room' ? to_int(post('price_peak')) : 0,
+        'refund_amount' => $grp === 'room' ? to_int(post('refund_amount')) : 0,
         'max_people'    => $grp === 'room' ? to_int(post('max_people')) : 0,
         'sort_order'    => (int) post('sort_order', '0'),
         'is_active'     => post('is_active') === '1' ? 1 : 0,
@@ -130,10 +139,11 @@ function product_row(string $grp, ?array $p, int $sort, array $ticketSeasons): v
       <?php endforeach ?>
     <?php else: ?>
       <td><input form="<?= $fid ?>" name="max_people" value="<?= $val('max_people') ?>" class="num tiny" inputmode="numeric" required></td>
-      <td><input form="<?= $fid ?>" name="price" value="<?= $money('price') ?>" class="num" inputmode="numeric" data-money placeholder="0"></td>
-      <td><input form="<?= $fid ?>" name="price_weekend" value="<?= $money('price_weekend') ?>" class="num" inputmode="numeric" data-money placeholder="0"></td>
-      <td><input form="<?= $fid ?>" name="dc_weekday" value="<?= $money('dc_weekday') ?>" class="num" inputmode="numeric" data-money placeholder="없음"></td>
-      <td><input form="<?= $fid ?>" name="dc_weekend" value="<?= $money('dc_weekend') ?>" class="num" inputmode="numeric" data-money placeholder="없음"></td>
+      <?php foreach (['weekday' => 'price', 'weekend' => 'price_weekend', 'peak' => 'price_peak'] as $rate => $col): ?>
+        <td><input form="<?= $fid ?>" name="<?= $col ?>" value="<?= $money($col) ?>" class="num" inputmode="numeric" data-money placeholder="0">
+          <?php if ($p && room_dc_pct($rate) > 0): ?><small class="muted dc-preview">할인 <?= number_format(room_price($p, $rate, true)) ?></small><?php endif ?></td>
+      <?php endforeach ?>
+      <td><input form="<?= $fid ?>" name="refund_amount" value="<?= $money('refund_amount') ?>" class="num" inputmode="numeric" data-money placeholder="0"></td>
     <?php endif ?>
     <td class="center"><input form="<?= $fid ?>" type="checkbox" name="is_active" value="1" <?= !$p || $p['is_active'] ? 'checked' : '' ?>></td>
     <td class="nowrap">
@@ -164,7 +174,7 @@ function season_row(?array $s, int $sort): void
     <td><input form="<?= $fid ?>" name="name" value="<?= e($s['name'] ?? '') ?>" placeholder="<?= $s ? '' : '새 기간 (예: 동절기)' ?>" required></td>
     <td><input form="<?= $fid ?>" name="start_md" value="<?= e($s['start_md'] ?? '') ?>" class="md" placeholder="11-01" pattern="\d{2}-\d{2}" required></td>
     <td><input form="<?= $fid ?>" name="end_md" value="<?= e($s['end_md'] ?? '') ?>" class="md" placeholder="02-29" pattern="\d{2}-\d{2}" required></td>
-    <td class="small muted"><?= $s ? ($s['grp'] === 'ticket' ? '입장권 표의 기간 가격 적용' : '주말·성수기 요금 자동 선택') : '' ?></td>
+    <td class="small muted"><?= $s ? ($s['grp'] === 'ticket' ? '입장권 표의 기간 가격 적용' : '성수기 요금 자동 선택') : '' ?></td>
     <td class="center"><input form="<?= $fid ?>" type="checkbox" name="is_active" value="1" <?= !$s || $s['is_active'] ? 'checked' : '' ?>></td>
     <td class="nowrap">
       <form method="post" id="<?= $fid ?>">
@@ -203,14 +213,23 @@ layout_header('상품관리', 'products');
 <section class="card" id="room">
   <h1>상품관리 · 객실</h1>
   <p class="muted small">
-    평일/주말·성수기 요금과 할인 요금을 입력하세요. 할인 요금을 비워두면 해당 요금구분에는 할인 체크를 할 수 없습니다.
-    매출보고에서 금·토요일<?= $roomSeasons ? '과 ' . e(implode(', ', array_map('season_label', $roomSeasons))) : '' ?>에는 주말·성수기 요금이 자동 선택됩니다.
+    요금은 <b>비수기 평일 · 비수기 주말 · 성수기</b> 3가지입니다. 매출보고에서
+    <?= $roomSeasons ? e(implode(', ', array_map('season_label', $roomSeasons))) . '은 성수기, ' : '' ?>그 외 금·토요일은 비수기 주말, 나머지는 비수기 평일 요금이 자동 선택됩니다.<br>
+    <b>상품권 환급액</b>은 객실 1실당 환급해 주는 지역상품권 금액입니다. 매출보고에서 입력한 환급액이 이 금액과 다르면 알려 줍니다.
   </p>
+  <form method="post" class="dc-form">
+    <?= csrf_field() ?><input type="hidden" name="target" value="room_dc">
+    <b>할인율 (할인 체크 시 일괄 적용)</b>
+    <?php foreach (RATE_TYPES as $rate => $label): ?>
+      <label><?= e($label) ?> <input name="dc_<?= $rate ?>" value="<?= room_dc_pct($rate) ?>" class="num tiny" inputmode="numeric"> %</label>
+    <?php endforeach ?>
+    <button class="btn small primary">할인율 저장</button>
+  </form>
   <div class="table-scroll">
   <table class="table product-table">
     <thead>
-      <tr><th rowspan="2">순서</th><th rowspan="2">객실명</th><th rowspan="2">최대인원</th><th colspan="2" class="center">정상 요금(원)</th><th colspan="2" class="center">할인 요금(원)</th><th rowspan="2">판매</th><th rowspan="2"></th></tr>
-      <tr><th>평일</th><th>주말·성수기</th><th>평일</th><th>주말·성수기</th></tr>
+      <tr><th rowspan="2">순서</th><th rowspan="2">객실명</th><th rowspan="2">최대인원</th><th colspan="3" class="center">요금(원)</th><th rowspan="2">상품권<br>환급액(원)</th><th rowspan="2">판매</th><th rowspan="2"></th></tr>
+      <tr><?php foreach (RATE_TYPES as $rate => $label): ?><th><?= e($label) ?><br><small><?= room_dc_pct($rate) ?>% 할인</small></th><?php endforeach ?></tr>
     </thead>
     <tbody>
       <?php foreach ($byGroup['room'] as $p) product_row('room', $p, 0, []) ?>
@@ -224,7 +243,7 @@ layout_header('상품관리', 'products');
   <h1>기간요금</h1>
   <p class="muted small">
     · <b>입장권</b> 기간(예: 동절기 11-01 ~ 02-29): 기간 중에는 위 입장권 표의 '기간 가격'이 자동 적용됩니다.<br>
-    · <b>객실</b> 기간(예: 성수기 07-01 ~ 08-31): 기간 중에는 객실의 '주말·성수기' 요금이 자동 선택됩니다.<br>
+    · <b>객실</b> 기간(예: 성수기 07-01 ~ 08-31): 기간 중에는 객실의 '성수기' 요금이 자동 선택됩니다.<br>
     · 기간은 월-일로 입력하며 해를 넘겨도 됩니다(11-01 ~ 02-29). 기간이 겹치면 순서가 빠른 것이 적용됩니다.
   </p>
   <div class="table-scroll">

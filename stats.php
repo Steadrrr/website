@@ -98,7 +98,8 @@ if ($tab === 'sales') {
          WHERE j.type = 'sales' AND l.grp = 'ticket' AND $statusSql AND j.work_date BETWEEN ? AND ?
          GROUP BY l.name, l.is_free ORDER BY MIN(l.product_id), l.name");
     $rooms = $run("SELECT l.name, SUM(l.qty) AS qty, SUM(l.guests) AS guests, SUM(l.amount) AS amount,
-                SUM(IF(l.rate = 'weekend', l.qty, 0)) AS weekend, SUM(IF(l.discounted = 1, l.qty, 0)) AS dc
+                SUM(IF(l.rate = 'weekday', l.qty, 0)) AS weekday, SUM(IF(l.rate = 'weekend', l.qty, 0)) AS weekend,
+                SUM(IF(l.rate = 'peak', l.qty, 0)) AS peak, SUM(IF(l.discounted = 1, l.qty, 0)) AS dc
           FROM journals j JOIN sales_lines l ON l.journal_id = j.id
          WHERE j.type = 'sales' AND l.grp = 'room' AND $statusSql AND j.work_date BETWEEN ? AND ?
          GROUP BY l.name ORDER BY MIN(l.product_id), l.name");
@@ -123,11 +124,10 @@ if ($tab === 'sales') {
             ],
             [
                 'name' => '객실별', 'title' => $title . ' · 객실별', 'subtitle' => $sub,
-                'header' => ['객실', '판매 객실', '주말·성수기', '할인', '입실 인원', '금액'],
-                'rows' => array_map(fn($r) => [$r['name'], (int) $r['qty'], (int) $r['weekend'], (int) $r['dc'], (int) $r['guests'], (int) $r['amount']], $rooms),
-                'footer' => [['합계', (int) array_sum(array_column($rooms, 'qty')), (int) array_sum(array_column($rooms, 'weekend')),
-                    (int) array_sum(array_column($rooms, 'dc')), (int) array_sum(array_column($rooms, 'guests')), (int) array_sum(array_column($rooms, 'amount'))]],
-                'widths' => [24, 11, 12, 8, 11, 14],
+                'header' => ['객실', '판매 객실', '비수기 평일', '비수기 주말', '성수기', '할인', '입실 인원', '금액'],
+                'rows' => array_map(fn($r) => [$r['name'], (int) $r['qty'], (int) $r['weekday'], (int) $r['weekend'], (int) $r['peak'], (int) $r['dc'], (int) $r['guests'], (int) $r['amount']], $rooms),
+                'footer' => [['합계', ...array_map(fn($c) => (int) array_sum(array_column($rooms, $c)), ['qty', 'weekday', 'weekend', 'peak', 'dc', 'guests', 'amount'])]],
+                'widths' => [24, 10, 11, 11, 9, 8, 10, 14],
             ],
         ]);
     }
@@ -243,17 +243,15 @@ layout_header($title, 'stats');
   <section class="card">
     <h2>객실별</h2>
     <table class="table">
-      <thead><tr><th>객실</th><th class="right">판매</th><th class="right">주말·성수기</th><th class="right">할인</th><th class="right">인원</th><th class="right">금액</th></tr></thead>
+      <?php $rc = ['qty', 'weekday', 'weekend', 'peak', 'dc', 'guests', 'amount']; ?>
+      <thead><tr><th>객실</th><th class="right">판매</th><th class="right">비수기<br>평일</th><th class="right">비수기<br>주말</th><th class="right">성수기</th><th class="right">할인</th><th class="right">인원</th><th class="right">금액</th></tr></thead>
       <tbody>
       <?php foreach ($rooms as $r): ?>
-        <tr><td><?= e($r['name']) ?></td><td class="right"><?= number_format($r['qty']) ?></td><td class="right"><?= number_format($r['weekend']) ?></td>
-          <td class="right"><?= number_format($r['dc']) ?></td><td class="right"><?= number_format($r['guests']) ?></td><td class="right"><?= number_format($r['amount']) ?></td></tr>
+        <tr><td><?= e($r['name']) ?></td><?php foreach ($rc as $c): ?><td class="right"><?= number_format($r[$c]) ?></td><?php endforeach ?></tr>
       <?php endforeach ?>
-      <?php if (!$rooms): ?><tr><td colspan="6" class="center muted">자료 없음</td></tr><?php endif ?>
+      <?php if (!$rooms): ?><tr><td colspan="8" class="center muted">자료 없음</td></tr><?php endif ?>
       </tbody>
-      <tfoot><tr><th>합계</th><th class="right"><?= number_format(array_sum(array_column($rooms, 'qty'))) ?></th><th class="right"><?= number_format(array_sum(array_column($rooms, 'weekend'))) ?></th>
-        <th class="right"><?= number_format(array_sum(array_column($rooms, 'dc'))) ?></th><th class="right"><?= number_format(array_sum(array_column($rooms, 'guests'))) ?></th>
-        <th class="right"><?= number_format(array_sum(array_column($rooms, 'amount'))) ?></th></tr></tfoot>
+      <tfoot><tr><th>합계</th><?php foreach ($rc as $c): ?><th class="right"><?= number_format(array_sum(array_column($rooms, $c))) ?></th><?php endforeach ?></tr></tfoot>
     </table>
   </section>
 </div>

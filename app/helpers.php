@@ -24,7 +24,9 @@ const JOURNAL_TYPES = [
 const DAILY_TYPES = ['daily', 'sales', 'facility'];
 
 const PRODUCT_GROUPS = ['ticket' => '입장권', 'room' => '객실'];
-const RATE_TYPES = ['weekday' => '평일', 'weekend' => '주말·성수기'];
+// 객실 요금구분
+const RATE_TYPES = ['weekday' => '비수기 평일', 'weekend' => '비수기 주말', 'peak' => '성수기'];
+const RATE_DC_DEFAULT = ['weekday' => 30, 'weekend' => 10, 'peak' => 10]; // 할인율(%) 기본값
 
 const JOURNAL_STATUS = [
     'draft'    => '임시저장',
@@ -36,6 +38,25 @@ const JOURNAL_STATUS = [
 function config(string $key, mixed $default = null): mixed
 {
     return $GLOBALS['CONFIG'][$key] ?? $default;
+}
+
+/** settings 테이블 값 (요청마다 한 번 읽음) */
+function setting(string $name, ?string $default = null): ?string
+{
+    static $cache = null;
+    if ($cache === null) {
+        try {
+            $cache = array_column(db()->query('SELECT name, value FROM settings')->fetchAll(), 'value', 'name');
+        } catch (PDOException) {
+            $cache = [];
+        }
+    }
+    return $cache[$name] ?? $default;
+}
+
+function setting_set(string $name, string $value): void
+{
+    db()->prepare('INSERT INTO settings (name, value) VALUES (?, ?) ON DUPLICATE KEY UPDATE value = VALUES(value)')->execute([$name, $value]);
 }
 
 function db(): PDO

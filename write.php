@@ -64,6 +64,7 @@ if (is_post()) {
             throw $e;
         }
 
+        foreach ($payload['warnings'] ?? [] as $w) flash('확인 필요 · ' . $w, 'error');
         if ($submit) {
             journal_submit(journal_find($id));
             flash('결재를 올렸습니다.', 'success');

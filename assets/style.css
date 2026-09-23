@@ -257,3 +257,19 @@ a.kpi:hover { text-decoration: none; border-color: var(--green); }
   .team-tabs .link-tab { margin-left: 0; }
   .gallery img { width: 140px; height: 105px; }
 }
+
+/* ── v4: 객실 요금 3구분 · 객실별 상품권 환급 ── */
+.room-table th, .room-table td { padding: .4rem .35rem; }
+.room-table .refund-head { background: #f6f1e3; }
+.room-table .refund-cell { background: #fdfbf5; }
+.room-table tr.sold .refund-cell { background: #f7f3e6; }
+.room-table tr.refund-mismatch td { background: #fdecea !important; }
+.room-table tr.refund-mismatch [data-refund-amt] { color: var(--red); }
+.room-table tr.unassigned td { background: #fafafa; font-size: .85rem; }
+.room-table select { min-width: 7.5rem; }
+.dc-check { margin: 0; font-size: .85rem; }
+.dc-form { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem 1rem; padding: .6rem .8rem; background: #f7f9f7; border-radius: 6px; margin-bottom: .75rem; }
+.dc-form label { display: inline-flex; align-items: center; gap: .3rem; margin: 0; font-weight: 400; }
+.dc-form input { width: 4rem; margin: 0; }
+.dc-preview { display: block; font-size: .75rem; text-align: right; margin-top: .15rem; }
+table[data-voucher-summary] tr.issue td { color: var(--red); font-weight: 600; }
