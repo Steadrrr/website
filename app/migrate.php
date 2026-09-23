@@ -6,7 +6,7 @@ defined('APP_ROOT') || exit;
  * 새 버전 파일을 FTP로 덮어쓰기만 하면, 첫 접속 때 부족한 테이블/컬럼을 만든다.
  * (기존 자료는 그대로 유지)
  */
-const DB_VERSION = 10;
+const DB_VERSION = 11;
 
 function db_version(): int
 {
@@ -24,6 +24,14 @@ function column_exists(string $table, string $column): bool
     return (bool) $st->fetchColumn();
 }
 
+/** ENUM 컬럼에 값이 이미 있는가 (없을 때만 MODIFY — 이미 넓어진 ENUM을 옛 목록으로 좁히지 않도록) */
+function enum_has(string $table, string $column, string $value): bool
+{
+    $st = db()->prepare('SELECT COLUMN_TYPE FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?');
+    $st->execute([$table, $column]);
+    return str_contains((string) $st->fetchColumn(), "'" . $value . "'");
+}
+
 function db_migrate(): void
 {
     $pdo = db();
@@ -38,8 +46,12 @@ function db_migrate(): void
     if (!column_exists('users', 'can_delegate')) {
         $pdo->exec("ALTER TABLE users ADD can_delegate TINYINT(1) NOT NULL DEFAULT 0 COMMENT '전결 권한' AFTER is_admin");
     }
-    $pdo->exec("ALTER TABLE journals MODIFY type ENUM('daily','sales','facility','voucher') NOT NULL");
-    $pdo->exec("ALTER TABLE approvals MODIFY status ENUM('waiting','approved','rejected','skipped') NOT NULL DEFAULT 'waiting'");
+    if (!enum_has('journals', 'type', 'voucher')) {
+        $pdo->exec("ALTER TABLE journals MODIFY type ENUM('daily','sales','facility','voucher') NOT NULL");
+    }
+    if (!enum_has('approvals', 'status', 'skipped')) {
+        $pdo->exec("ALTER TABLE approvals MODIFY status ENUM('waiting','approved','rejected','skipped') NOT NULL DEFAULT 'waiting'");
+    }
 
     // 3) v2 → v3: 시설점검 관리팀, 등록시설 연결, 기간요금 이름
     if (!column_exists('journals', 'team_id')) {
@@ -62,7 +74,9 @@ function db_migrate(): void
     if (!column_exists('products', 'refund_amount')) {
         $pdo->exec("ALTER TABLE products ADD refund_amount INT UNSIGNED NOT NULL DEFAULT 0 AFTER price_peak");
     }
-    $pdo->exec("ALTER TABLE sales_lines MODIFY rate ENUM('weekday','weekend','peak') NULL");
+    if (!enum_has('sales_lines', 'rate', 'peak')) {
+        $pdo->exec("ALTER TABLE sales_lines MODIFY rate ENUM('weekday','weekend','peak') NULL");
+    }
     // 이전 보고서 중 성수기 기간에 '주말·성수기'로 저장된 객실은 성수기로 분류
     $pdo->exec("UPDATE sales_lines SET rate = 'peak' WHERE grp = 'room' AND rate = 'weekend' AND season IS NOT NULL");
     if (!column_exists('sales_lines', 'refund_expected')) {
@@ -103,8 +117,20 @@ function db_migrate(): void
         $pdo->exec("ALTER TABLE users ADD hire_date DATE NULL AFTER is_squad_leader, ADD contract_end DATE NULL AFTER hire_date,
                     ADD work_start TIME NULL AFTER contract_end, ADD work_end TIME NULL AFTER work_start, ADD off_days VARCHAR(20) NULL AFTER work_end");
     }
-    $pdo->exec("ALTER TABLE journals MODIFY type ENUM('daily','sales','facility','voucher','attendance') NOT NULL");
-    $pdo->exec("ALTER TABLE events MODIFY category ENUM('event','construction','program','etc','holiday','closed') NOT NULL DEFAULT 'etc'");
+    if (!enum_has('journals', 'type', 'attendance')) {
+        $pdo->exec("ALTER TABLE journals MODIFY type ENUM('daily','sales','facility','voucher','attendance') NOT NULL");
+    }
+    if (!enum_has('events', 'category', 'holiday')) {
+        $pdo->exec("ALTER TABLE events MODIFY category ENUM('event','construction','program','etc','holiday','closed') NOT NULL DEFAULT 'etc'");
+    }
+
+    // 11) v10 → v11: 객실 상품권 환급액을 요금구분(비수기 평일/비수기 주말/성수기)별로
+    //     (예전 환급액을 세 칸에 똑같이 채워 둔다 — 상품관리에서 수정)
+    if (!column_exists('products', 'refund_weekend')) {
+        $pdo->exec("ALTER TABLE products ADD refund_weekend INT UNSIGNED NOT NULL DEFAULT 0 AFTER refund_amount,
+                    ADD refund_peak INT UNSIGNED NOT NULL DEFAULT 0 AFTER refund_weekend");
+        $pdo->exec("UPDATE products SET refund_weekend = refund_amount, refund_peak = refund_amount WHERE grp = 'room'");
+    }
 
     $pdo->prepare("INSERT INTO settings (name, value) VALUES ('db_version', ?) ON DUPLICATE KEY UPDATE value = VALUES(value)")
         ->execute([(string) DB_VERSION]);

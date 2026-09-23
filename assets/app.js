@@ -61,10 +61,13 @@
         setText($(tr, '[data-line-amount]'), sold ? fmt(unit) : '');
         setText($(tr, '[data-refund-amt]'), fmt(refund));
         $(tr, '[data-guests]').classList.toggle('invalid', (max > 0 && g > max) || (!sold && refund > 0));
-        const mismatch = sold ? refund !== num(tr.dataset.refund) : refund > 0;
+        // 기준 환급액: 요금구분별 (data-refund-weekday / -weekend / -peak)
+        const expected = num(tr.dataset['refund' + rate.charAt(0).toUpperCase() + rate.slice(1)]);
+        setText($(tr, '[data-refund-base]'), fmt(expected));
+        const mismatch = sold ? refund !== expected : refund > 0;
         tr.classList.toggle('sold', sold);
         tr.classList.toggle('refund-mismatch', mismatch);
-        tr.dataset.mismatch = mismatch ? `${tr.dataset.name}: 환급 ${fmt(refund)}원 / 기준 ${fmt(num(tr.dataset.refund))}원` : '';
+        tr.dataset.mismatch = mismatch ? `${tr.dataset.name}: 환급 ${fmt(refund)}원 / 기준 ${fmt(expected)}원` : '';
         if (sold) { rooms += 1; guests += g; amount += unit; }
       });
       setText($(t, '[data-room-count]'), `${rooms}실`);

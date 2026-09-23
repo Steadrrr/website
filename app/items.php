@@ -127,14 +127,15 @@ function items_parse(string $type, string $workDate, int $journalId): array
             $unit = room_price($p, $rate, $dc);
             $roomSeason = $rate === 'peak' ? season_for('room', $workDate) : null;
             $refund = voucher_amount($vouchers);
-            if ($refund !== (int) $p['refund_amount']) {
-                $payload['warnings'][] = "{$p['name']}: 지역상품권 환급액 " . number_format($refund) . '원이 기준 환급액 ' . number_format((int) $p['refund_amount']) . '원과 다릅니다.';
+            $expected = room_refund($p, $rate);
+            if ($refund !== $expected) {
+                $payload['warnings'][] = "{$p['name']}: 지역상품권 환급액 " . number_format($refund) . '원이 ' . RATE_TYPES[$rate] . ' 기준 환급액 ' . number_format($expected) . '원과 다릅니다.';
             }
             $lines[] = [
                 'product_id' => (int) $p['id'], 'grp' => 'room', 'name' => $p['name'], 'is_free' => 0,
                 'rate' => $rate, 'season' => $roomSeason['name'] ?? null, 'discounted' => (int) ($dc && $unit !== room_price($p, $rate)),
                 'unit_price' => $unit, 'qty' => 1, 'guests' => $guests, 'amount' => $unit,
-                'refund_expected' => (int) $p['refund_amount'], 'vouchers' => $vouchers,
+                'refund_expected' => $expected, 'vouchers' => $vouchers,
             ];
         }
         $payload['lines'] = $lines;
@@ -292,7 +293,7 @@ function items_form(string $type, array $payload, string $workDate, ?array $jour
   <p class="muted small">
     판매한 객실의 <b>입실인원</b>을 입력하세요. 요금구분은 날짜로 자동 선택됩니다(성수기 기간 → 성수기, 금·토 → 비수기 주말).
     할인 대상이면 '할인'에 체크하세요 (<?= e(implode(', ', array_map(fn($k, $v) => $v . ' ' . room_dc_pct($k) . '%', array_keys(RATE_TYPES), RATE_TYPES))) ?>).
-    지역상품권은 환급한 권종별 매수를 입력하며, 객실별 기준 환급액과 다르면 붉게 표시되고 저장할 때 알려 드립니다.
+    지역상품권은 환급한 권종별 매수를 입력하며, 객실·요금구분별 기준 환급액과 다르면 붉게 표시되고 저장할 때 알려 드립니다.
   </p>
   <div class="table-scroll">
   <table class="table room-table" data-room-table>
@@ -304,7 +305,7 @@ function items_form(string $type, array $payload, string $workDate, ?array $jour
     <tbody>
     <?php foreach ($rooms as $pid => $p): $l = $byProduct[$pid] ?? null; $rate = $l['rate'] ?? rate_for_date($workDate); ?>
       <tr data-weekday="<?= (int) $p['price'] ?>" data-weekend="<?= (int) $p['price_weekend'] ?>" data-peak="<?= (int) $p['price_peak'] ?>"
-          data-max="<?= (int) $p['max_people'] ?>" data-refund="<?= (int) $p['refund_amount'] ?>" data-name="<?= e($p['name']) ?>">
+          data-max="<?= (int) $p['max_people'] ?>" data-refund-weekday="<?= room_refund($p, 'weekday') ?>" data-refund-weekend="<?= room_refund($p, 'weekend') ?>" data-refund-peak="<?= room_refund($p, 'peak') ?>" data-name="<?= e($p['name']) ?>">
         <td><?= e($p['name']) ?> <small class="muted">최대 <?= (int) $p['max_people'] ?>인</small><?= $p['is_active'] ? '' : ' <small class="muted">(판매중지)</small>' ?></td>
         <td><select name="room[<?= $pid ?>][rate]" data-rate>
           <?php foreach (RATE_TYPES as $k => $label): ?><option value="<?= $k ?>" <?= $rate === $k ? 'selected' : '' ?>><?= e($label) ?></option><?php endforeach ?>
@@ -316,7 +317,7 @@ function items_form(string $type, array $payload, string $workDate, ?array $jour
         <?php foreach ($denoms as $d): ?>
           <td class="refund-cell"><input name="room[<?= $pid ?>][v][<?= $d ?>]" value="<?= e(($l['vouchers'][$d] ?? 0) ?: '') ?>" inputmode="numeric" class="num tiny" data-money data-vdenom="<?= $d ?>"></td>
         <?php endforeach ?>
-        <td class="right refund-cell nowrap"><b data-refund-amt>0</b><br><small class="muted">기준 <?= number_format((int) $p['refund_amount']) ?></small></td>
+        <td class="right refund-cell nowrap"><b data-refund-amt>0</b><br><small class="muted">기준 <span data-refund-base><?= number_format(room_refund($p, $rate)) ?></span></small></td>
       </tr>
     <?php endforeach ?>
     <?php if ($unassigned): ?>

@@ -100,6 +100,16 @@ function room_base_price(array $p, string $rate): int
     };
 }
 
+/** 요금구분별 지역상품권 기준 환급액 */
+function room_refund(array $p, string $rate): int
+{
+    return (int) match ($rate) {
+        'weekend' => $p['refund_weekend'] ?? $p['refund_amount'],
+        'peak'    => $p['refund_peak'] ?? $p['refund_amount'],
+        default   => $p['refund_amount'],
+    };
+}
+
 /** 객실 단가 (서버에서 항상 다시 계산한다. 화면 입력값은 믿지 않음). 할인가는 10원 단위 버림 */
 function room_price(array $p, string $rate, bool $discount = false): int
 {

@@ -76,6 +76,8 @@ if (is_post()) {
         'price_weekend' => $grp === 'room' ? to_int(post('price_weekend')) : 0,
         'price_peak'    => $grp === 'room' ? to_int(post('price_peak')) : 0,
         'refund_amount' => $grp === 'room' ? to_int(post('refund_amount')) : 0,
+        'refund_weekend' => $grp === 'room' ? to_int(post('refund_weekend')) : 0,
+        'refund_peak'   => $grp === 'room' ? to_int(post('refund_peak')) : 0,
         'max_people'    => $grp === 'room' ? to_int(post('max_people')) : 0,
         'sort_order'    => (int) post('sort_order', '0'),
         'is_active'     => post('is_active') === '1' ? 1 : 0,
@@ -143,7 +145,9 @@ function product_row(string $grp, ?array $p, int $sort, array $ticketSeasons): v
         <td><input form="<?= $fid ?>" name="<?= $col ?>" value="<?= $money($col) ?>" class="num" inputmode="numeric" data-money placeholder="0">
           <?php if ($p && room_dc_pct($rate) > 0): ?><small class="muted dc-preview">할인 <?= number_format(room_price($p, $rate, true)) ?></small><?php endif ?></td>
       <?php endforeach ?>
-      <td><input form="<?= $fid ?>" name="refund_amount" value="<?= $money('refund_amount') ?>" class="num" inputmode="numeric" data-money placeholder="0"></td>
+      <?php foreach (['refund_amount', 'refund_weekend', 'refund_peak'] as $col): ?>
+        <td class="refund-cell"><input form="<?= $fid ?>" name="<?= $col ?>" value="<?= $money($col) ?>" class="num" inputmode="numeric" data-money placeholder="0"></td>
+      <?php endforeach ?>
     <?php endif ?>
     <td class="center"><input form="<?= $fid ?>" type="checkbox" name="is_active" value="1" <?= !$p || $p['is_active'] ? 'checked' : '' ?>></td>
     <td class="nowrap">
@@ -216,7 +220,8 @@ settings_nav('products');
   <p class="muted small">
     요금은 <b>비수기 평일 · 비수기 주말 · 성수기</b> 3가지입니다. 매출보고에서
     <?= $roomSeasons ? e(implode(', ', array_map('season_label', $roomSeasons))) . '은 성수기, ' : '' ?>그 외 금·토요일은 비수기 주말, 나머지는 비수기 평일 요금이 자동 선택됩니다.<br>
-    <b>상품권 환급액</b>은 객실 1실당 환급해 주는 지역상품권 금액입니다. 매출보고에서 입력한 환급액이 이 금액과 다르면 알려 줍니다.
+    <b>상품권 환급액</b>은 객실 1실당 환급해 주는 지역상품권 금액으로, 요금에 따라 다르므로 <b>비수기 평일 · 비수기 주말 · 성수기</b>별로 입력합니다.
+    매출보고에서 입력한 환급액이 그 객실의 요금구분별 기준 환급액과 다르면 알려 줍니다.
   </p>
   <form method="post" class="dc-form">
     <?= csrf_field() ?><input type="hidden" name="target" value="room_dc">
@@ -229,8 +234,9 @@ settings_nav('products');
   <div class="table-scroll">
   <table class="table product-table">
     <thead>
-      <tr><th rowspan="2">순서</th><th rowspan="2">객실명</th><th rowspan="2">최대인원</th><th colspan="3" class="center">요금(원)</th><th rowspan="2">상품권<br>환급액(원)</th><th rowspan="2">판매</th><th rowspan="2"></th></tr>
-      <tr><?php foreach (RATE_TYPES as $rate => $label): ?><th><?= e($label) ?><br><small><?= room_dc_pct($rate) ?>% 할인</small></th><?php endforeach ?></tr>
+      <tr><th rowspan="2">순서</th><th rowspan="2">객실명</th><th rowspan="2">최대인원</th><th colspan="3" class="center">요금(원)</th><th colspan="3" class="center refund-head">상품권 환급액(원)</th><th rowspan="2">판매</th><th rowspan="2"></th></tr>
+      <tr><?php foreach (RATE_TYPES as $rate => $label): ?><th><?= e($label) ?><br><small><?= room_dc_pct($rate) ?>% 할인</small></th><?php endforeach ?>
+        <?php foreach (RATE_TYPES as $label): ?><th class="refund-head"><?= e($label) ?></th><?php endforeach ?></tr>
     </thead>
     <tbody>
       <?php foreach ($byGroup['room'] as $p) product_row('room', $p, 0, []) ?>

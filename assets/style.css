@@ -643,3 +643,5 @@ a.gcal-ev.bar { color: #fff; }
 .card.narrow { max-width: 760px; }
 .gcal.hide-holiday [data-cat="holiday"], .gcal.hide-closed [data-cat="closed"], .gcal.hide-att [data-cat="att"] { display: none !important; }
 .gcal-filters select { width: 100%; margin: .2rem 0 .4rem; font-size: .85rem; }
+.product-table .refund-head { background: #f6f1e3; }
+.product-table .refund-cell { background: #fdfbf5; }

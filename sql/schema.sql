@@ -95,7 +95,7 @@ CREATE TABLE IF NOT EXISTS settings (
 -- 판매 상품 (관리자 상품관리 페이지에서 편집)
 --   입장권: price = 판매가 (is_free=1 이면 무료)
 --   객실  : price = 비수기 평일, price_weekend = 비수기 주말, price_peak = 성수기 요금,
---           refund_amount = 지역상품권 환급액, max_people = 최대인원
+--           refund_amount / refund_weekend / refund_peak = 요금구분별 지역상품권 환급액, max_people = 최대인원
 --           (할인은 settings 의 요금구분별 할인율로 일괄 적용. dc_* 는 이전 버전 컬럼으로 사용 안 함)
 CREATE TABLE IF NOT EXISTS products (
   id            INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
@@ -105,7 +105,9 @@ CREATE TABLE IF NOT EXISTS products (
   price         INT UNSIGNED NOT NULL DEFAULT 0,
   price_weekend INT UNSIGNED NOT NULL DEFAULT 0,
   price_peak    INT UNSIGNED NOT NULL DEFAULT 0,
-  refund_amount INT UNSIGNED NOT NULL DEFAULT 0 COMMENT '객실 지역상품권 환급액',
+  refund_amount INT UNSIGNED NOT NULL DEFAULT 0 COMMENT '객실 지역상품권 환급액 (비수기 평일)',
+  refund_weekend INT UNSIGNED NOT NULL DEFAULT 0 COMMENT '환급액 (비수기 주말)',
+  refund_peak   INT UNSIGNED NOT NULL DEFAULT 0 COMMENT '환급액 (성수기)',
   dc_weekday    INT UNSIGNED NOT NULL DEFAULT 0,
   dc_weekend    INT UNSIGNED NOT NULL DEFAULT 0,
   max_people    SMALLINT UNSIGNED NOT NULL DEFAULT 0,
