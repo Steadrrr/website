@@ -6,19 +6,11 @@ function layout_header(string $title, string $active = ''): void
     $user = current_user();
     $site = config('site_name', '휴양림 업무일지');
     $waiting = $user ? count(waiting_for_user($user)) : 0;
-    $nav = [
-        'home'     => ['index.php', '대시보드'],
-        'notices'  => ['notices.php', '공지'],
-        'org'      => ['org.php', '조직도'],
-        'daily'    => ['journal.php?type=daily', '업무일지'],
-        'sales'    => ['journal.php?type=sales', '매출보고'],
-        'facility'   => ['journal.php?type=facility', '시설점검'],
-        'facilities' => ['facilities.php', '시설물'],
-        'equipment'  => ['equipment.php', '장비'],
-        'voucher'    => ['voucher.php', '상품권'],
-        'stats'      => ['stats.php', '통계'],
-        'approval'   => ['approvals.php', '결재함'],
-    ];
+    $groups = nav_groups($user);
+    $current = null; // 지금 페이지가 속한 메인메뉴
+    foreach ($groups as $gkey => $g) {
+        if ($active === $gkey || isset($g['items'][$active])) $current = $gkey;
+    }
     ?>
 <!doctype html>
 <html lang="ko">
@@ -32,16 +24,23 @@ function layout_header(string $title, string $active = ''): void
 <header class="topbar">
   <a class="brand" href="<?= e(url('index.php')) ?>"><?= e($site) ?></a>
   <?php if ($user): ?>
+  <button class="nav-toggle" type="button" aria-label="메뉴" onclick="document.body.classList.toggle('nav-open')">☰</button>
   <nav class="nav">
-    <?php foreach ($nav as $key => [$href, $label]): ?>
-      <a href="<?= e(url($href)) ?>" class="<?= $active === $key ? 'on' : '' ?>"><?= e($label) ?><?php
-        if ($key === 'approval' && $waiting > 0): ?> <span class="count"><?= $waiting ?></span><?php endif ?></a>
-    <?php endforeach ?>
-    <?php if ($user['is_admin']): ?>
-      <a href="<?= e(url('settings.php')) ?>" class="<?= $active === 'settings' ? 'on' : '' ?>">⚙ 설정</a>
-    <?php elseif (can_manage_users($user)): ?>
-      <a href="<?= e(url('admin/users.php')) ?>" class="<?= $active === 'admin' ? 'on' : '' ?>">회원관리</a>
-    <?php endif ?>
+    <?php foreach ($groups as $gkey => $g):
+        $badge = $gkey === 'etc' && $waiting > 0 ? ' <span class="count">' . $waiting . '</span>' : '';
+        if (empty($g['items'])): ?>
+      <a href="<?= e(url($g['href'])) ?>" class="nav-main <?= $current === $gkey ? 'on' : '' ?>"><?= e($g['label']) ?></a>
+    <?php else: ?>
+      <div class="nav-group <?= $current === $gkey ? 'on' : '' ?>">
+        <button type="button" class="nav-main"><?= e($g['label']) ?><?= $badge ?> <span class="caret">▾</span></button>
+        <div class="nav-sub">
+          <?php foreach ($g['items'] as $key => [$href, $label]): ?>
+            <a href="<?= e(url($href)) ?>" class="<?= $active === $key ? 'on' : '' ?>"><?= e($label) ?><?php
+              if ($key === 'approval' && $waiting > 0): ?> <span class="count"><?= $waiting ?></span><?php endif ?></a>
+          <?php endforeach ?>
+        </div>
+      </div>
+    <?php endif; endforeach ?>
   </nav>
   <div class="me">
     <a href="<?= e(url('mypage.php')) ?>"><?= e($user['name']) ?> <small><?= e(rank_name($user['rank_level'])) ?></small></a>
@@ -49,12 +48,55 @@ function layout_header(string $title, string $active = ''): void
   </div>
   <?php endif ?>
 </header>
+<?php if ($user && $current && !empty($groups[$current]['items'])): ?>
+<nav class="subbar no-print">
+  <span class="subbar-title"><?= e($groups[$current]['label']) ?></span>
+  <?php foreach ($groups[$current]['items'] as $key => [$href, $label]): ?>
+    <a href="<?= e(url($href)) ?>" class="<?= $active === $key ? 'on' : '' ?>"><?= e($label) ?><?php
+      if ($key === 'approval' && $waiting > 0): ?> <span class="count"><?= $waiting ?></span><?php endif ?></a>
+  <?php endforeach ?>
+</nav>
+<?php endif ?>
 <main class="container">
 <div class="print-only print-head"><b><?= e($site) ?></b> · <?= e($title) ?><span>출력 <?= e(date('Y-m-d H:i')) ?><?= $user ? ' · ' . e($user['name']) : '' ?></span></div>
 <?php foreach (take_flashes() as $f): ?>
   <div class="flash flash-<?= e($f['type']) ?>"><?= e($f['msg']) ?></div>
 <?php endforeach ?>
 <?php
+}
+
+/**
+ * 상단 메뉴: 메인메뉴 → 서브메뉴. 각 페이지는 layout_header() 두 번째 인자로 서브메뉴 키를 넘긴다.
+ * @return array<string,array{label:string, href?:string, items?:array<string,array{0:string,1:string}>}>
+ */
+function nav_groups(?array $user): array
+{
+    $groups = [
+        'home'     => ['label' => '대시보드', 'href' => 'index.php'],
+        'schedule' => ['label' => '일정표', 'href' => 'schedule.php'],
+        'ops'      => ['label' => '운영관리', 'items' => [
+            'daily'   => ['journal.php?type=daily', '업무일지'],
+            'sales'   => ['journal.php?type=sales', '매출보고'],
+            'voucher' => ['voucher.php', '상품권'],
+            'stats'   => ['stats.php', '통계'],
+        ]],
+        'fac'      => ['label' => '시설관리', 'items' => [
+            'facility'   => ['journal.php?type=facility', '시설점검'],
+            'facilities' => ['facilities.php', '시설물'],
+            'equipment'  => ['equipment.php', '장비'],
+        ]],
+        'etc'      => ['label' => '기타', 'items' => [
+            'notices'  => ['notices.php', '공지사항'],
+            'org'      => ['org.php', '조직도'],
+            'approval' => ['approvals.php', '결재함'],
+        ]],
+    ];
+    if ($user && $user['is_admin']) {
+        $groups['settings'] = ['label' => '⚙ 설정', 'href' => 'settings.php'];
+    } elseif ($user && can_manage_users($user)) {
+        $groups['etc']['items']['admin'] = ['admin/users.php', '회원관리'];
+    }
+    return $groups;
 }
 
 function layout_footer(array $scripts = []): void

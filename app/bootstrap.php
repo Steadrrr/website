@@ -37,6 +37,7 @@ require __DIR__ . '/products.php';
 require __DIR__ . '/assets.php';
 require __DIR__ . '/items.php';
 require __DIR__ . '/revisions.php';
+require __DIR__ . '/events.php';
 require __DIR__ . '/sales.php';
 require __DIR__ . '/layout.php';
 

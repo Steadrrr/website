@@ -193,3 +193,17 @@
     });
   });
 })();
+
+// 상단 메뉴: 메인메뉴를 누르면 서브메뉴 열기/닫기 (휴대폰·태블릿), 바깥을 누르면 닫기
+(function () {
+  const groups = document.querySelectorAll('.nav-group');
+  groups.forEach((g) => {
+    g.querySelector('.nav-main').addEventListener('click', (ev) => {
+      ev.stopPropagation();
+      const open = !g.classList.contains('open');
+      groups.forEach((o) => o.classList.remove('open'));
+      g.classList.toggle('open', open);
+    });
+  });
+  document.addEventListener('click', () => groups.forEach((g) => g.classList.remove('open')));
+})();

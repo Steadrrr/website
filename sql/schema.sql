@@ -287,3 +287,22 @@ CREATE TABLE IF NOT EXISTS notices (
   INDEX idx_pinned (is_pinned, created_at),
   CONSTRAINT fk_notice_author FOREIGN KEY (author_id) REFERENCES users(id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 일정표 (누구나 작성). category: event 행사 / construction 공사 / program 프로그램 / etc 기타
+CREATE TABLE IF NOT EXISTS events (
+  id          INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  title       VARCHAR(100) NOT NULL,
+  category    ENUM('event','construction','program','etc') NOT NULL DEFAULT 'etc',
+  start_date  DATE NOT NULL,
+  end_date    DATE NOT NULL,
+  all_day     TINYINT(1) NOT NULL DEFAULT 1,
+  start_time  TIME NULL,
+  end_time    TIME NULL,
+  location    VARCHAR(100) NULL,
+  description TEXT NULL,
+  author_id   INT UNSIGNED NOT NULL,
+  created_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at  DATETIME NULL,
+  INDEX idx_range (start_date, end_date),
+  CONSTRAINT fk_event_author FOREIGN KEY (author_id) REFERENCES users(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

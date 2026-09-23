@@ -32,6 +32,7 @@ $st = db()->prepare("SELECT COUNT(*) FROM journals WHERE author_id = ? AND work_
 $st->execute([$user['id'], $today]);
 $myToday = (int) $st->fetchColumn();
 $myWaiting = count(waiting_for_user($user));
+$upcoming = array_slice(events_between($today, date('Y-m-d', strtotime('+14 days'))), 0, 6); // 2주 안의 일정
 
 layout_header('대시보드', 'home');
 ?>
@@ -49,6 +50,15 @@ layout_header('대시보드', 'home');
   </ul>
   <div class="profile-links">
     <a href="<?= e(url('mypage.php')) ?>">내 정보</a> · <a href="<?= e(url('org.php')) ?>">조직도</a>
+  </div>
+  <div class="upcoming">
+    <h4><a href="<?= e(url('schedule.php')) ?>">다가오는 일정 ›</a></h4>
+    <?php foreach ($upcoming as $ev): ?>
+      <a class="up-ev" href="<?= e(url('schedule.php?ym=' . substr(max($ev['start_date'], $today), 0, 7))) ?>" style="--c: <?= EVENT_CATEGORIES[$ev['category']][1] ?>">
+        <i></i><span><b><?= e($ev['title']) ?></b><small><?= e(event_when($ev, true)) ?></small></span>
+      </a>
+    <?php endforeach ?>
+    <?php if (!$upcoming): ?><p class="muted small">2주 안에 일정이 없습니다.</p><?php endif ?>
   </div>
 </aside>
 <div class="dash-main">
