@@ -351,6 +351,7 @@ CREATE TABLE IF NOT EXISTS attendance (
 -- 유실물 (운영관리 › 유실물관리)
 CREATE TABLE IF NOT EXISTS lost_items (
   id          INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  reg_no      VARCHAR(20) NULL UNIQUE COMMENT '유실물 등록번호 (등록 연도-일련번호, 예: 2026-0001)',
   name        VARCHAR(100) NOT NULL COMMENT '물품명',
   found_date  DATE NOT NULL COMMENT '습득일',
   place       VARCHAR(100) NULL COMMENT '습득장소',

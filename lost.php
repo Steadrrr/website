@@ -21,6 +21,27 @@ function lost_find(int $id): ?array
     return $st->fetch() ?: null;
 }
 
+/**
+ * 새 유실물 등록번호: 올해-일련번호 (예: 2026-0001). 연도마다 1번부터, 삭제해도 번호는 다시 쓰지 않는다
+ * (settings 의 lost_seq_연도 에 마지막 번호를 기록, 행 잠금으로 동시 등록에도 겹치지 않음)
+ */
+function lost_next_reg_no(): string
+{
+    $pdo = db();
+    $y = (int) date('Y');
+    $key = "lost_seq_$y";
+    $pdo->prepare("INSERT IGNORE INTO settings (name, value) VALUES (?, '0')")->execute([$key]);
+    $st = $pdo->prepare('SELECT value FROM settings WHERE name = ? FOR UPDATE');
+    $st->execute([$key]);
+    $n = (int) $st->fetchColumn() + 1;
+    // 혹시 설정값이 실제 번호보다 작으면 실제 최대 번호 다음으로
+    $mx = $pdo->prepare('SELECT COALESCE(MAX(CAST(SUBSTRING(reg_no, 6) AS UNSIGNED)), 0) FROM lost_items WHERE reg_no LIKE ?');
+    $mx->execute(["$y-%"]);
+    $n = max($n, (int) $mx->fetchColumn() + 1);
+    $pdo->prepare('UPDATE settings SET value = ? WHERE name = ?')->execute([(string) $n, $key]);
+    return sprintf('%d-%04d', $y, $n);
+}
+
 function lost_can_delete(array $item, array $user): bool
 {
     return (int) $item['author_id'] === (int) $user['id'] || (int) $user['rank_level'] >= RANK_OFFICER || !empty($user['is_admin']);
@@ -95,9 +116,14 @@ if (is_post()) {
         $pdo->prepare('UPDATE lost_items SET name = ?, found_date = ?, place = ?, finder = ?, memo = ?, status = ?, photo = ?, updated_by = ?, updated_at = NOW() WHERE id = ?')
             ->execute([...$row, $user['id'], $id]);
     } else {
-        $pdo->prepare('INSERT INTO lost_items (name, found_date, place, finder, memo, status, photo, author_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
-            ->execute([...$row, $user['id']]);
+        $pdo->beginTransaction();
+        $regNo = lost_next_reg_no();
+        $pdo->prepare('INSERT INTO lost_items (reg_no, name, found_date, place, finder, memo, status, photo, author_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)')
+            ->execute([$regNo, ...$row, $user['id']]);
         $id = (int) $pdo->lastInsertId();
+        $pdo->commit();
+        flash("유실물 등록번호 {$regNo} 로 등록했습니다.", 'success');
+        redirect('lost.php?id=' . $id);
     }
     flash("'{$name}' 유실물을 저장했습니다.", 'success');
     redirect('lost.php?id=' . $id);
@@ -112,7 +138,8 @@ if (isset($_GET['edit'])) {
 <form method="post" enctype="multipart/form-data" class="card narrow lost-form">
   <?= csrf_field() ?><input type="hidden" name="id" value="<?= (int) ($item['id'] ?? 0) ?>">
   <div class="card-head">
-    <h1><?= $item ? '유실물 수정' : '유실물 등록' ?></h1>
+    <h1><?= $item ? '유실물 수정' : '유실물 등록' ?>
+      <small class="lost-regno"><?= $item && $item['reg_no'] ? '등록번호 ' . e($item['reg_no']) : '등록번호는 저장할 때 자동으로 붙습니다' ?></small></h1>
     <a class="btn ghost" href="<?= e(url($item ? 'lost.php?id=' . $item['id'] : 'lost.php')) ?>">취소</a>
   </div>
   <div class="lost-form-grid">
@@ -154,7 +181,7 @@ if (isset($_GET['edit'])) {
 /* ═════════════ 상세 ═════════════ */
 if (isset($_GET['id'])) {
     $item = lost_find((int) $_GET['id']) ?? abort(404, '유실물을 찾을 수 없습니다.');
-    layout_header('유실물 · ' . $item['name'], 'lost');
+    layout_header('유실물 ' . ($item['reg_no'] ?? '') . ' · ' . $item['name'], 'lost');
     ?>
 <article class="card lost-detail">
   <div class="lost-form-grid">
@@ -164,6 +191,7 @@ if (isset($_GET['id'])) {
         <h1><?= e($item['name']) ?> <?= lost_badge($item['status']) ?></h1>
       </div>
       <table class="table">
+        <tr><th>등록번호</th><td><b class="lost-regno-lg"><?= e($item['reg_no'] ?: '-') ?></b></td></tr>
         <tr><th>습득일</th><td><?= e($item['found_date']) ?> (<?= weekday_ko($item['found_date']) ?>)</td></tr>
         <tr><th>습득장소</th><td><?= e($item['place'] ?: '-') ?></td></tr>
         <tr><th>습득자</th><td><?= e($item['finder'] ?: '-') ?></td></tr>
@@ -208,8 +236,8 @@ $args = [];
 if ($status === 'open') $where[] = "l.status <> 'returned'"; // 보관 중 (본인수령 제외)
 elseif ($status) { $where[] = 'l.status = ?'; $args[] = $status; }
 if ($q !== '') {
-    $where[] = '(l.name LIKE ? OR l.place LIKE ? OR l.finder LIKE ? OR l.memo LIKE ?)';
-    array_push($args, ...array_fill(0, 4, '%' . $q . '%'));
+    $where[] = '(l.reg_no LIKE ? OR l.name LIKE ? OR l.place LIKE ? OR l.finder LIKE ? OR l.memo LIKE ?)';
+    array_push($args, ...array_fill(0, 5, '%' . $q . '%'));
 }
 $st = $pdo->prepare('SELECT l.* FROM lost_items l WHERE ' . implode(' AND ', $where) . ' ORDER BY l.found_date DESC, l.id DESC LIMIT 300');
 $st->execute($args);
@@ -236,7 +264,7 @@ layout_header('유실물관리', 'lost');
     </div>
     <form method="get" class="lost-search">
       <?php if ($status): ?><input type="hidden" name="status" value="<?= e($status) ?>"><?php endif ?>
-      <input type="search" name="q" value="<?= e($q) ?>" placeholder="물품명·장소·습득자·메모 검색">
+      <input type="search" name="q" value="<?= e($q) ?>" placeholder="등록번호·물품명·장소·습득자·메모 검색">
       <button class="btn small">검색</button>
     </form>
   </div>
@@ -249,6 +277,7 @@ layout_header('유실물관리', 'lost');
       <a class="lost-card <?= $it['status'] === 'returned' ? 'done' : '' ?>" href="<?= e(url('lost.php?id=' . $it['id'])) ?>">
         <div class="lost-frame"><?= lost_photo($it) ?></div>
         <div class="lost-caption">
+          <span class="lost-no">No. <?= e($it['reg_no'] ?: '-') ?></span>
           <b><?= e($it['name']) ?></b>
           <span class="lost-meta"><?= lost_badge($it['status']) ?> <small class="muted"><?= e(date('n/j', strtotime($it['found_date']))) ?><?= $it['place'] ? ' · ' . e($it['place']) : '' ?></small></span>
         </div>

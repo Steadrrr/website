@@ -735,3 +735,6 @@ input[data-stay] { background: #f1f5f2; color: var(--green-d); font-weight: 700;
 .rent-dc select.invalid { border-color: var(--red); background: #fdf0ee; }
 .rent-total { font-size: 1.05rem; border-top: 1px dashed #d9d4c0; margin-top: .3rem; padding-top: .5rem; }
 .rent-total b { color: var(--green-d); }
+.lost-no { display: block; font-size: .72rem; color: #8a7a62; letter-spacing: .03em; font-family: ui-monospace, Consolas, monospace; }
+.lost-regno { font-size: .85rem; font-weight: 400; color: var(--muted); margin-left: .4rem; }
+.lost-regno-lg { font-family: ui-monospace, Consolas, monospace; font-size: 1.05rem; letter-spacing: .03em; }

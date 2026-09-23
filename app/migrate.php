@@ -6,7 +6,7 @@ defined('APP_ROOT') || exit;
  * 새 버전 파일을 FTP로 덮어쓰기만 하면, 첫 접속 때 부족한 테이블/컬럼을 만든다.
  * (기존 자료는 그대로 유지)
  */
-const DB_VERSION = 19;
+const DB_VERSION = 20;
 
 function db_version(): int
 {
@@ -193,6 +193,26 @@ function db_migrate(): void
     if (!column_exists('users', 'hide_in_org')) {
         $pdo->exec("ALTER TABLE users ADD hide_in_org TINYINT(1) NOT NULL DEFAULT 0 AFTER menu_access");
         $pdo->exec("UPDATE users SET hide_in_org = 1 WHERE LOWER(username) IN ('admin', 'test')");
+    }
+
+    // 20) v19 → v20: 유실물 등록번호 (등록 연도별 일련번호). 이미 등록된 유실물은 등록 순서대로 번호를 붙인다
+    if (!column_exists('lost_items', 'reg_no')) {
+        $pdo->exec("ALTER TABLE lost_items ADD reg_no VARCHAR(20) NULL AFTER id, ADD UNIQUE KEY uq_reg_no (reg_no)");
+    }
+    $seq = [];
+    foreach ($pdo->query('SELECT id, YEAR(created_at) AS y FROM lost_items WHERE reg_no IS NULL ORDER BY created_at, id')->fetchAll() as $r) {
+        $y = (int) $r['y'];
+        if (!isset($seq[$y])) {
+            $st = $pdo->prepare("SELECT COALESCE(MAX(CAST(SUBSTRING(reg_no, 6) AS UNSIGNED)), 0) FROM lost_items WHERE reg_no LIKE ?");
+            $st->execute(["$y-%"]);
+            $seq[$y] = (int) $st->fetchColumn();
+        }
+        $seq[$y]++;
+        $pdo->prepare('UPDATE lost_items SET reg_no = ? WHERE id = ?')->execute([sprintf('%d-%04d', $y, $seq[$y]), $r['id']]);
+    }
+    foreach ($seq as $y => $n) {
+        $pdo->prepare("INSERT INTO settings (name, value) VALUES (?, ?) ON DUPLICATE KEY UPDATE value = GREATEST(CAST(value AS UNSIGNED), VALUES(value))")
+            ->execute(["lost_seq_$y", (string) $n]);
     }
 
     $pdo->prepare("INSERT INTO settings (name, value) VALUES ('db_version', ?) ON DUPLICATE KEY UPDATE value = VALUES(value)")
