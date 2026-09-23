@@ -73,15 +73,10 @@ function db_migrate(): void
     }
     $pdo->exec("INSERT IGNORE INTO settings (name, value) VALUES ('room_dc_weekday', '30'), ('room_dc_weekend', '10'), ('room_dc_peak', '10')");
 
-    // 8) v7 → v8: 조직 구성 (팀 아래 반, 반장), 상위 부서·사업장 이름
-    if (!column_exists('users', 'squad_id')) {
-        $pdo->exec("ALTER TABLE users ADD squad_id INT UNSIGNED NULL AFTER team_id, ADD is_squad_leader TINYINT(1) NOT NULL DEFAULT 0 AFTER squad_id");
-    }
-    $pdo->exec("INSERT IGNORE INTO settings (name, value) VALUES ('org_top_name', '양평군청 산림과 산림휴양팀'), ('org_park_name', '양평쉬자파크')");
-
-    // 7) v6 → v7: 회원 개인 사진
-    if (!column_exists('users', 'photo')) {
-        $pdo->exec("ALTER TABLE users ADD photo VARCHAR(200) NULL AFTER position");
+    // 5) v4 → v5: 일지 수정(누구나, 결재 초기화) 이력, 공지사항
+    if (!column_exists('journals', 'revision')) {
+        $pdo->exec("ALTER TABLE journals ADD revision INT UNSIGNED NOT NULL DEFAULT 0 AFTER status,
+                    ADD last_edited_at DATETIME NULL AFTER revision, ADD last_edited_by INT UNSIGNED NULL AFTER last_edited_at");
     }
 
     // 6) v5 → v6: 회원 소속 팀·보직 (회원관리에서 관리자가 입력)
@@ -89,11 +84,16 @@ function db_migrate(): void
         $pdo->exec("ALTER TABLE users ADD team_id INT UNSIGNED NULL AFTER can_delegate, ADD position VARCHAR(50) NULL AFTER team_id");
     }
 
-    // 5) v4 → v5: 일지 수정(누구나, 결재 초기화) 이력, 공지사항
-    if (!column_exists('journals', 'revision')) {
-        $pdo->exec("ALTER TABLE journals ADD revision INT UNSIGNED NOT NULL DEFAULT 0 AFTER status,
-                    ADD last_edited_at DATETIME NULL AFTER revision, ADD last_edited_by INT UNSIGNED NULL AFTER last_edited_at");
+    // 7) v6 → v7: 회원 개인 사진
+    if (!column_exists('users', 'photo')) {
+        $pdo->exec("ALTER TABLE users ADD photo VARCHAR(200) NULL AFTER position");
     }
+
+    // 8) v7 → v8: 조직 구성 (팀 아래 반, 반장), 상위 부서·사업장 이름
+    if (!column_exists('users', 'squad_id')) {
+        $pdo->exec("ALTER TABLE users ADD squad_id INT UNSIGNED NULL AFTER team_id, ADD is_squad_leader TINYINT(1) NOT NULL DEFAULT 0 AFTER squad_id");
+    }
+    $pdo->exec("INSERT IGNORE INTO settings (name, value) VALUES ('org_top_name', '양평군청 산림과 산림휴양팀'), ('org_park_name', '양평쉬자파크')");
 
     $pdo->prepare("INSERT INTO settings (name, value) VALUES ('db_version', ?) ON DUPLICATE KEY UPDATE value = VALUES(value)")
         ->execute([(string) DB_VERSION]);

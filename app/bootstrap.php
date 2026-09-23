@@ -51,7 +51,13 @@ try {
     }
 }
 if ($dbOk && db_version() < DB_VERSION) {
-    db_migrate();
+    try {
+        db_migrate();
+    } catch (Throwable $e) {
+        setup_error("DB 자동 업그레이드 중 오류가 났습니다. (기존 자료는 그대로입니다)\n"
+            . '현재 DB 버전 ' . db_version() . ' → 새 버전 ' . DB_VERSION . "\n오류 내용: " . $e->getMessage()
+            . "\n\n이 화면을 캡처해서 개발 담당자에게 보내 주세요.");
+    }
 }
 unset($dbOk);
 

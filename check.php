@@ -87,6 +87,12 @@ if ($config && extension_loaded('pdo_mysql')) {
             $journals = (int) $pdo->query('SELECT COUNT(*) FROM journals')->fetchColumn();
             $ver = '';
             try { $ver = (string) $pdo->query("SELECT value FROM settings WHERE name = 'db_version'")->fetchColumn(); } catch (Exception $e) {}
+            // 새로 올린 파일이 기대하는 DB 버전 (app/migrate.php 의 DB_VERSION) — 다르면 첫 접속 때 자동 업그레이드된다
+            $target = '';
+            if (preg_match('/const DB_VERSION = (\d+);/', (string) @file_get_contents(APP_ROOT . '/app/migrate.php'), $mm)) $target = $mm[1];
+            if ($ver !== '' && $target !== '' && (int) $ver < (int) $target) {
+                add_result($results, true, 'DB 업그레이드 대기', "DB 버전 $ver → 파일 버전 $target. 사이트 첫 화면을 열면 자동으로 업그레이드됩니다. 실패하면 화면에 오류 내용이 나옵니다.", '');
+            }
             add_result($results, $users > 0, '기존 자료', "회원 {$users}명, 일지 {$journals}건" . ($ver !== '' ? ", DB 버전 $ver" : ''),
                 $users > 0 ? '' : '회원이 없습니다. 다른(새) DB에 연결된 것일 수 있습니다. 원래 쓰던 DB 이름인지 확인하세요.');
         } catch (Exception $e) {
