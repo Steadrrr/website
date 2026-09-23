@@ -295,6 +295,16 @@ function att_used_minutes(array $u, string $t1, string $t2): int
     return $m;
 }
 
+/**
+ * 초과근무 인정 시간(분): 4시간 근무마다 30분 휴게시간을 뺌.
+ * 예) 09:00~13:00 = 4시간, 09:00~13:30 = 4시간, 09:00~14:00 = 4시간 30분, 09:00~18:00 = 8시간
+ */
+function att_overtime_minutes(int $elapsed): int
+{
+    $cycles = intdiv($elapsed, 270); // 근무 4시간 + 휴게 30분
+    return $cycles * 240 + min($elapsed % 270, 240);
+}
+
 /** 조퇴·외출 시간 선택지: 근무 시작부터 종료까지 1시간 간격 ['09:00', '10:00', ...] */
 function att_hour_options(array $u): array
 {
@@ -349,6 +359,10 @@ function att_validate(array $worker, array $in, int $excludeJournal = 0): array
         $row['start_time'] = $t1;
         $row['end_time'] = $t2;
         $row['minutes'] = att_time_min($t2) - att_time_min($t1);
+        if ($kind === 'overtime') {
+            $row['minutes'] = att_overtime_minutes($row['minutes']);
+            if ($row['minutes'] <= 0) return [null, ['초과근무 시간을 확인하세요.'], []];
+        }
         $rest = att_is_rest_day($worker, $start);
         if ($kind === 'overtime' && !$rest) {
             $errors[] = '초과근무는 공휴일 또는 근무자의 휴무일(' . att_off_label($worker) . ')에만 입력할 수 있습니다.';

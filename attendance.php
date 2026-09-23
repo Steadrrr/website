@@ -64,6 +64,8 @@ if (($_GET['api'] ?? '') === 'check') {
                 $out['amount'] = att_is_time_kind($kind) ? att_fmt_min($row['minutes'], false) : $row['days'] . '일 (근무일 기준)';
                 if (in_array($kind, ['early', 'out'], true) && ($br = att_break($worker))
                     && $row['start_time'] < $br[1] && $row['end_time'] > $br[0]) $out['amount'] .= " (점심 휴게 {$br[0]}~{$br[1]} 제외)";
+                $elapsed = att_time_min($row['end_time'] ?? '00:00') - att_time_min($row['start_time'] ?? '00:00');
+                if ($kind === 'overtime' && $elapsed > $row['minutes']) $out['amount'] .= ' (휴게 ' . att_fmt_min($elapsed - $row['minutes'], false) . ' 제외)';
                 $out['cert'] = (bool) $row['cert_required'];
             }
         }
@@ -424,7 +426,7 @@ layout_header('근태관리 ' . $first->format('Y년 n월'), 'attendance');
     <div class="att-check" aria-live="polite"></div>
     <label data-attach hidden>진단서 등 첨부 <small class="muted">(사진 또는 PDF)</small><input type="file" name="attachment" accept="image/*,application/pdf"></label>
     <label>사유<textarea name="reason" rows="2" placeholder="예: 개인 사정, 병원 진료"></textarea></label>
-    <p class="muted tiny-text">연차·병가·공가·결근은 하루 단위(휴무일·공휴일 제외), 조퇴·외출은 시간 단위로 연차에서 차감(1일 = 8시간), 초과근무는 공휴일·휴무일에만 입력합니다.
+    <p class="muted tiny-text">연차·병가·공가·결근은 하루 단위(휴무일·공휴일 제외), 조퇴·외출은 시간 단위로 연차에서 차감(1일 = 8시간), 초과근무는 공휴일·휴무일에만 입력하며 4시간마다 30분 휴게시간을 뺍니다.
       입력하면 결재가 바로 올라갑니다.</p>
     <div class="actions"><button type="button" class="btn ghost" data-close>취소</button><button class="btn primary">입력 · 결재 올리기</button></div>
   </form>
