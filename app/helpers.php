@@ -180,7 +180,8 @@ function is_new(string $datetime): bool
 /** 회원 사진 (없으면 이름 첫 글자) */
 function avatar(array $u, string $class = 'avatar'): string
 {
-    if (!empty($u['photo'])) {
+    // 서버에서 사진 파일이 지워졌으면(예: FTP로 전체 삭제) 이름 첫 글자로 대신 표시
+    if (!empty($u['photo']) && is_file(APP_ROOT . '/' . $u['photo'])) {
         return '<img class="' . e($class) . '" src="' . e(url($u['photo'])) . '" alt="' . e($u['name']) . '">';
     }
     return '<span class="' . e($class) . ' avatar-empty">' . e(mb_substr((string) $u['name'], 0, 1)) . '</span>';

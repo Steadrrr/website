@@ -130,7 +130,8 @@ function photos_for(string $type, int $ownerId): array
 {
     $st = db()->prepare('SELECT * FROM photos WHERE owner_type = ? AND owner_id = ? ORDER BY id');
     $st->execute([$type, $ownerId]);
-    return $st->fetchAll();
+    // 파일이 없어진 사진은 목록에서 뺀다 (깨진 그림 방지)
+    return array_values(array_filter($st->fetchAll(), fn($p) => is_file(APP_ROOT . '/' . $p['path'])));
 }
 
 /** 목록용 대표사진: owner_id => path */
@@ -141,7 +142,7 @@ function photo_thumbs(string $type): array
     $ids = array_column($st->fetchAll(), 'id');
     if (!$ids) return [];
     $rows = db()->query('SELECT owner_id, path FROM photos WHERE id IN (' . implode(',', array_map('intval', $ids)) . ')')->fetchAll();
-    return array_column($rows, 'path', 'owner_id');
+    return array_column(array_filter($rows, fn($r) => is_file(APP_ROOT . '/' . $r['path'])), 'path', 'owner_id');
 }
 
 /**
