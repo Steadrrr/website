@@ -21,6 +21,7 @@ CREATE TABLE IF NOT EXISTS users (
   work_start    TIME NULL COMMENT '근무 시작 시각',
   work_end      TIME NULL COMMENT '근무 종료 시각',
   off_days      VARCHAR(20) NULL COMMENT '휴무 요일 (0=일 ~ 6=토, 쉼표 구분)',
+  menu_access   VARCHAR(100) NULL COMMENT '볼 수 있는 선택 메뉴 (att,ops,prog 쉼표 구분, NULL = 전부)',
   status        ENUM('pending','active','disabled') NOT NULL DEFAULT 'pending',
   created_at    DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
   last_login_at DATETIME     NULL
@@ -374,7 +375,8 @@ CREATE TABLE IF NOT EXISTS program_sessions (
   m_adult  SMALLINT UNSIGNED NOT NULL DEFAULT 0, f_adult  SMALLINT UNSIGNED NOT NULL DEFAULT 0,
   m_senior SMALLINT UNSIGNED NOT NULL DEFAULT 0, f_senior SMALLINT UNSIGNED NOT NULL DEFAULT 0,
   total       INT UNSIGNED NOT NULL DEFAULT 0 COMMENT '인원 합계',
-  is_paid     TINYINT(1) NOT NULL DEFAULT 1 COMMENT '1 유료, 0 무료',
+  is_paid     TINYINT(1) NOT NULL DEFAULT 1 COMMENT '1 유료(할인 포함), 0 무료',
+  fee_type    ENUM('paid','discount','free') NOT NULL DEFAULT 'paid' COMMENT '유료 / 할인 / 무료',
   fee         INT UNSIGNED NOT NULL DEFAULT 0 COMMENT '작성 당시 1인 참가비',
   amount      INT UNSIGNED NOT NULL DEFAULT 0 COMMENT '프로그램 금액 = 유료면 인원 × 참가비',
   activity    TEXT NULL COMMENT '활동내용',

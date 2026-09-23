@@ -32,6 +32,7 @@ if ($id) {
     $payload = items_default($type, $teamId ?: null);
 }
 
+if ($menu = journal_menu($type)) require_menu($user, $menu);
 $revision = $journal && is_revision_edit($journal); // 상신된 적 있는 일지 수정 → 이력 + 결재 초기화
 $errors = [];
 

@@ -10,6 +10,7 @@ require __DIR__ . '/app/bootstrap.php';
 require __DIR__ . '/app/xlsx.php';
 
 $me = require_login();
+require_menu($me, 'att');
 $pdo = db();
 $isMgr = att_is_manager($me);
 

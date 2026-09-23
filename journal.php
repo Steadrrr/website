@@ -7,6 +7,7 @@ $user = require_login();
 $type = $_GET['type'] ?? 'daily';
 if ($type === 'attendance') redirect('attendance.php');
 if (!isset(JOURNAL_TYPES[$type])) $type = 'daily';
+if ($menu = journal_menu($type)) require_menu($user, $menu);
 
 $selected = $_GET['date'] ?? '';
 if (!valid_date($selected)) $selected = '';

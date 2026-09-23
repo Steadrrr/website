@@ -9,6 +9,7 @@
 require __DIR__ . '/app/bootstrap.php';
 
 $user = require_login();
+require_menu($user, 'ops');
 $pdo = db();
 const LOST_PHOTO_MAX = 800; // 사진 긴 변(px)
 

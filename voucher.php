@@ -3,6 +3,7 @@
 require __DIR__ . '/app/bootstrap.php';
 
 $user = require_login();
+require_menu($user, 'ops');
 $denoms = voucher_denoms();
 
 $ym = $_GET['ym'] ?? date('Y-m');

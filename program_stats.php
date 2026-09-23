@@ -7,6 +7,7 @@ require __DIR__ . '/app/bootstrap.php';
 require __DIR__ . '/app/xlsx.php';
 
 $user = require_login();
+require_menu($user, 'prog');
 $pdo = db();
 
 $unit = in_array($_GET['unit'] ?? '', ['day', 'week', 'month'], true) ? $_GET['unit'] : 'day';
@@ -44,7 +45,7 @@ $keyExpr = match ($unit) {
 $types = $prog ? [$prog] : array_keys(PROGRAM_TYPES);
 $ageCols = program_people_cols();
 $sumSql = 'COUNT(p.id) AS sessions, COUNT(DISTINCT j.id) AS days, ' . implode(', ', array_map(fn($c) => "SUM(p.$c) AS $c", $ageCols))
-    . ', SUM(p.total) AS total, SUM(IF(p.is_paid = 1, p.total, 0)) AS paid, SUM(IF(p.is_paid = 0, p.total, 0)) AS free, SUM(p.amount) AS amount';
+    . ', SUM(p.total) AS total, SUM(IF(p.fee_type = \'paid\', p.total, 0)) AS paid, SUM(IF(p.fee_type = \'discount\', p.total, 0)) AS discount, SUM(IF(p.fee_type = \'free\', p.total, 0)) AS free, SUM(p.amount) AS amount';
 $where = 'j.type IN (' . implode(',', array_fill(0, count($types), '?')) . ') AND j.status IN (' . implode(',', array_fill(0, count($statuses), '?')) . ') AND j.work_date BETWEEN ? AND ?';
 $args = [...$types, ...$statuses, $from, $to];
 $run = function (string $select, string $group) use ($pdo, $where, $args): array {
@@ -52,7 +53,7 @@ $run = function (string $select, string $group) use ($pdo, $where, $args): array
     $st->execute($args);
     return $st->fetchAll();
 };
-$blank = ['sessions' => 0, 'days' => 0, 'total' => 0, 'paid' => 0, 'free' => 0, 'amount' => 0, 'm' => 0, 'f' => 0] + array_fill_keys($ageCols, 0);
+$blank = ['sessions' => 0, 'days' => 0, 'total' => 0, 'paid' => 0, 'discount' => 0, 'free' => 0, 'amount' => 0, 'm' => 0, 'f' => 0] + array_fill_keys($ageCols, 0);
 $norm = function (array $r) use ($blank, $ageCols): array {
     $o = $blank;
     foreach ($blank as $k => $_) if (isset($r[$k])) $o[$k] = (int) $r[$k];
@@ -71,7 +72,7 @@ foreach ($run("j.type AS t, $sumSql", 'j.type') as $r) $byProg[$r['t']] = $norm(
 
 $cols = ['sessions' => '회차', 'm' => '남', 'f' => '여'];
 foreach (PROGRAM_AGES as $a => $label) $cols["age_$a"] = $label;
-$cols += ['total' => '인원 합계', 'paid' => '유료', 'free' => '무료', 'amount' => '금액(원)'];
+$cols += ['total' => '인원 합계', 'paid' => '유료', 'discount' => '할인', 'free' => '무료', 'amount' => '금액(원)'];
 $unitLabel = ['day' => '일별', 'week' => '주별', 'month' => '월별'][$unit];
 $title = ($prog ? PROGRAM_TYPES[$prog] : '프로그램 전체') . " {$unitLabel} 통계 ($from ~ $to)";
 
@@ -82,10 +83,10 @@ if (($_GET['export'] ?? '') === 'xlsx') {
     xlsx_send(str_replace([' ', '(', ')', '~'], ['_', '', '', '-'], $title) . '.xlsx', [
         ['name' => $unitLabel, 'title' => config('site_name') . ' ' . $title, 'subtitle' => $sub, 'header' => ['기간', ...array_values($cols)],
             'rows' => array_map(fn($k) => [$labels[$k], ...array_map(fn($c) => $data[$k][$c], array_keys($cols))], array_keys($data)),
-            'footer' => [['합계', ...array_map(fn($c) => $sum[$c], array_keys($cols))]], 'widths' => [16, 8, 8, 8, 8, 8, 8, 8, 10, 10, 8, 8, 13]],
+            'footer' => [['합계', ...array_map(fn($c) => $sum[$c], array_keys($cols))]], 'widths' => [16, 8, 8, 8, 8, 8, 8, 8, 10, 10, 8, 8, 8, 13]],
         ['name' => '분야별', 'title' => $title . ' · 분야별', 'subtitle' => $sub, 'header' => ['분야', '운영일', ...array_values($cols)],
             'rows' => array_map(fn($t) => [PROGRAM_TYPES[$t], $byProg[$t]['days'], ...array_map(fn($c) => $byProg[$t][$c], array_keys($cols))], array_keys($byProg)),
-            'footer' => [['합계', $sum['days'], ...array_map(fn($c) => $sum[$c], array_keys($cols))]], 'widths' => [16, 8, 8, 8, 8, 8, 8, 8, 8, 10, 10, 8, 8, 13]],
+            'footer' => [['합계', $sum['days'], ...array_map(fn($c) => $sum[$c], array_keys($cols))]], 'widths' => [16, 8, 8, 8, 8, 8, 8, 8, 8, 10, 10, 8, 8, 8, 13]],
         ['name' => '성별·연령별', 'title' => $title . ' · 성별·연령별', 'subtitle' => $sub, 'header' => ['연령대', '남', '여', '계'],
             'rows' => $matrix, 'footer' => [['합계', $sum['m'], $sum['f'], $sum['total']]], 'widths' => [14, 10, 10, 10]],
     ]);
@@ -128,7 +129,7 @@ layout_header('프로그램 통계', 'prog_stats');
   <div class="kpis k4">
     <div class="kpi"><span>운영 회차</span><b><?= number_format($sum['sessions']) ?>회</b><small class="muted">운영일 <?= number_format($sum['days']) ?>일</small></div>
     <div class="kpi"><span>참여 인원</span><b><?= number_format($sum['total']) ?>명</b><small class="muted">남 <?= number_format($sum['m']) ?> · 여 <?= number_format($sum['f']) ?></small></div>
-    <div class="kpi"><span>유료 / 무료</span><b><?= number_format($sum['paid']) ?> / <?= number_format($sum['free']) ?>명</b></div>
+    <div class="kpi"><span>유료 / 할인 / 무료</span><b><?= number_format($sum['paid']) ?> / <?= number_format($sum['discount']) ?> / <?= number_format($sum['free']) ?>명</b></div>
     <div class="kpi total"><span>프로그램 금액</span><b><?= e(won($sum['amount'])) ?></b></div>
   </div>
   <div class="table-scroll">
@@ -150,14 +151,14 @@ layout_header('프로그램 통계', 'prog_stats');
     <h2>분야별</h2>
     <div class="table-scroll">
     <table class="table">
-      <thead><tr><th>분야</th><th class="right">운영일</th><th class="right">회차</th><th class="right">인원</th><th class="right">유료</th><th class="right">무료</th><th class="right">금액</th></tr></thead>
+      <thead><tr><th>분야</th><th class="right">운영일</th><th class="right">회차</th><th class="right">인원</th><th class="right">유료</th><th class="right">할인</th><th class="right">무료</th><th class="right">금액</th></tr></thead>
       <tbody>
       <?php foreach ($byProg as $t => $r): ?>
         <tr><td><a href="<?= e(url($q(['prog' => $t]))) ?>"><?= e(PROGRAM_TYPES[$t]) ?></a></td>
-          <?php foreach (['days', 'sessions', 'total', 'paid', 'free', 'amount'] as $c): ?><td class="right"><?= number_format($r[$c]) ?></td><?php endforeach ?></tr>
+          <?php foreach (['days', 'sessions', 'total', 'paid', 'discount', 'free', 'amount'] as $c): ?><td class="right"><?= number_format($r[$c]) ?></td><?php endforeach ?></tr>
       <?php endforeach ?>
       </tbody>
-      <tfoot><tr><th>합계</th><?php foreach (['days', 'sessions', 'total', 'paid', 'free', 'amount'] as $c): ?><th class="right"><?= number_format($sum[$c]) ?></th><?php endforeach ?></tr></tfoot>
+      <tfoot><tr><th>합계</th><?php foreach (['days', 'sessions', 'total', 'paid', 'discount', 'free', 'amount'] as $c): ?><th class="right"><?= number_format($sum[$c]) ?></th><?php endforeach ?></tr></tfoot>
     </table>
     </div>
   </section>
@@ -174,5 +175,5 @@ layout_header('프로그램 통계', 'prog_stats');
     </table>
   </section>
 </div>
-<p class="muted small no-print">주별은 월요일~일요일 기준입니다. 금액은 유료 회차의 인원 × 1인 참가비(작성 당시)입니다. 임시저장·반려된 보고서는 집계하지 않습니다.</p>
+<p class="muted small no-print">주별은 월요일~일요일 기준입니다. 금액은 인원 × 1인 참가비(유료·할인, 작성 당시 금액)입니다. 임시저장·반려된 보고서는 집계하지 않습니다.</p>
 <?php layout_footer();

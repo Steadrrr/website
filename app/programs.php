@@ -5,7 +5,7 @@ defined('APP_ROOT') || exit;
  * 프로그램 운영보고 (산림치유센터 · 유아숲체험원 · 숲해설)
  *  - 분야별로 하루 1건. 보고서 안에 회차(1회차부터 자동 번호)를 여러 개 입력
  *  - 회차: 단체명(개인 성명), 운영시간, 인원(남·여 × 유아·초등·중고등·성인·65세이상), 유료/무료, 활동내용
- *  - 프로그램 금액 = 유료면 인원 합계 × 1인 참가비(설정 › 기본 정보, 기본 5,000원)
+ *  - 프로그램 금액 = 인원 합계 × 1인 참가비 — 유료(기본 5,000원) / 할인(기본 3,000원) / 무료 (설정 › 기본 정보)
  *  - 활동사진은 보고서에 여러 장 (photos.owner_type 'program', 긴 변 PROGRAM_PHOTO_MAX px)
  */
 const PROGRAM_PHOTO_MAX = 1000;
@@ -15,10 +15,24 @@ function is_program_type(string $type): bool
     return isset(PROGRAM_TYPES[$type]);
 }
 
+const PROGRAM_FEE_TYPES = ['paid' => '유료', 'discount' => '할인', 'free' => '무료'];
+
 /** 1인 참가비 (유료) */
 function program_fee(): int
 {
     return (int) setting('program_fee', '5000');
+}
+
+/** 1인 참가비 (할인) */
+function program_fee_dc(): int
+{
+    return (int) setting('program_fee_dc', '3000');
+}
+
+/** 요금 구분별 1인 참가비 */
+function program_fee_for(string $feeType): int
+{
+    return match ($feeType) { 'paid' => program_fee(), 'discount' => program_fee_dc(), default => 0 };
 }
 
 /** 인원 컬럼 목록: ['m_infant', 'f_infant', ...] */
@@ -31,7 +45,7 @@ function program_people_cols(): array
 
 function program_empty_session(): array
 {
-    return ['group_name' => '', 'start_time' => '', 'end_time' => '', 'is_paid' => 1, 'activity' => '', 'total' => 0, 'amount' => 0]
+    return ['group_name' => '', 'start_time' => '', 'end_time' => '', 'is_paid' => 1, 'fee_type' => 'paid', 'activity' => '', 'total' => 0, 'amount' => 0]
         + array_fill_keys(program_people_cols(), 0);
 }
 
@@ -47,7 +61,6 @@ function program_parse(string $type, string $workDate, int $journalId): array
 {
     $errors = [];
     $sessions = [];
-    $fee = program_fee();
     $time = '/^([01]\d|2[0-3]):[0-5]\d$/';
     foreach ((array) ($_POST['s'] ?? []) as $row) {
         if (!is_array($row)) continue;
@@ -58,7 +71,8 @@ function program_parse(string $type, string $workDate, int $journalId): array
         $s['activity'] = trim((string) ($row['activity'] ?? ''));
         $s['start_time'] = (string) ($row['start_time'] ?? '');
         $s['end_time'] = (string) ($row['end_time'] ?? '');
-        $s['is_paid'] = ($row['is_paid'] ?? '1') === '0' ? 0 : 1;
+        $s['fee_type'] = isset(PROGRAM_FEE_TYPES[$row['fee_type'] ?? '']) ? $row['fee_type'] : 'paid';
+        $s['is_paid'] = (int) ($s['fee_type'] !== 'free');
         // 아무것도 입력하지 않은 회차는 건너뜀
         if ($s['group_name'] === '' && $s['total'] === 0 && $s['activity'] === '' && $s['start_time'] === '') continue;
 
@@ -69,7 +83,7 @@ function program_parse(string $type, string $workDate, int $journalId): array
         if ($s['end_time'] !== '' && !preg_match($time, $s['end_time'])) $errors[] = "{$no}회차: 종료 시간을 확인하세요.";
         if ($s['start_time'] !== '' && $s['end_time'] !== '' && $s['end_time'] <= $s['start_time']) $errors[] = "{$no}회차: 종료 시간이 시작 시간보다 늦어야 합니다.";
         $s['session_no'] = $no;
-        $s['fee'] = $s['is_paid'] ? $fee : 0;
+        $s['fee'] = program_fee_for($s['fee_type']);
         $s['amount'] = $s['total'] * $s['fee'];
         $sessions[] = $s;
     }
@@ -89,7 +103,7 @@ function program_save(int $journalId, array $payload): void
 {
     $pdo = db();
     $pdo->prepare('DELETE FROM program_sessions WHERE journal_id = ?')->execute([$journalId]);
-    $cols = ['session_no', 'group_name', 'start_time', 'end_time', ...program_people_cols(), 'total', 'is_paid', 'fee', 'amount', 'activity'];
+    $cols = ['session_no', 'group_name', 'start_time', 'end_time', ...program_people_cols(), 'total', 'is_paid', 'fee_type', 'fee', 'amount', 'activity'];
     $ins = $pdo->prepare('INSERT INTO program_sessions (journal_id, ' . implode(', ', $cols) . ') VALUES (?' . str_repeat(', ?', count($cols)) . ')');
     foreach ($payload['sessions'] as $s) {
         $s['start_time'] = $s['start_time'] ?: null;
@@ -113,11 +127,11 @@ function program_time(array $s): string
 /** 회차 합계: 회차 수, 인원, 유료·무료 인원, 금액, 남·여, 연령대별 */
 function program_totals(array $sessions): array
 {
-    $t = ['sessions' => count($sessions), 'total' => 0, 'paid' => 0, 'free' => 0, 'amount' => 0, 'm' => 0, 'f' => 0]
+    $t = ['sessions' => count($sessions), 'total' => 0, 'paid' => 0, 'discount' => 0, 'free' => 0, 'amount' => 0, 'm' => 0, 'f' => 0]
         + array_fill_keys(program_people_cols(), 0);
     foreach ($sessions as $s) {
         $t['total'] += (int) $s['total'];
-        $t[$s['is_paid'] ? 'paid' : 'free'] += (int) $s['total'];
+        $t[$s['fee_type'] ?? ($s['is_paid'] ? 'paid' : 'free')] += (int) $s['total'];
         $t['amount'] += (int) $s['amount'];
         foreach (PROGRAM_AGES as $a => $_) {
             $t["m_$a"] += (int) $s["m_$a"];
@@ -149,8 +163,10 @@ function program_session_card(string $key, array $s, int $no): void
           ~ <input type="time" name="<?= $n('end_time') ?>" value="<?= e(substr((string) ($s['end_time'] ?? ''), 0, 5)) ?>" step="600"></span></label>
       <div class="prog-paid">
         <span class="label-text">프로그램 금액</span>
-        <label class="inline-check"><input type="radio" name="<?= $n('is_paid') ?>" value="1" data-paid <?= !empty($s['is_paid']) ? 'checked' : '' ?>> 유료 <small class="muted">(1인 <?= number_format(program_fee()) ?>원)</small></label>
-        <label class="inline-check"><input type="radio" name="<?= $n('is_paid') ?>" value="0" data-paid <?= empty($s['is_paid']) ? 'checked' : '' ?>> 무료</label>
+        <?php foreach (PROGRAM_FEE_TYPES as $ft => $label): $fee = program_fee_for($ft); ?>
+          <label class="inline-check"><input type="radio" name="<?= $n('fee_type') ?>" value="<?= $ft ?>" data-fee-type data-fee="<?= $fee ?>" <?= ($s['fee_type'] ?? 'paid') === $ft ? 'checked' : '' ?>>
+            <?= e($label) ?><?= $fee ? ' <small class="muted">(1인 ' . number_format($fee) . '원)</small>' : '' ?></label>
+        <?php endforeach ?>
       </div>
     </div>
     <div class="table-scroll">
@@ -179,7 +195,7 @@ function program_form(string $type, array $payload, ?array $journal): void
 {
     $sessions = $payload['sessions'] ?: [program_empty_session()];
     ?>
-<div data-program-form data-fee="<?= program_fee() ?>">
+<div data-program-form>
   <h3><?= e(PROGRAM_TYPES[$type]) ?> 프로그램 운영 <small class="muted">회차는 1회차부터 자동으로 번호가 붙습니다</small></h3>
   <div data-sessions>
     <?php foreach (array_values($sessions) as $i => $s) program_session_card((string) $i, $s, $i + 1) ?>
@@ -188,7 +204,7 @@ function program_form(string $type, array $payload, ?array $journal): void
   <button type="button" class="btn" data-add-session>+ 회차 추가</button>
 
   <div class="grand prog-grand">합계 <span data-sum-sessions>0회</span> · 인원 <b data-sum-total>0명</b>
-    <small class="muted">(남 <span data-sum-m>0</span> · 여 <span data-sum-f>0</span> / 유료 <span data-sum-paid>0</span> · 무료 <span data-sum-free>0</span>)</small>
+    <small class="muted">(남 <span data-sum-m>0</span> · 여 <span data-sum-f>0</span> / 유료 <span data-sum-paid>0</span> · 할인 <span data-sum-discount>0</span> · 무료 <span data-sum-free>0</span>)</small>
     · 금액 <b data-sum-amount>0원</b></div>
 
   <h3>활동사진</h3>
@@ -208,7 +224,7 @@ function program_view(array $journal): void
   <div class="kpis k4 prog-kpis">
     <div class="kpi"><span>운영 회차</span><b><?= $t['sessions'] ?>회</b></div>
     <div class="kpi"><span>참여 인원</span><b><?= number_format($t['total']) ?>명</b><small class="muted">남 <?= $t['m'] ?> · 여 <?= $t['f'] ?></small></div>
-    <div class="kpi"><span>유료 / 무료</span><b><?= number_format($t['paid']) ?> / <?= number_format($t['free']) ?>명</b></div>
+    <div class="kpi"><span>유료 / 할인 / 무료</span><b><?= number_format($t['paid']) ?> / <?= number_format($t['discount']) ?> / <?= number_format($t['free']) ?>명</b></div>
     <div class="kpi total"><span>프로그램 금액</span><b><?= e(won($t['amount'])) ?></b></div>
   </div>
   <div class="table-scroll">
@@ -223,7 +239,7 @@ function program_view(array $journal): void
     <?php foreach ($sessions as $s): ?>
       <tr><td class="center"><?= (int) $s['session_no'] ?></td><td><?= e($s['group_name']) ?></td><td class="nowrap"><?= e(program_time($s)) ?></td>
         <?php foreach (PROGRAM_AGES as $a => $_): ?><td class="right"><?= $s["m_$a"] ?: '' ?></td><td class="right"><?= $s["f_$a"] ?: '' ?></td><?php endforeach ?>
-        <td class="right"><b><?= number_format($s['total']) ?></b></td><td><?= $s['is_paid'] ? '유료' : '무료' ?></td><td class="right"><?= number_format($s['amount']) ?></td></tr>
+        <td class="right"><b><?= number_format($s['total']) ?></b></td><td><?= e(PROGRAM_FEE_TYPES[$s['fee_type']] ?? '') ?><?= $s['fee'] ? ' <small class="muted">' . number_format($s['fee']) . '</small>' : '' ?></td><td class="right"><?= number_format($s['amount']) ?></td></tr>
     <?php endforeach ?>
     </tbody>
     <tfoot><tr><th colspan="3">합계 <?= $t['sessions'] ?>회</th>
@@ -254,7 +270,7 @@ function program_snapshot(array $journal): array
             if ($s["m_$a"] || $s["f_$a"]) $people[] = "$label 남{$s["m_$a"]}·여{$s["f_$a"]}";
         }
         $lines[] = "{$s['session_no']}회차 · {$s['group_name']}" . (program_time($s) ? ' · ' . program_time($s) : '')
-            . ' · ' . implode(', ', $people) . " = {$s['total']}명 · " . ($s['is_paid'] ? '유료 ' . number_format($s['amount']) . '원' : '무료')
+            . ' · ' . implode(', ', $people) . " = {$s['total']}명 · " . (PROGRAM_FEE_TYPES[$s['fee_type']] ?? '') . ($s['amount'] ? ' ' . number_format($s['amount']) . '원' : '')
             . ($s['activity'] ? ' · 활동: ' . preg_replace('/\s+/', ' ', $s['activity']) : '');
     }
     return ['회차' => $lines, '활동사진' => count(photos_for('program', (int) $journal['id'])) . '장'];

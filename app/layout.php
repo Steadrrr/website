@@ -102,6 +102,9 @@ function nav_groups(?array $user): array
             'approval' => ['approvals.php', '결재함'],
         ]],
     ];
+    foreach (array_keys(MENU_OPTIONAL) as $g) {
+        if (!can_menu($user, $g)) unset($groups[$g]); // 회원관리에서 끈 메뉴는 숨김
+    }
     if ($user && $user['is_admin']) {
         $groups['settings'] = ['label' => '⚙ 설정', 'href' => 'settings.php'];
     } elseif ($user && can_manage_users($user)) {

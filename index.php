@@ -65,7 +65,7 @@ layout_header('대시보드', 'home');
         <li><span>병가 사용</span><b><?= $as['sick_used'] ?>일 <small class="muted">/ <?= $as['sick_limit'] ?>일</small></b></li>
       </ul>
     <?php endif ?>
-    <a class="btn small" href="<?= e(url('attendance.php?new=' . $today)) ?>">+ 근태 입력</a>
+    <?php if (can_menu($user, 'att')): ?><a class="btn small" href="<?= e(url('attendance.php?new=' . $today)) ?>">+ 근태 입력</a><?php endif ?>
   </div>
   <?php endif ?>
   <div class="profile-links">
@@ -129,6 +129,7 @@ layout_header('대시보드', 'home');
   <?php endif ?>
 </section>
 
+<?php if (can_menu($user, 'ops')): // 판매 현황·오늘 일지 현황은 운영관리 권한이 있을 때만 ?>
 <div class="card-head">
   <h1>판매 현황</h1>
   <div class="tabs" id="periodTabs">
@@ -163,7 +164,10 @@ layout_header('대시보드', 'home');
   <?= config('chart_statuses') === ['approved'] ? '결재완료된 매출보고만 집계합니다.' : '결재중·결재완료 매출보고를 집계합니다.' ?>
 </p>
 
+<?php endif ?>
+
 <div class="grid2">
+  <?php if (can_menu($user, 'ops')): ?>
   <section class="card">
     <h2>오늘(<?= e(date('n/j')) ?>) 일지 현황</h2>
     <ul class="list">
@@ -177,6 +181,7 @@ layout_header('대시보드', 'home');
     </ul>
   </section>
 
+  <?php endif ?>
   <section class="card">
     <h2>내 결재 대기</h2>
     <?php if (!$waiting): ?>

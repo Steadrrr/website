@@ -35,8 +35,11 @@ if (is_post()) {
         if ($squad) $team = (int) squads_all()[$squad]['team_id'];
         $leader = (int) ($squad && post('is_squad_leader') === '1');
         $position = mb_substr(post('position'), 0, 50) ?: null;
-        db()->prepare('UPDATE users SET rank_level = ?, status = ?, is_admin = ?, can_delegate = ?, team_id = ?, squad_id = ?, is_squad_leader = ?, position = ? WHERE id = ?')
-            ->execute([$rank, $status, $admin, $delegate, $team, $squad, $leader, $position, $id]);
+        // 메인메뉴 권한: 전부 체크 = NULL(전체), 아니면 체크한 것만
+        $menus = array_values(array_intersect(array_keys(MENU_OPTIONAL), array_map('strval', (array) ($_POST['menu'] ?? []))));
+        $menuAccess = count($menus) === count(MENU_OPTIONAL) ? null : implode(',', $menus);
+        db()->prepare('UPDATE users SET rank_level = ?, status = ?, is_admin = ?, can_delegate = ?, team_id = ?, squad_id = ?, is_squad_leader = ?, position = ?, menu_access = ? WHERE id = ?')
+            ->execute([$rank, $status, $admin, $delegate, $team, $squad, $leader, $position, $menuAccess, $id]);
         flash("{$target['name']}님 정보를 저장했습니다.", 'success');
     }
     redirect('admin/users.php');
@@ -55,11 +58,13 @@ if ($me['is_admin']) settings_nav('users');
     (팀·반·보직은 회원가입 화면에는 없고 여기서만 입력합니다. 반을 고르면 팀은 자동으로 맞춰집니다.
     팀장·주무관은 조직도에서 상위 부서에 표시되므로 팀·반을 비워 둬도 됩니다.
     팀·반 목록은 <?= $me['is_admin'] ? '<a href="' . e(url('settings.php?tab=org')) . '">설정 › 조직 구성</a>' : '최고관리자가 설정 › 조직 구성' ?>에서 바꿉니다)<br>
+    <b>메뉴 권한</b>: 체크한 메인메뉴(근태관리·운영관리·프로그램)만 그 회원의 상단 메뉴에 보이고, 체크를 끄면 해당 페이지에도 들어갈 수 없습니다.
+    (대시보드·일정표·시설관리·기타는 항상 보이고, 결재함에서 결재 문서를 보고 결재하는 것은 메뉴 권한과 관계없이 됩니다. 최고관리자는 항상 전체)<br>
     <b>근무 설정</b>: 관리원의 입사일·계약만료일·근무시간·휴무 요일을 입력합니다. (근태관리의 연차 발생·병가 한도·휴무일 계산에 쓰임)<br>
     <b>전결권한</b>: 체크한 주무관은 팀장 부재 시 '전결' 버튼으로 팀장 결재 없이 문서를 최종 완료할 수 있습니다. (주무관 직급만 가능)</p>
   <div class="table-scroll">
   <table class="table users-table">
-    <thead><tr><th>이름</th><th>아이디</th><th>연락처</th><th>직급</th><th>팀</th><th>반</th><th title="체크하면 조직도에서 반 맨 위에 표시">반장</th><th>보직</th><th title="관리원 근태: 입사일·근무시간·휴무요일">근무 설정</th><th>상태</th><th title="팀장 부재 시 주무관이 최종 결재">전결권한</th><?php if ($me['is_admin']): ?><th>관리자</th><?php endif ?><th></th></tr></thead>
+    <thead><tr><th>이름</th><th>아이디</th><th>연락처</th><th>직급</th><th>팀</th><th>반</th><th title="체크하면 조직도에서 반 맨 위에 표시">반장</th><th>보직</th><th title="관리원 근태: 입사일·근무시간·휴무요일">근무 설정</th><th title="체크한 메인메뉴만 보입니다 (최고관리자는 항상 전체)">메뉴 권한</th><th>상태</th><th title="팀장 부재 시 주무관이 최종 결재">전결권한</th><?php if ($me['is_admin']): ?><th>관리자</th><?php endif ?><th></th></tr></thead>
     <tbody>
     <?php foreach ($users as $u): $locked = $u['is_admin'] && !$me['is_admin']; ?>
       <tr class="<?= $u['status'] === 'pending' ? 'highlight' : '' ?>">
@@ -87,6 +92,11 @@ if ($me['is_admin']) settings_nav('users');
             <?php if ($u['hire_date']): ?><br><small class="muted"><?= e($u['hire_date']) ?> ~ <?= e($u['contract_end'] ?: '만료일 미입력') ?>
               <?= att_expired($u) ? '<b class="warn">계약만료</b>' : '' ?><br><?= e(implode('~', att_work_hours($u))) ?> · 휴무 <?= e(att_off_label($u)) ?></small><?php endif ?>
           <?php else: ?><span class="muted">-</span><?php endif ?></td>
+          <td class="nowrap small menu-perms">
+            <?php foreach (MENU_OPTIONAL as $g => $label): ?>
+              <label class="inline-check"><input type="checkbox" name="menu[]" value="<?= $g ?>" form="u<?= (int) $u['id'] ?>" <?= can_menu($u, $g) ? 'checked' : '' ?> <?= $locked || $u['is_admin'] ? 'disabled' : '' ?>> <?= e($label) ?></label>
+            <?php endforeach ?>
+          </td>
           <td><select name="status" form="u<?= (int) $u['id'] ?>" <?= $locked ? 'disabled' : '' ?>>
             <?php foreach (['pending' => '승인대기', 'active' => '사용', 'disabled' => '중지'] as $v => $label): ?>
               <option value="<?= $v ?>" <?= $u['status'] === $v ? 'selected' : '' ?>><?= $label ?></option>

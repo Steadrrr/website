@@ -4,14 +4,13 @@
   if (!form) return;
   const box = form.querySelector('[data-sessions]');
   const tpl = document.getElementById('sessionTpl');
-  const fee = parseInt(form.dataset.fee, 10) || 0;
   const fmt = (n) => n.toLocaleString('ko-KR');
   const num = (v) => parseInt(String(v).replace(/\D/g, ''), 10) || 0;
   const set = (el, v) => { if (el) el.textContent = v; };
 
   function recalc() {
     const cards = [...box.querySelectorAll('[data-session]')];
-    const sum = { total: 0, m: 0, f: 0, paid: 0, free: 0, amount: 0 };
+    const sum = { total: 0, m: 0, f: 0, paid: 0, discount: 0, free: 0, amount: 0 };
     cards.forEach((card, i) => {
       set(card.querySelector('[data-no]'), i + 1); // 회차 번호는 순서대로 1부터
       const gs = { m: 0, f: 0 }, as = {};
@@ -23,18 +22,19 @@
       const total = gs.m + gs.f;
       Object.entries(gs).forEach(([g, v]) => set(card.querySelector(`[data-gsum="${g}"]`), fmt(v)));
       card.querySelectorAll('[data-asum]').forEach((c) => set(c, fmt(as[c.dataset.asum] || 0)));
-      const paid = (card.querySelector('[data-paid]:checked') || {}).value !== '0';
-      const amount = paid ? total * fee : 0;
+      const ft = card.querySelector('[data-fee-type]:checked'); // 유료 / 할인 / 무료
+      const type = ft ? ft.value : 'paid';
+      const amount = total * (ft ? num(ft.dataset.fee) : 0);
       set(card.querySelector('[data-total]'), fmt(total));
       set(card.querySelector('[data-total-text]'), fmt(total) + '명');
-      set(card.querySelector('[data-amount]'), paid ? fmt(amount) + '원' : '무료');
+      set(card.querySelector('[data-amount]'), type === 'free' ? '무료' : fmt(amount) + '원');
       card.querySelector('[data-remove-session]').hidden = cards.length === 1;
       sum.total += total; sum.m += gs.m; sum.f += gs.f; sum.amount += amount;
-      sum[paid ? 'paid' : 'free'] += total;
+      sum[type] += total;
     });
     set(form.querySelector('[data-sum-sessions]'), cards.length + '회');
     set(form.querySelector('[data-sum-total]'), fmt(sum.total) + '명');
-    ['m', 'f', 'paid', 'free'].forEach((k) => set(form.querySelector(`[data-sum-${k}]`), fmt(sum[k])));
+    ['m', 'f', 'paid', 'discount', 'free'].forEach((k) => set(form.querySelector(`[data-sum-${k}]`), fmt(sum[k])));
     set(form.querySelector('[data-sum-amount]'), fmt(sum.amount) + '원');
   }
 

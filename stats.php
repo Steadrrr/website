@@ -11,6 +11,7 @@ require __DIR__ . '/app/bootstrap.php';
 require __DIR__ . '/app/xlsx.php';
 
 $user = require_login();
+require_menu($user, 'ops');
 $pdo = db();
 
 $tab = ($_GET['tab'] ?? 'sales') === 'daily' ? 'daily' : 'sales';

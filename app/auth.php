@@ -41,6 +41,33 @@ function require_manager(): array
     return $u;
 }
 
+/** 회원별로 켜고 끌 수 있는 메인메뉴 (회원관리에서 설정) */
+const MENU_OPTIONAL = ['att' => '근태관리', 'ops' => '운영관리', 'prog' => '프로그램'];
+
+/** 이 메인메뉴를 볼 수 있는가. 최고관리자와 설정 전(NULL) 회원은 전부 */
+function can_menu(?array $u, string $group): bool
+{
+    if (!$u || !isset(MENU_OPTIONAL[$group]) || !empty($u['is_admin']) || !isset($u['menu_access'])) return true;
+    return in_array($group, explode(',', (string) $u['menu_access']), true);
+}
+
+/** 메뉴 권한이 없으면 403 (결재 문서 보기·결재는 막지 않음) */
+function require_menu(array $u, string $group): void
+{
+    if (!can_menu($u, $group)) abort(403, "'" . MENU_OPTIONAL[$group] . "' 메뉴 사용 권한이 없습니다. 관리자에게 회원관리 › 메뉴 권한을 요청하세요.");
+}
+
+/** 일지 종류가 속한 메인메뉴 (권한 확인용) */
+function journal_menu(string $type): ?string
+{
+    return match (true) {
+        in_array($type, ['daily', 'sales', 'voucher'], true) => 'ops',
+        isset(PROGRAM_TYPES[$type]) => 'prog',
+        $type === 'attendance' => 'att',
+        default => null,
+    };
+}
+
 /** 설정 메뉴(상품·조직·분류 등): 최고관리자만 */
 function require_admin(): array
 {

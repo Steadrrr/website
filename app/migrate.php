@@ -6,7 +6,7 @@ defined('APP_ROOT') || exit;
  * 새 버전 파일을 FTP로 덮어쓰기만 하면, 첫 접속 때 부족한 테이블/컬럼을 만든다.
  * (기존 자료는 그대로 유지)
  */
-const DB_VERSION = 14;
+const DB_VERSION = 15;
 
 function db_version(): int
 {
@@ -158,6 +158,16 @@ function db_migrate(): void
         $pdo->exec("ALTER TABLE photos MODIFY owner_type ENUM('facility','equipment','program') NOT NULL");
     }
     $pdo->exec("INSERT IGNORE INTO settings (name, value) VALUES ('program_fee', '5000')");
+
+    // 15) v14 → v15: 프로그램 할인 요금, 회원별 메인메뉴 접근 권한
+    if (!column_exists('program_sessions', 'fee_type')) {
+        $pdo->exec("ALTER TABLE program_sessions ADD fee_type ENUM('paid','discount','free') NOT NULL DEFAULT 'paid' AFTER is_paid");
+        $pdo->exec("UPDATE program_sessions SET fee_type = 'free' WHERE is_paid = 0");
+    }
+    $pdo->exec("INSERT IGNORE INTO settings (name, value) VALUES ('program_fee_dc', '3000')");
+    if (!column_exists('users', 'menu_access')) {
+        $pdo->exec("ALTER TABLE users ADD menu_access VARCHAR(100) NULL AFTER off_days");
+    }
 
     $pdo->prepare("INSERT INTO settings (name, value) VALUES ('db_version', ?) ON DUPLICATE KEY UPDATE value = VALUES(value)")
         ->execute([(string) DB_VERSION]);
