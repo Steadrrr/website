@@ -1,9 +1,9 @@
 <?php
-/** 공지 쓰기/수정/삭제 (최고관리자·팀장·주무관): notice_edit.php  또는  ?id=3 */
+/** 공지 쓰기/수정/삭제 (공무직 이상): notice_edit.php  또는  ?id=3 */
 require __DIR__ . '/app/bootstrap.php';
 
 $user = require_login();
-if (!can_write_notice($user)) abort(403, '공지는 주무관 이상만 쓸 수 있습니다.');
+if (!can_write_notice($user)) abort(403, '공지는 공무직 이상만 쓸 수 있습니다.');
 $pdo = db();
 
 $id = (int) ($_GET['id'] ?? 0);

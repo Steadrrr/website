@@ -165,10 +165,10 @@ function status_badge(string $status): string
     return '<span class="badge st-' . e($status) . '">' . e(JOURNAL_STATUS[$status] ?? $status) . '</span>';
 }
 
-/** 공지사항 작성 권한: 최고관리자, 팀장, 주무관 */
+/** 공지사항 작성 권한: 최고관리자, 팀장, 주무관, 공무직 (관리원 제외) */
 function can_write_notice(array $u): bool
 {
-    return (bool) $u['is_admin'] || (int) $u['rank_level'] >= RANK_OFFICER;
+    return (bool) $u['is_admin'] || (int) $u['rank_level'] >= RANK_WORKER;
 }
 
 /** 최근 3일 안에 올라온 글 */
