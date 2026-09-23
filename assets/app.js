@@ -96,6 +96,49 @@
         setText($(sum, '[data-left-amt-total]'), fmt(leftA) + '원');
       }
     });
+    // 시설대관: 대관 시간 요금 + 야간 추가요금, × 건수 (시간·야간을 고르면 건수 기본 1)
+    $$(document, 'table[data-rental-table]').forEach((t) => {
+      let count = 0, amount = 0;
+      $$(t, 'tbody tr').forEach((tr) => {
+        const prices = JSON.parse(tr.dataset.prices || '{}');
+        const time = $(tr, '[data-rent-time]').value;
+        const night = $(tr, '[data-rent-night]').checked;
+        const used = !!time || night;
+        const unit = (time ? prices[time] || 0 : 0) + (night ? num(tr.dataset.night) : 0);
+        const q = used ? (num($(tr, '[data-rent-qty]').value) || 1) : 0;
+        setText($(tr, '[data-unit]'), used ? fmt(unit) : '');
+        setText($(tr, '[data-line-amount]'), used ? fmt(unit * q) : '');
+        tr.classList.toggle('sold', used);
+        $(tr, '[data-rent-qty]').classList.toggle('invalid', !used && num($(tr, '[data-rent-qty]').value) > 0);
+        count += q; amount += unit * q;
+      });
+      setText($(t, '[data-rent-count]'), `${count}건`);
+      setText($(t, '[data-rent-amount]'), fmt(amount) + '원');
+      grand += amount;
+    });
+
+    // 대관 숙박시설: 정액 요금 × (100 − 할인율)%, 10원 단위 버림 × 건수
+    $$(document, 'table[data-lodge-table]').forEach((t) => {
+      let count = 0, amount = 0;
+      $$(t, 'tbody tr').forEach((tr) => {
+        const dcInp = $(tr, '[data-lodge-dc]');
+        const raw = dcInp.value.trim();
+        const bad = raw !== '' && (!/^\d+$/.test(raw) || +raw > 100);
+        dcInp.classList.toggle('invalid', bad);
+        const pct = bad ? 0 : +raw || 0;
+        const base = num(tr.dataset.price);
+        const unit = pct > 0 ? Math.floor(base * (100 - pct) / 1000) * 10 : base;
+        const q = num($(tr, '[data-lodge-qty]').value);
+        setText($(tr, '[data-unit]'), fmt(unit));
+        setText($(tr, '[data-line-amount]'), q ? fmt(unit * q) : '');
+        tr.classList.toggle('sold', q > 0);
+        count += q; amount += unit * q;
+      });
+      setText($(t, '[data-lodge-count]'), `${count}건`);
+      setText($(t, '[data-lodge-amount]'), fmt(amount) + '원');
+      grand += amount;
+    });
+
     setText($(document, '[data-grand]'), fmt(grand) + '원');
 
     // 상품권: 권종 × 매수, 출고 시 재고 초과 경고
@@ -122,6 +165,8 @@
     });
   });
   document.querySelectorAll('[data-rate], [data-dc]').forEach((el) => el.addEventListener('change', recalc));
+  document.querySelectorAll('[data-rent-time], [data-rent-night]').forEach((el) => el.addEventListener('change', recalc));
+  document.querySelectorAll('[data-lodge-dc]').forEach((el) => el.addEventListener('input', recalc));
 
   // 매출보고: 일자를 바꾸면 기간요금(동절기 등)과 객실 요금구분(금·토, 성수기=주말)을 다시 맞춤
   const seasonFor = (grp, md) => (window.SEASONS || []).find((s) =>

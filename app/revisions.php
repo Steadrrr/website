@@ -24,7 +24,11 @@ function journal_snapshot(array $journal): array
     if ($journal['type'] === 'sales') {
         $lines = [];
         foreach ($p['lines'] as $l) {
-            if ($l['grp'] === 'ticket') {
+            if ($l['grp'] === 'rental') {
+                $lines[] = "{$l['name']} · " . rental_desc($l['rent_time'] ?? null, !empty($l['night'])) . ' × ' . $l['qty'] . '건 = ' . number_format($l['amount']) . '원';
+            } elseif ($l['grp'] === 'lodge') {
+                $lines[] = "{$l['name']} · " . (!empty($l['dc_pct']) ? $l['dc_pct'] . '% 할인 · ' : '') . $l['qty'] . '건 = ' . number_format($l['amount']) . '원';
+            } elseif ($l['grp'] === 'ticket') {
                 $lines[] = "{$l['name']} " . number_format($l['qty']) . '매 × ' . number_format($l['unit_price']) . ' = ' . number_format($l['amount']) . '원';
             } else {
                 $refund = $vouchersText($l['vouchers'] ?? []);

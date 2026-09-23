@@ -1,5 +1,5 @@
 <?php
-/** 설정 › 상품·요금: 입장권·객실 상품, 가격, 할인율, 상품권 환급액, 최대인원, 기간요금 (최고관리자) */
+/** 설정 › 상품·요금: 입장권·객실·시설대관·대관 숙박시설 상품, 가격, 할인율, 상품권 환급액, 최대인원, 기간요금 (최고관리자) */
 require dirname(__DIR__) . '/app/bootstrap.php';
 
 $me = require_admin();
@@ -33,7 +33,7 @@ if (is_post()) {
             flash('기간요금을 삭제했습니다.', 'success');
             redirect('admin/products.php#seasons');
         }
-        if (!isset(PRODUCT_GROUPS[$grp])) abort(400, '잘못된 값입니다.');
+        if (!isset(SEASON_GROUPS[$grp])) abort(400, '잘못된 값입니다.');
         $name = mb_substr(post('name'), 0, 50);
         $start = post('start_md');
         $end = post('end_md');
@@ -78,6 +78,10 @@ if (is_post()) {
         'refund_amount' => $grp === 'room' ? to_int(post('refund_amount')) : 0,
         'refund_weekend' => $grp === 'room' ? to_int(post('refund_weekend')) : 0,
         'refund_peak'   => $grp === 'room' ? to_int(post('refund_peak')) : 0,
+        'price_2h'      => $grp === 'rental' ? to_int(post('price_2h')) : 0,
+        'price_4h'      => $grp === 'rental' ? to_int(post('price_4h')) : 0,
+        'price_day'     => $grp === 'rental' ? to_int(post('price_day')) : 0,
+        'price_night'   => $grp === 'rental' ? to_int(post('price_night')) : 0,
         'max_people'    => $grp === 'room' ? to_int(post('max_people')) : 0,
         'sort_order'    => (int) post('sort_order', '0'),
         'is_active'     => post('is_active') === '1' ? 1 : 0,
@@ -114,7 +118,7 @@ if (is_post()) {
     redirect('admin/products.php#' . $grp);
 }
 
-$byGroup = ['ticket' => [], 'room' => []];
+$byGroup = array_fill_keys(array_keys(PRODUCT_GROUPS), []);
 foreach (products_all() as $p) $byGroup[$p['grp']][] = $p;
 $nextSort = fn(array $rows) => $rows ? max(array_column($rows, 'sort_order')) + 10 : 10;
 $ticketSeasons = array_filter(seasons_all(), fn($s) => $s['grp'] === 'ticket');
@@ -129,8 +133,14 @@ function product_row(string $grp, ?array $p, int $sort, array $ticketSeasons): v
     ?>
   <tr class="<?= $p ? ($p['is_active'] ? '' : 'inactive') : 'new-row' ?>">
     <td><input form="<?= $fid ?>" name="sort_order" value="<?= $val('sort_order', $sort) ?>" class="num tiny" inputmode="numeric"></td>
-    <td><input form="<?= $fid ?>" name="name" value="<?= $val('name') ?>" placeholder="<?= $p ? '' : ($grp === 'ticket' ? '새 입장권 (예: 어른)' : '새 객실 (예: 숲속의집 101호)') ?>" required></td>
-    <?php if ($grp === 'ticket'): ?>
+    <td><input form="<?= $fid ?>" name="name" value="<?= $val('name') ?>" placeholder="<?= $p ? '' : ['ticket' => '새 입장권 (예: 어른)', 'room' => '새 객실 (예: 숲속의집 101호)', 'rental' => '새 대관시설 (예: 세미나실)', 'lodge' => '새 대관 숙박시설 (예: 연수동)'][$grp] ?>" required></td>
+    <?php if ($grp === 'rental'): ?>
+      <?php foreach ([...array_column(RENT_TIMES, 1), 'price_night'] as $col): ?>
+        <td><input form="<?= $fid ?>" name="<?= $col ?>" value="<?= $money($col) ?>" class="num" inputmode="numeric" data-money placeholder="0"></td>
+      <?php endforeach ?>
+    <?php elseif ($grp === 'lodge'): ?>
+      <td><input form="<?= $fid ?>" name="price" value="<?= $money('price') ?>" class="num" inputmode="numeric" data-money placeholder="0"></td>
+    <?php elseif ($grp === 'ticket'): ?>
       <td><select form="<?= $fid ?>" name="is_free">
         <option value="0">유료</option><option value="1" <?= !empty($p['is_free']) ? 'selected' : '' ?>>무료</option>
       </select></td>
@@ -173,7 +183,7 @@ function season_row(?array $s, int $sort): void
   <tr class="<?= $s ? ($s['is_active'] ? '' : 'inactive') : 'new-row' ?>">
     <td><input form="<?= $fid ?>" name="sort_order" value="<?= e($s['sort_order'] ?? $sort) ?>" class="num tiny" inputmode="numeric"></td>
     <td><select form="<?= $fid ?>" name="grp">
-      <?php foreach (PRODUCT_GROUPS as $k => $label): ?><option value="<?= $k ?>" <?= ($s['grp'] ?? 'ticket') === $k ? 'selected' : '' ?>><?= e($label) ?></option><?php endforeach ?>
+      <?php foreach (SEASON_GROUPS as $k => $label): ?><option value="<?= $k ?>" <?= ($s['grp'] ?? 'ticket') === $k ? 'selected' : '' ?>><?= e($label) ?></option><?php endforeach ?>
     </select></td>
     <td><input form="<?= $fid ?>" name="name" value="<?= e($s['name'] ?? '') ?>" placeholder="<?= $s ? '' : '새 기간 (예: 동절기)' ?>" required></td>
     <td><input form="<?= $fid ?>" name="start_md" value="<?= e($s['start_md'] ?? '') ?>" class="md" placeholder="11-01" pattern="\d{2}-\d{2}" required></td>
@@ -241,6 +251,38 @@ settings_nav('products');
     <tbody>
       <?php foreach ($byGroup['room'] as $p) product_row('room', $p, 0, []) ?>
       <?php product_row('room', null, $nextSort($byGroup['room']), []) ?>
+    </tbody>
+  </table>
+  </div>
+</section>
+
+<section class="card" id="rental">
+  <h1>상품관리 · 시설대관</h1>
+  <p class="muted small">대관 시간(<?= e(implode(' · ', array_column(RENT_TIMES, 0))) ?>)에 따라 요금이 정해지고,
+    <?= e(RENT_NIGHT_LABEL) ?>에 사용하면 <b>야간 추가요금</b>이 더해집니다. 매출보고에서 시설마다 대관 시간과 야간 사용 여부를 고릅니다.</p>
+  <div class="table-scroll">
+  <table class="table product-table">
+    <thead>
+      <tr><th rowspan="2">순서</th><th rowspan="2">시설명</th><th colspan="3" class="center">대관 요금(원)</th><th rowspan="2">야간 추가요금(원)<br><small>18~21시</small></th><th rowspan="2">판매</th><th rowspan="2"></th></tr>
+      <tr><?php foreach (RENT_TIMES as [$label]): ?><th><?= e($label) ?></th><?php endforeach ?></tr>
+    </thead>
+    <tbody>
+      <?php foreach ($byGroup['rental'] as $p) product_row('rental', $p, 0, []) ?>
+      <?php product_row('rental', null, $nextSort($byGroup['rental']), []) ?>
+    </tbody>
+  </table>
+  </div>
+</section>
+
+<section class="card" id="lodge">
+  <h1>상품관리 · 대관 숙박시설</h1>
+  <p class="muted small">정액제로 운영하는 대관용 숙박시설입니다. 할인 대상이면 매출보고 작성 때 <b>할인율(%)</b>을 입력하면 금액이 계산됩니다 (10원 단위 버림).</p>
+  <div class="table-scroll">
+  <table class="table product-table">
+    <thead><tr><th>순서</th><th>시설명</th><th>정액 요금(원)</th><th>판매</th><th></th></tr></thead>
+    <tbody>
+      <?php foreach ($byGroup['lodge'] as $p) product_row('lodge', $p, 0, []) ?>
+      <?php product_row('lodge', null, $nextSort($byGroup['lodge']), []) ?>
     </tbody>
   </table>
   </div>

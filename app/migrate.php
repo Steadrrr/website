@@ -6,7 +6,7 @@ defined('APP_ROOT') || exit;
  * 새 버전 파일을 FTP로 덮어쓰기만 하면, 첫 접속 때 부족한 테이블/컬럼을 만든다.
  * (기존 자료는 그대로 유지)
  */
-const DB_VERSION = 11;
+const DB_VERSION = 12;
 
 function db_version(): int
 {
@@ -130,6 +130,22 @@ function db_migrate(): void
         $pdo->exec("ALTER TABLE products ADD refund_weekend INT UNSIGNED NOT NULL DEFAULT 0 AFTER refund_amount,
                     ADD refund_peak INT UNSIGNED NOT NULL DEFAULT 0 AFTER refund_weekend");
         $pdo->exec("UPDATE products SET refund_weekend = refund_amount, refund_peak = refund_amount WHERE grp = 'room'");
+    }
+
+    // 12) v11 → v12: 시설대관(시간별 요금 + 야간 추가요금), 대관 숙박시설(정액, 매출보고에서 할인율)
+    if (!enum_has('products', 'grp', 'rental')) {
+        $pdo->exec("ALTER TABLE products MODIFY grp ENUM('ticket','room','rental','lodge') NOT NULL");
+    }
+    if (!column_exists('products', 'price_2h')) {
+        $pdo->exec("ALTER TABLE products ADD price_2h INT UNSIGNED NOT NULL DEFAULT 0 AFTER refund_peak, ADD price_4h INT UNSIGNED NOT NULL DEFAULT 0 AFTER price_2h,
+                    ADD price_day INT UNSIGNED NOT NULL DEFAULT 0 AFTER price_4h, ADD price_night INT UNSIGNED NOT NULL DEFAULT 0 AFTER price_day");
+    }
+    if (!enum_has('sales_lines', 'grp', 'rental')) {
+        $pdo->exec("ALTER TABLE sales_lines MODIFY grp ENUM('ticket','room','rental','lodge') NOT NULL");
+    }
+    if (!column_exists('sales_lines', 'rent_time')) {
+        $pdo->exec("ALTER TABLE sales_lines ADD rent_time VARCHAR(10) NULL AFTER refund_expected, ADD night TINYINT(1) NOT NULL DEFAULT 0 AFTER rent_time,
+                    ADD dc_pct TINYINT UNSIGNED NOT NULL DEFAULT 0 AFTER night");
     }
 
     $pdo->prepare("INSERT INTO settings (name, value) VALUES ('db_version', ?) ON DUPLICATE KEY UPDATE value = VALUES(value)")

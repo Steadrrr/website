@@ -138,6 +138,45 @@ function items_parse(string $type, string $workDate, int $journalId): array
                 'refund_expected' => $expected, 'vouchers' => $vouchers,
             ];
         }
+        // 시설대관: 대관 시간(2시간/4시간/4시간 이상) + 야간 추가, 건수
+        foreach ((array) ($_POST['rental'] ?? []) as $pid => $row) {
+            $p = $products[(int) $pid] ?? null;
+            if (!$p || $p['grp'] !== 'rental') continue;
+            $time = isset(RENT_TIMES[$row['time'] ?? '']) ? $row['time'] : null;
+            $night = !empty($row['night']);
+            $qty = to_int($row['qty'] ?? 0);
+            if (!$time && !$night) {
+                if ($qty > 0) $errors[] = "{$p['name']}: 대관 시간 또는 야간 사용을 고르세요.";
+                continue;
+            }
+            $qty = max(1, $qty);
+            $unit = rental_price($p, $time, $night);
+            $lines[] = [
+                'product_id' => (int) $p['id'], 'grp' => 'rental', 'name' => $p['name'], 'is_free' => 0, 'rate' => null, 'season' => null,
+                'discounted' => 0, 'unit_price' => $unit, 'qty' => $qty, 'guests' => 0, 'amount' => $unit * $qty,
+                'rent_time' => $time, 'night' => (int) $night, 'dc_pct' => 0,
+            ];
+        }
+
+        // 대관 숙박시설: 정액 요금, 할인율(%) 입력, 건수
+        foreach ((array) ($_POST['lodge'] ?? []) as $pid => $row) {
+            $p = $products[(int) $pid] ?? null;
+            if (!$p || $p['grp'] !== 'lodge') continue;
+            $qty = to_int($row['qty'] ?? 0);
+            $pctRaw = trim((string) ($row['dc'] ?? ''));
+            $pct = $pctRaw === '' ? 0 : (int) $pctRaw;
+            if ($qty === 0) continue;
+            if ($pct < 0 || $pct > 100 || ($pctRaw !== '' && !ctype_digit($pctRaw))) {
+                $errors[] = "{$p['name']}: 할인율은 0~100 사이 숫자로 입력하세요.";
+                continue;
+            }
+            $unit = lodge_price($p, $pct);
+            $lines[] = [
+                'product_id' => (int) $p['id'], 'grp' => 'lodge', 'name' => $p['name'], 'is_free' => 0, 'rate' => null, 'season' => null,
+                'discounted' => (int) ($pct > 0), 'unit_price' => $unit, 'qty' => $qty, 'guests' => 0, 'amount' => $unit * $qty,
+                'rent_time' => null, 'night' => 0, 'dc_pct' => $pct,
+            ];
+        }
         $payload['lines'] = $lines;
 
         // 입장권 현금 수입 (나머지는 카드로 본다)
@@ -194,12 +233,13 @@ function items_save(int $id, string $type, array $payload): void
     if ($type === 'sales') {
         $pdo->prepare('DELETE FROM sales_lines WHERE journal_id = ?')->execute([$id]);
         $ins = $pdo->prepare(
-            'INSERT INTO sales_lines (journal_id, product_id, grp, name, is_free, rate, season, discounted, unit_price, qty, guests, refund_expected, amount)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+            'INSERT INTO sales_lines (journal_id, product_id, grp, name, is_free, rate, season, discounted, unit_price, qty, guests, refund_expected, rent_time, night, dc_pct, amount)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
         );
         foreach ($payload['lines'] as $l) {
             $ins->execute([$id, $l['product_id'], $l['grp'], $l['name'], $l['is_free'], $l['rate'], $l['season'] ?? null,
-                $l['discounted'], $l['unit_price'], $l['qty'], $l['guests'], $l['refund_expected'] ?? null, $l['amount']]);
+                $l['discounted'], $l['unit_price'], $l['qty'], $l['guests'], $l['refund_expected'] ?? null,
+                $l['rent_time'] ?? null, (int) ($l['night'] ?? 0), (int) ($l['dc_pct'] ?? 0), $l['amount']]);
             $lineId = (int) $pdo->lastInsertId();
             foreach ($l['vouchers'] ?? [] as $denom => $qty) {
                 if ($qty > 0) $moveIns->execute([$id, $lineId, 'out', $denom, $qty]);
@@ -237,10 +277,12 @@ function items_form(string $type, array $payload, string $workDate, ?array $jour
     $ids = array_keys($byProduct);
     $tickets = products_for_form('ticket', $ids);
     $rooms = products_for_form('room', $ids);
+    $rentals = products_for_form('rental', $ids);
+    $lodges = products_for_form('lodge', $ids);
     $defaultRate = rate_for_date($workDate);
 
-    if (!$tickets && !$rooms): ?>
-  <div class="flash flash-error">등록된 판매 상품이 없습니다. 관리자에게 <b>상품관리</b>에서 입장권·객실을 등록해 달라고 요청하세요.</div>
+    if (!$tickets && !$rooms && !$rentals && !$lodges): ?>
+  <div class="flash flash-error">등록된 판매 상품이 없습니다. 관리자에게 <b>상품관리</b>에서 입장권·객실·시설대관을 등록해 달라고 요청하세요.</div>
     <?php endif ?>
 
 <script>window.SEASONS = <?= json_encode(array_values(array_map(
@@ -347,6 +389,57 @@ function items_form(string $type, array $payload, string $workDate, ?array $jour
     </tbody>
     <tfoot><tr><th>합계</th><th class="right"><?= number_format(array_sum($stock)) ?></th><th class="right" data-out-total>0</th><th class="right" data-out-amt-total>0</th>
       <th class="right" data-left-total>0</th><th class="right" data-left-amt-total>0</th></tr></tfoot>
+  </table>
+  </div>
+  <?php endif ?>
+
+  <?php if ($rentals): ?>
+  <h3>시설대관</h3>
+  <p class="muted small">대관한 시설의 <b>대관 시간</b>을 고르고, <?= e(RENT_NIGHT_LABEL) ?>에도 사용했으면 '야간'에 체크하세요 (야간만 사용해도 됩니다).
+    같은 시설을 같은 조건으로 여러 번 대관했으면 건수를 입력합니다.</p>
+  <div class="table-scroll">
+  <table class="table rental-table" data-rental-table>
+    <thead><tr><th>시설</th><th>대관 시간</th><th>야간</th><th>건수</th><th class="right">단가</th><th class="right">금액</th></tr></thead>
+    <tbody>
+    <?php foreach ($rentals as $pid => $p): $l = $byProduct[$pid] ?? null; ?>
+      <tr data-prices="<?= e(json_encode(array_map(fn($t) => (int) $p[$t[1]], RENT_TIMES))) ?>" data-night="<?= (int) $p['price_night'] ?>" data-name="<?= e($p['name']) ?>">
+        <td><?= e($p['name']) ?><?= $p['is_active'] ? '' : ' <small class="muted">(판매중지)</small>' ?></td>
+        <td><select name="rental[<?= $pid ?>][time]" data-rent-time>
+          <option value="">선택 안 함</option>
+          <?php foreach (RENT_TIMES as $k => [$label, $col]): ?><option value="<?= $k ?>" <?= ($l['rent_time'] ?? '') === $k ? 'selected' : '' ?>><?= e($label) ?> · <?= number_format((int) $p[$col]) ?></option><?php endforeach ?>
+        </select></td>
+        <td class="nowrap"><label class="inline-check"><input type="checkbox" name="rental[<?= $pid ?>][night]" value="1" data-rent-night <?= !empty($l['night']) ? 'checked' : '' ?>>
+          <small>+<?= number_format((int) $p['price_night']) ?></small></label></td>
+        <td><input name="rental[<?= $pid ?>][qty]" value="<?= e($l['qty'] ?? '') ?>" inputmode="numeric" class="num tiny" data-money data-rent-qty placeholder="1"></td>
+        <td class="right" data-unit>0</td>
+        <td class="right" data-line-amount>0</td>
+      </tr>
+    <?php endforeach ?>
+    </tbody>
+    <tfoot><tr><th colspan="3">시설대관 합계</th><th class="right" data-rent-count>0건</th><th></th><th class="right" data-rent-amount>0원</th></tr></tfoot>
+  </table>
+  </div>
+  <?php endif ?>
+
+  <?php if ($lodges): ?>
+  <h3>대관 숙박시설</h3>
+  <p class="muted small">정액 요금입니다. 이용한 시설의 <b>건수</b>를 입력하고, 할인 대상이면 <b>할인율(%)</b>을 입력하세요 (10원 단위 버림).</p>
+  <div class="table-scroll">
+  <table class="table rental-table" data-lodge-table>
+    <thead><tr><th>시설</th><th class="right">정액 요금</th><th>할인율(%)</th><th>건수</th><th class="right">단가</th><th class="right">금액</th></tr></thead>
+    <tbody>
+    <?php foreach ($lodges as $pid => $p): $l = $byProduct[$pid] ?? null; ?>
+      <tr data-price="<?= (int) $p['price'] ?>" data-name="<?= e($p['name']) ?>">
+        <td><?= e($p['name']) ?><?= $p['is_active'] ? '' : ' <small class="muted">(판매중지)</small>' ?></td>
+        <td class="right"><?= number_format((int) $p['price']) ?></td>
+        <td class="nowrap"><input name="lodge[<?= $pid ?>][dc]" value="<?= e(!empty($l['dc_pct']) ? $l['dc_pct'] : '') ?>" inputmode="numeric" class="num tiny" data-lodge-dc placeholder="0" maxlength="3"> %</td>
+        <td><input name="lodge[<?= $pid ?>][qty]" value="<?= e($l['qty'] ?? '') ?>" inputmode="numeric" class="num tiny" data-money data-lodge-qty></td>
+        <td class="right" data-unit>0</td>
+        <td class="right" data-line-amount>0</td>
+      </tr>
+    <?php endforeach ?>
+    </tbody>
+    <tfoot><tr><th colspan="3">대관 숙박시설 합계</th><th class="right" data-lodge-count>0건</th><th></th><th class="right" data-lodge-amount>0원</th></tr></tfoot>
   </table>
   </div>
   <?php endif ?>
@@ -474,6 +567,8 @@ function items_view(array $journal): void
 
     $tickets = array_filter($payload['lines'], fn($l) => $l['grp'] === 'ticket');
     $rooms = array_filter($payload['lines'], fn($l) => $l['grp'] === 'room');
+    $rentals = array_filter($payload['lines'], fn($l) => $l['grp'] === 'rental');
+    $lodges = array_filter($payload['lines'], fn($l) => $l['grp'] === 'lodge');
     $sum = fn(array $rows, string $k) => array_sum(array_column($rows, $k));
     $grand = $sum($payload['lines'], 'amount');
 
@@ -521,6 +616,38 @@ function items_view(array $journal): void
       <th class="right"><?= number_format($sum($rooms, 'guests')) ?></th><th class="right"><?= e(won($sum($rooms, 'amount'))) ?></th>
       <?php foreach ($denoms as $d): ?><th class="right"><?= number_format(array_sum(array_map(fn($l) => $l['vouchers'][$d], $rooms))) ?></th><?php endforeach ?>
       <th class="right"><?= e(won(array_sum(array_map(fn($l) => voucher_amount($l['vouchers']), $rooms)))) ?></th></tr></tfoot>
+  </table>
+  </div>
+    <?php endif;
+
+    if ($rentals): ?>
+  <h3>시설대관</h3>
+  <div class="table-scroll">
+  <table class="table">
+    <thead><tr><th>시설</th><th>대관</th><th class="right">단가</th><th class="right">건수</th><th class="right">금액</th></tr></thead>
+    <tbody>
+    <?php foreach ($rentals as $l): ?>
+      <tr><td><?= e($l['name']) ?></td><td><?= e(rental_desc($l['rent_time'], (bool) $l['night'])) ?></td>
+        <td class="right"><?= number_format($l['unit_price']) ?></td><td class="right"><?= number_format($l['qty']) ?></td><td class="right"><?= number_format($l['amount']) ?></td></tr>
+    <?php endforeach ?>
+    </tbody>
+    <tfoot><tr><th colspan="3">합계</th><th class="right"><?= number_format($sum($rentals, 'qty')) ?></th><th class="right"><?= e(won($sum($rentals, 'amount'))) ?></th></tr></tfoot>
+  </table>
+  </div>
+    <?php endif;
+
+    if ($lodges): ?>
+  <h3>대관 숙박시설</h3>
+  <div class="table-scroll">
+  <table class="table">
+    <thead><tr><th>시설</th><th>할인</th><th class="right">단가</th><th class="right">건수</th><th class="right">금액</th></tr></thead>
+    <tbody>
+    <?php foreach ($lodges as $l): ?>
+      <tr><td><?= e($l['name']) ?></td><td><?= $l['dc_pct'] ? '<span class="badge st-pending">' . (int) $l['dc_pct'] . '% 할인</span>' : '-' ?></td>
+        <td class="right"><?= number_format($l['unit_price']) ?></td><td class="right"><?= number_format($l['qty']) ?></td><td class="right"><?= number_format($l['amount']) ?></td></tr>
+    <?php endforeach ?>
+    </tbody>
+    <tfoot><tr><th colspan="3">합계</th><th class="right"><?= number_format($sum($lodges, 'qty')) ?></th><th class="right"><?= e(won($sum($lodges, 'amount'))) ?></th></tr></tfoot>
   </table>
   </div>
     <?php endif;

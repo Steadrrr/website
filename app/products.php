@@ -125,6 +125,25 @@ function rate_for_date(string $date): string
     return in_array((int) date('w', strtotime($date)), [5, 6], true) ? 'weekend' : 'weekday';
 }
 
+/** 시설대관 단가 = 시간 요금 + (야간이면) 야간 추가요금 */
+function rental_price(array $p, ?string $time, bool $night): int
+{
+    return ($time && isset(RENT_TIMES[$time]) ? (int) $p[RENT_TIMES[$time][1]] : 0) + ($night ? (int) $p['price_night'] : 0);
+}
+
+/** 대관 숙박시설 단가 = 정액 요금에서 할인율(%) 적용, 10원 단위 버림 */
+function lodge_price(array $p, int $pct): int
+{
+    $pct = max(0, min(100, $pct));
+    return $pct > 0 ? intdiv((int) $p['price'] * (100 - $pct), 1000) * 10 : (int) $p['price'];
+}
+
+/** 시설대관 매출 한 줄 설명: "4시간 + 야간" */
+function rental_desc(?string $time, bool $night): string
+{
+    return implode(' + ', array_filter([$time ? (RENT_TIMES[$time][0] ?? $time) : null, $night ? RENT_NIGHT_LABEL : null]));
+}
+
 function voucher_denoms(): array
 {
     return config('voucher_denoms', [1000, 5000, 10000]);

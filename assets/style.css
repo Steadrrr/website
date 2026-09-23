@@ -645,3 +645,5 @@ a.gcal-ev.bar { color: #fff; }
 .gcal-filters select { width: 100%; margin: .2rem 0 .4rem; font-size: .85rem; }
 .product-table .refund-head { background: #f6f1e3; }
 .product-table .refund-cell { background: #fdfbf5; }
+.rental-table tr.sold td { background: #eef7f0; }
+.rental-table select { min-width: 12rem; }

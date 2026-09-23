@@ -24,7 +24,11 @@ const JOURNAL_TYPES = [
 // 대시보드 '오늘 일지 현황'에 표시하는 매일 쓰는 일지
 const DAILY_TYPES = ['daily', 'sales', 'facility'];
 
-const PRODUCT_GROUPS = ['ticket' => '입장권', 'room' => '객실'];
+const PRODUCT_GROUPS = ['ticket' => '입장권', 'room' => '객실', 'rental' => '시설대관', 'lodge' => '대관 숙박시설'];
+const SEASON_GROUPS = ['ticket' => '입장권', 'room' => '객실']; // 기간요금 대상
+// 시설대관 시간 구분 => [이름, products 요금 컬럼]
+const RENT_TIMES = ['2h' => ['2시간', 'price_2h'], '4h' => ['4시간', 'price_4h'], 'day' => ['4시간 이상(18시까지)', 'price_day']];
+const RENT_NIGHT_LABEL = '야간(18~21시)';
 // 객실 요금구분
 const RATE_TYPES = ['weekday' => '비수기 평일', 'weekend' => '비수기 주말', 'peak' => '성수기'];
 const RATE_DC_DEFAULT = ['weekday' => 30, 'weekend' => 10, 'peak' => 10]; // 할인율(%) 기본값
