@@ -426,7 +426,7 @@ a.nav-main:hover, .nav-main:hover, .nav-main.on, .nav-group.on > .nav-main, .nav
   .nav-group .nav-sub a.on { background: rgba(255,255,255,.2); color: #fff !important; }
   .nav-group.on .nav-sub { display: block; }
   .subbar { overflow-x: auto; flex-wrap: nowrap; }
-  .subbar a { white-space: nowrap; }
+  .subbar a, .subbar-title { white-space: nowrap; flex-shrink: 0; }
 }
 
 /* ── v9: 일정표 (구글 캘린더 스타일) ── */
@@ -647,3 +647,42 @@ a.gcal-ev.bar { color: #fff; }
 .product-table .refund-cell { background: #fdfbf5; }
 .rental-table tr.sold td { background: #eef7f0; }
 .rental-table select { min-width: 12rem; }
+
+/* ── 유실물관리: 액자식 갤러리 */
+.lost-toolbar { display: flex; flex-wrap: wrap; gap: .6rem; align-items: center; justify-content: space-between; margin-bottom: 1rem; }
+.lost-tabs { display: flex; flex-wrap: wrap; gap: .3rem; }
+.lost-tabs a { padding: .35rem .8rem; border-radius: 16px; border: 1px solid #c8d1c9; color: var(--text); font-size: .88rem; }
+.lost-tabs a.on { background: var(--green); border-color: var(--green); color: #fff; }
+.lost-tabs a:hover { text-decoration: none; }
+.lost-tabs small { opacity: .75; }
+.lost-search { display: flex; gap: .3rem; }
+.lost-search input { width: 16rem; max-width: 60vw; }
+.lost-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 1.4rem 1.1rem; }
+.lost-card { display: flex; flex-direction: column; color: var(--text); transition: transform .15s; }
+.lost-card:hover { text-decoration: none; transform: translateY(-3px); }
+/* 액자: 나무색 테두리 + 흰 매트 + 그림자 */
+.lost-frame { aspect-ratio: 1; padding: 9px; background: #fff; border: 7px solid #7b5a3c; border-radius: 3px;
+  box-shadow: inset 0 0 0 1px #d8cbb8, 0 6px 14px rgba(60, 40, 20, .25), 0 1px 2px rgba(0,0,0,.2);
+  display: flex; align-items: center; justify-content: center; overflow: hidden; }
+.lost-frame img { width: 100%; height: 100%; object-fit: cover; display: block; box-shadow: 0 0 0 1px #e6e0d6; }
+.lost-frame-lg { max-width: 420px; width: 100%; }
+.lost-nophoto { color: #a89a86; font-size: .85rem; text-align: center; }
+.lost-caption { text-align: center; padding: .6rem .2rem 0; }
+.lost-caption b { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lost-meta { display: block; margin-top: .2rem; }
+.lost-badge { background: var(--c); color: #fff; font-weight: 600; }
+.lost-card.done .lost-frame { filter: grayscale(.7); opacity: .8; }
+.lost-form-grid { display: grid; grid-template-columns: minmax(220px, 420px) 1fr; gap: 1.5rem; align-items: start; }
+.lost-photo-pick { display: flex; flex-direction: column; align-items: center; gap: .5rem; }
+.lost-photo-pick .btn { cursor: pointer; }
+.lost-status-form { margin-top: 1rem; }
+@media (max-width: 700px) {
+  .lost-grid { grid-template-columns: repeat(2, 1fr); gap: 1rem .8rem; }
+  .lost-frame { border-width: 5px; padding: 5px; }
+  .lost-form-grid { grid-template-columns: 1fr; }
+  .lost-search input { width: 100%; }
+}
+@media print { .lost-frame { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
+.card.narrow.lost-form { max-width: 980px; }
+.lost-search .btn { white-space: nowrap; flex-shrink: 0; }
+@media (max-width: 700px) { .lost-search { width: 100%; } .lost-search input { flex: 1; width: auto; } }

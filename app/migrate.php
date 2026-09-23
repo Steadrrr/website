@@ -6,7 +6,7 @@ defined('APP_ROOT') || exit;
  * 새 버전 파일을 FTP로 덮어쓰기만 하면, 첫 접속 때 부족한 테이블/컬럼을 만든다.
  * (기존 자료는 그대로 유지)
  */
-const DB_VERSION = 12;
+const DB_VERSION = 13;
 
 function db_version(): int
 {
@@ -147,6 +147,8 @@ function db_migrate(): void
         $pdo->exec("ALTER TABLE sales_lines ADD rent_time VARCHAR(10) NULL AFTER refund_expected, ADD night TINYINT(1) NOT NULL DEFAULT 0 AFTER rent_time,
                     ADD dc_pct TINYINT UNSIGNED NOT NULL DEFAULT 0 AFTER night");
     }
+
+    // 13) v12 → v13: 유실물관리 — lost_items 테이블은 1) 단계(schema.sql)에서 만들어진다
 
     $pdo->prepare("INSERT INTO settings (name, value) VALUES ('db_version', ?) ON DUPLICATE KEY UPDATE value = VALUES(value)")
         ->execute([(string) DB_VERSION]);

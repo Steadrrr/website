@@ -341,3 +341,21 @@ CREATE TABLE IF NOT EXISTS attendance (
   CONSTRAINT fk_att_journal FOREIGN KEY (journal_id) REFERENCES journals(id) ON DELETE CASCADE,
   CONSTRAINT fk_att_user FOREIGN KEY (user_id) REFERENCES users(id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 유실물 (운영관리 › 유실물관리)
+CREATE TABLE IF NOT EXISTS lost_items (
+  id          INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  name        VARCHAR(100) NOT NULL COMMENT '물품명',
+  found_date  DATE NOT NULL COMMENT '습득일',
+  place       VARCHAR(100) NULL COMMENT '습득장소',
+  finder      VARCHAR(50)  NULL COMMENT '습득자',
+  memo        TEXT NULL,
+  status      ENUM('received','contacted','shipped','returned') NOT NULL DEFAULT 'received' COMMENT '접수/연락완료/택배발송/본인수령',
+  photo       VARCHAR(200) NULL COMMENT 'uploads/lost/... (저해상도)',
+  author_id   INT UNSIGNED NOT NULL,
+  updated_by  INT UNSIGNED NULL,
+  created_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at  DATETIME NULL,
+  INDEX idx_status (status, found_date),
+  CONSTRAINT fk_lost_author FOREIGN KEY (author_id) REFERENCES users(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

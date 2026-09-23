@@ -150,6 +150,27 @@ function photo_thumbs(string $type): array
  * 브라우저에서 미리 줄여서 올리므로(app.js) 서버는 형식·크기만 검사한다.
  * @return array{0: ?string, 1: ?string} [저장 경로, 오류 메시지]  (파일이 없으면 [null, null])
  */
+/**
+ * 서버에서 사진을 긴 변 $max px JPEG로 줄인다 (GD 확장이 있을 때만. 없으면 브라우저에서 줄인 그대로 둔다)
+ */
+function image_downscale(string $absPath, int $max, int $quality = 70): void
+{
+    if (!function_exists('imagecreatefromstring')) return;
+    $info = @getimagesize($absPath);
+    if (!$info || ($info[0] <= $max && $info[1] <= $max && filesize($absPath) < 300 * 1024)) return;
+    $src = @imagecreatefromstring((string) file_get_contents($absPath));
+    if (!$src) return;
+    $scale = min(1, $max / max($info[0], $info[1]));
+    $w = max(1, (int) round($info[0] * $scale));
+    $h = max(1, (int) round($info[1] * $scale));
+    $dst = imagecreatetruecolor($w, $h);
+    imagefill($dst, 0, 0, imagecolorallocate($dst, 255, 255, 255)); // 투명 PNG 배경은 흰색
+    imagecopyresampled($dst, $src, 0, 0, 0, 0, $w, $h, $info[0], $info[1]);
+    imagejpeg($dst, $absPath, $quality); // 확장자가 png여도 브라우저는 내용으로 표시
+    imagedestroy($src);
+    imagedestroy($dst);
+}
+
 function store_uploaded_image(string $name, string $tmp, int $err, string $type): array
 {
     if ($err === UPLOAD_ERR_NO_FILE) return [null, null];

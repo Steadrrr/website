@@ -212,7 +212,7 @@
 
 // 사진 업로드: 브라우저에서 긴 변 1600px JPEG로 줄여서 올림 (호스팅 업로드 제한·트래픽 절약)
 (function () {
-  async function shrink(file, MAX) {
+  async function shrink(file, MAX, Q = 0.85) {
     if (!file.type.startsWith('image/') || file.type === 'image/gif') return file;
     const bmp = await createImageBitmap(file, { imageOrientation: 'from-image' });
     const scale = Math.min(1, MAX / Math.max(bmp.width, bmp.height));
@@ -221,7 +221,7 @@
     canvas.width = Math.round(bmp.width * scale);
     canvas.height = Math.round(bmp.height * scale);
     canvas.getContext('2d').drawImage(bmp, 0, 0, canvas.width, canvas.height);
-    const blob = await new Promise((r) => canvas.toBlob(r, 'image/jpeg', 0.85));
+    const blob = await new Promise((r) => canvas.toBlob(r, 'image/jpeg', Q));
     return blob ? new File([blob], file.name.replace(/\.\w+$/, '') + '.jpg', { type: 'image/jpeg' }) : file;
   }
   document.querySelectorAll('input[type=file][data-resize]').forEach((input) => {
@@ -233,7 +233,11 @@
       try {
         const dt = new DataTransfer();
         const max = parseInt(input.dataset.resize, 10) || 1600; // data-resize="800" 처럼 크기 지정 가능
-        for (const f of input.files) dt.items.add(await shrink(f, max).catch(() => f));
+        const q = parseFloat(input.dataset.quality) || 0.85; // data-quality="0.7" 처럼 화질 지정 가능
+        for (const f of input.files) dt.items.add(await shrink(f, max, q).catch(() => f));
+        // 미리보기 (data-preview="선택자")
+        const pv = input.dataset.preview && document.querySelector(input.dataset.preview);
+        if (pv && dt.files[0]) { pv.src = URL.createObjectURL(dt.files[0]); pv.hidden = false; }
         input.files = dt.files;
       } finally {
         buttons.forEach((b) => (b.disabled = false));
