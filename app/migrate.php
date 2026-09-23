@@ -6,7 +6,7 @@ defined('APP_ROOT') || exit;
  * 새 버전 파일을 FTP로 덮어쓰기만 하면, 첫 접속 때 부족한 테이블/컬럼을 만든다.
  * (기존 자료는 그대로 유지)
  */
-const DB_VERSION = 7;
+const DB_VERSION = 8;
 
 function db_version(): int
 {
@@ -72,6 +72,12 @@ function db_migrate(): void
         $pdo->exec("ALTER TABLE voucher_moves ADD line_id INT UNSIGNED NULL AFTER journal_id");
     }
     $pdo->exec("INSERT IGNORE INTO settings (name, value) VALUES ('room_dc_weekday', '30'), ('room_dc_weekend', '10'), ('room_dc_peak', '10')");
+
+    // 8) v7 → v8: 조직 구성 (팀 아래 반, 반장), 상위 부서·사업장 이름
+    if (!column_exists('users', 'squad_id')) {
+        $pdo->exec("ALTER TABLE users ADD squad_id INT UNSIGNED NULL AFTER team_id, ADD is_squad_leader TINYINT(1) NOT NULL DEFAULT 0 AFTER squad_id");
+    }
+    $pdo->exec("INSERT IGNORE INTO settings (name, value) VALUES ('org_top_name', '양평군청 산림과 산림휴양팀'), ('org_park_name', '양평쉬자파크')");
 
     // 7) v6 → v7: 회원 개인 사진
     if (!column_exists('users', 'photo')) {

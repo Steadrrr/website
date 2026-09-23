@@ -36,7 +36,7 @@ layout_header('내 정보');
     <a class="btn small" href="<?= e(url('member_photo.php')) ?>"><?= $user['photo'] ? '사진 바꾸기' : '사진 올리기' ?></a>
   </div>
   <p class="muted">아이디 <b><?= e($user['username']) ?></b> · 직급 <b><?= e(rank_name($user['rank_level'])) ?></b>
-    · 팀 <b><?= e(team_name($user['team_id'] ? (int) $user['team_id'] : null) ?: '미지정') ?></b>
+    · 소속 <b><?= e(member_affiliation($user) ?: '미지정') ?></b>
     · 보직 <b><?= e($user['position'] ?: '미지정') ?></b>
     <?= $user['is_admin'] ? ' · 최고관리자' : '' ?></p>
   <label>이름<input name="name" value="<?= e($user['name']) ?>" required></label>

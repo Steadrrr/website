@@ -37,9 +37,10 @@ function layout_header(string $title, string $active = ''): void
       <a href="<?= e(url($href)) ?>" class="<?= $active === $key ? 'on' : '' ?>"><?= e($label) ?><?php
         if ($key === 'approval' && $waiting > 0): ?> <span class="count"><?= $waiting ?></span><?php endif ?></a>
     <?php endforeach ?>
-    <?php if (can_manage_users($user)): ?>
+    <?php if ($user['is_admin']): ?>
+      <a href="<?= e(url('settings.php')) ?>" class="<?= $active === 'settings' ? 'on' : '' ?>">⚙ 설정</a>
+    <?php elseif (can_manage_users($user)): ?>
       <a href="<?= e(url('admin/users.php')) ?>" class="<?= $active === 'admin' ? 'on' : '' ?>">회원관리</a>
-      <a href="<?= e(url('admin/products.php')) ?>" class="<?= $active === 'products' ? 'on' : '' ?>">상품관리</a>
     <?php endif ?>
   </nav>
   <div class="me">
@@ -91,5 +92,27 @@ function render_approval_box(array $journal, array $approvals): void
     <?php endforeach ?>
   </tr>
 </table>
+<?php
+}
+
+/** 설정 메뉴의 하위 메뉴 (최고관리자) */
+const SETTINGS_MENU = [
+    'general'   => ['settings.php?tab=general', '기본 정보'],
+    'org'       => ['settings.php?tab=org', '조직 구성'],
+    'users'     => ['admin/users.php', '회원관리'],
+    'products'  => ['admin/products.php', '상품·요금'],
+    'facility'  => ['groups.php?kind=facility', '시설 구역·건물'],
+    'equipment' => ['groups.php?kind=equipment', '장비 분류'],
+];
+
+function settings_nav(string $active): void
+{
+    ?>
+<nav class="settings-nav no-print">
+  <b>⚙ 설정</b>
+  <?php foreach (SETTINGS_MENU as $key => [$href, $label]): ?>
+    <a href="<?= e(url($href)) ?>" class="<?= $active === $key ? 'on' : '' ?>"><?= e($label) ?></a>
+  <?php endforeach ?>
+</nav>
 <?php
 }

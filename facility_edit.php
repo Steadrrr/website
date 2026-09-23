@@ -10,8 +10,8 @@ $id = (int) ($_GET['id'] ?? 0);
 $f = $id ? (facility_find($id) ?? abort(404, '시설을 찾을 수 없습니다.')) : null;
 $groups = asset_groups('facility');
 if (!$groups) {
-    flash('먼저 구역·건물을 만들어 주세요.', 'error');
-    redirect('groups.php?kind=facility');
+    flash('등록된 구역·건물이 없습니다. 최고관리자가 설정 › 시설 구역·건물에서 먼저 만들어야 합니다.', 'error');
+    redirect($user['is_admin'] ? 'groups.php?kind=facility' : 'facilities.php');
 }
 
 if (is_post()) {

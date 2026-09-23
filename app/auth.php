@@ -41,6 +41,14 @@ function require_manager(): array
     return $u;
 }
 
+/** 설정 메뉴(상품·조직·분류 등): 최고관리자만 */
+function require_admin(): array
+{
+    $u = require_login();
+    if (empty($u['is_admin'])) abort(403, '설정은 최고관리자만 할 수 있습니다.');
+    return $u;
+}
+
 /** @return array|string 성공 시 사용자 배열, 실패 시 오류 메시지 */
 function attempt_login(string $username, string $password): array|string
 {

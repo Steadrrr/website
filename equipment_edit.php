@@ -10,8 +10,8 @@ $id = (int) ($_GET['id'] ?? 0);
 $e = $id ? (equipment_find($id) ?? abort(404, '장비를 찾을 수 없습니다.')) : null;
 $groups = asset_groups('equipment');
 if (!$groups) {
-    flash('먼저 장비 분류를 만들어 주세요.', 'error');
-    redirect('groups.php?kind=equipment');
+    flash('등록된 장비 분류가 없습니다. 최고관리자가 설정 › 장비 분류에서 먼저 만들어야 합니다.', 'error');
+    redirect($user['is_admin'] ? 'groups.php?kind=equipment' : 'equipment.php');
 }
 
 if (is_post()) {

@@ -39,7 +39,8 @@ layout_header('대시보드', 'home');
 <aside class="card profile-card">
   <a href="<?= e(url('member_photo.php')) ?>" class="profile-photo" title="사진 바꾸기"><?= avatar($user, 'avatar avatar-xl') ?></a>
   <b class="profile-name"><?= e($user['name']) ?></b>
-  <span class="profile-rank"><?= e(rank_name($user['rank_level'])) ?><?= $user['team_id'] ? ' · ' . e(team_name((int) $user['team_id'])) : '' ?></span>
+  <span class="profile-rank"><?= e(rank_name($user['rank_level'])) ?></span>
+  <?php if ($aff = member_affiliation($user)): ?><span class="profile-aff"><?= e($aff) ?></span><?php endif ?>
   <span class="profile-position"><?= e($user['position'] ?: '보직 미지정') ?></span>
   <?php if (!$user['photo']): ?><a class="btn small" href="<?= e(url('member_photo.php')) ?>">사진 올리기</a><?php endif ?>
   <ul class="profile-stats">

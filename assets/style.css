@@ -352,3 +352,41 @@ tr.pinned td { background: #fffaf8; }
   .member-card { break-inside: avoid; }
   .org-team-name { background: none; color: #000; border: 1px solid #000; }
 }
+
+/* ── v8: 설정 메뉴 · 조직 구성 ── */
+.settings-nav { display: flex; flex-wrap: wrap; align-items: center; gap: .25rem; background: #fff; border: 1px solid var(--line);
+  border-radius: 10px; padding: .45rem .6rem; margin-bottom: 1rem; }
+.settings-nav b { margin-right: .5rem; color: var(--green-d); }
+.settings-nav a { padding: .35rem .75rem; border-radius: 6px; color: var(--text); font-size: .92rem; }
+.settings-nav a:hover { background: #f0f3f0; text-decoration: none; }
+.settings-nav a.on { background: var(--green); color: #fff; }
+.org-structure { background: #f7f9f7; border-radius: 6px; padding: .6rem .8rem; margin-bottom: .5rem; }
+.leader-tag { color: var(--amber); font-size: .75rem; }
+.profile-aff { font-size: .88rem; }
+
+.org-chart { display: flex; flex-direction: column; align-items: center; gap: 0; }
+.org-title { font-weight: 700; text-align: center; padding: .5rem 1.2rem; border-radius: 8px; margin: 0 auto .75rem; width: fit-content; }
+.org-title.gov { background: #1f3b5a; color: #fff; }
+.org-title.park { background: var(--green-d); color: #fff; font-size: 1.1rem; }
+.org-gov { border: 2px solid #1f3b5a; border-radius: 12px; padding: .9rem; background: #f5f8fc; min-width: min(100%, 420px); }
+.org-row { display: flex; justify-content: center; flex-wrap: wrap; gap: .6rem; }
+.org-line { width: 2px; height: 28px; background: #9aa79e; }
+.org-park { border: 2px solid var(--green-d); border-radius: 12px; padding: .9rem; width: 100%; background: #fbfdfb; }
+.org-park .org-teams { grid-template-columns: repeat(auto-fit, minmax(360px, 1fr)); }
+.org-team-name { background: #e3efe6; color: var(--green-d); }
+.org-squads { display: flex; flex-direction: column; gap: .6rem; }
+.org-squad { border: 1px dashed #b9cfc0; border-radius: 8px; padding: .6rem; background: #fff; }
+.org-squad h3 { margin: 0 0 .5rem; font-size: .95rem; color: var(--green-d); text-align: center; }
+.org-squad h3 small { font-weight: 400; color: var(--muted); }
+.org-squad .org-row { margin-bottom: .5rem; padding-bottom: .5rem; border-bottom: 1px solid #e6eee8; }
+.org-squad.nosquad { background: #fafafa; }
+.member-card.head { border-color: var(--green); background: #f3faf5; min-width: 160px; }
+.member-card.squad-leader { border-color: var(--amber); background: #fffaf0; min-width: 150px; }
+.member-card.leader { border-color: #1f3b5a; box-shadow: 0 1px 6px rgba(31,59,90,.18); }
+.unassigned-box { margin-top: 1rem; width: 100%; }
+@media (max-width: 760px) { .org-park .org-teams { grid-template-columns: 1fr; } }
+@media print {
+  .org-title.gov, .org-title.park { background: none; color: #000; border: 1px solid #000; }
+  .org-park .org-teams { grid-template-columns: 1fr 1fr; }
+}
+.container:has(.users-table) { max-width: 1480px; }

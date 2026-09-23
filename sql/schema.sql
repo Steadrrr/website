@@ -14,6 +14,8 @@ CREATE TABLE IF NOT EXISTS users (
   team_id       INT UNSIGNED NULL COMMENT '소속 팀 (관리자가 승인 시 지정)',
   position      VARCHAR(50)  NULL COMMENT '보직 (관리자가 승인 시 입력)',
   photo         VARCHAR(200) NULL COMMENT '개인 사진 경로 (uploads/members/...)',
+  squad_id      INT UNSIGNED NULL COMMENT '소속 반',
+  is_squad_leader TINYINT(1) NOT NULL DEFAULT 0 COMMENT '반장',
   status        ENUM('pending','active','disabled') NOT NULL DEFAULT 'pending',
   created_at    DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
   last_login_at DATETIME     NULL
@@ -174,6 +176,15 @@ CREATE TABLE IF NOT EXISTS teams (
   id         INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   name       VARCHAR(50) NOT NULL,
   sort_order INT         NOT NULL DEFAULT 0
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 반: 팀 아래 조직 (반장 + 반원)
+CREATE TABLE IF NOT EXISTS squads (
+  id         INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  team_id    INT UNSIGNED NOT NULL,
+  name       VARCHAR(50) NOT NULL,
+  sort_order INT NOT NULL DEFAULT 0,
+  CONSTRAINT fk_squad_team FOREIGN KEY (team_id) REFERENCES teams(id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- 중분류: 시설물은 구역·건물, 장비는 장비 분류

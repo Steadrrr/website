@@ -57,7 +57,7 @@ layout_header('시설물', 'facilities');
     <div class="actions no-margin no-print">
       <a class="btn" href="<?= e(url('journal.php?type=facility' . ($teamId ? "&team=$teamId" : ''))) ?>">점검일지</a>
       <?php if (can_manage_assets($user)): ?>
-        <a class="btn" href="<?= e(url('groups.php?kind=facility')) ?>">구역·건물 관리</a>
+        <?php if ($user['is_admin']): ?><a class="btn" href="<?= e(url('groups.php?kind=facility')) ?>">구역·건물 관리</a><?php endif ?>
         <a class="btn primary" href="<?= e(url('facility_edit.php' . ($teamId ? "?team=$teamId" : ''))) ?>">+ 세부시설 등록</a>
       <?php endif ?>
       <button class="btn ghost" onclick="window.print()">인쇄</button>
@@ -72,7 +72,7 @@ layout_header('시설물', 'facilities');
   <label class="inline-check no-print"><input type="checkbox" onchange="location.href='?<?= $teamId ? "team=$teamId&" : '' ?>all=' + (this.checked ? 1 : '')" <?= $showInactive ? 'checked' : '' ?>> 사용안함 시설도 보기</label>
 
   <?php if (!$tree): ?>
-    <p class="muted">등록된 구역·건물이 없습니다. <?php if (can_manage_assets($user)): ?><a href="<?= e(url('groups.php?kind=facility')) ?>">구역·건물 관리</a>에서 먼저 만들어 주세요.<?php endif ?></p>
+    <p class="muted">등록된 구역·건물이 없습니다. 최고관리자가 <?= $user['is_admin'] ? '<a href="' . e(url('groups.php?kind=facility')) . '">설정 › 시설 구역·건물</a>' : '설정 › 시설 구역·건물' ?>에서 먼저 만들어야 합니다.</p>
   <?php endif ?>
 
   <?php foreach ($tree as $teamName => $areas): ?>

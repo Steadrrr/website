@@ -39,7 +39,7 @@ layout_header('장비', 'equipment');
     <h1>장비관리</h1>
     <div class="actions no-margin no-print">
       <?php if (can_manage_assets($user)): ?>
-        <a class="btn" href="<?= e(url('groups.php?kind=equipment')) ?>">장비 분류 관리</a>
+        <?php if ($user['is_admin']): ?><a class="btn" href="<?= e(url('groups.php?kind=equipment')) ?>">장비 분류 관리</a><?php endif ?>
         <a class="btn primary" href="<?= e(url('equipment_edit.php' . ($teamId ? "?team=$teamId" : ''))) ?>">+ 신규 장비 등록</a>
       <?php endif ?>
       <button class="btn ghost" onclick="window.print()">인쇄</button>

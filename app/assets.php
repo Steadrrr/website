@@ -37,6 +37,31 @@ function team_name(?int $id): string
     return $id ? (teams_all()[$id]['name'] ?? '') : '';
 }
 
+/** @return array<int,array> id => 반 (+ team_name), 팀 순서 → 반 순서 */
+function squads_all(): array
+{
+    static $cache = null;
+    if ($cache === null) {
+        $cache = [];
+        foreach (db()->query('SELECT s.*, t.name AS team_name FROM squads s JOIN teams t ON t.id = s.team_id ORDER BY t.sort_order, t.id, s.sort_order, s.id') as $s) {
+            $cache[(int) $s['id']] = $s;
+        }
+    }
+    return $cache;
+}
+
+function squad_name(?int $id): string
+{
+    return $id ? (squads_all()[$id]['name'] ?? '') : '';
+}
+
+/** 회원의 소속 한 줄: 휴양림팀 · 숙박반 반장 */
+function member_affiliation(array $u): string
+{
+    $parts = array_filter([team_name($u['team_id'] ? (int) $u['team_id'] : null), squad_name($u['squad_id'] ? (int) $u['squad_id'] : null)]);
+    return implode(' · ', $parts) . (!empty($u['is_squad_leader']) && $u['squad_id'] ? ' 반장' : '');
+}
+
 /** @return array<int,array> id => 중분류 (팀 순서 → 분류 순서) */
 function asset_groups(string $kind, bool $activeOnly = false): array
 {

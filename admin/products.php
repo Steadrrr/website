@@ -1,8 +1,8 @@
 <?php
-/** 상품관리: 입장권·객실 상품, 가격, 할인율, 상품권 환급액, 최대인원, 기간요금 (최고관리자·팀장) */
+/** 설정 › 상품·요금: 입장권·객실 상품, 가격, 할인율, 상품권 환급액, 최대인원, 기간요금 (최고관리자) */
 require dirname(__DIR__) . '/app/bootstrap.php';
 
-$me = require_manager();
+$me = require_admin();
 $pdo = db();
 
 /** 'MM-DD' 검사 (02-29 허용) */
@@ -191,7 +191,8 @@ function season_row(?array $s, int $sort): void
     <?php
 }
 
-layout_header('상품관리', 'products');
+layout_header('상품·요금', 'settings');
+settings_nav('products');
 ?>
 <section class="card" id="ticket">
   <h1>상품관리 · 입장권</h1>
