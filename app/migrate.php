@@ -6,7 +6,7 @@ defined('APP_ROOT') || exit;
  * 새 버전 파일을 FTP로 덮어쓰기만 하면, 첫 접속 때 부족한 테이블/컬럼을 만든다.
  * (기존 자료는 그대로 유지)
  */
-const DB_VERSION = 5;
+const DB_VERSION = 6;
 
 function db_version(): int
 {
@@ -72,6 +72,11 @@ function db_migrate(): void
         $pdo->exec("ALTER TABLE voucher_moves ADD line_id INT UNSIGNED NULL AFTER journal_id");
     }
     $pdo->exec("INSERT IGNORE INTO settings (name, value) VALUES ('room_dc_weekday', '30'), ('room_dc_weekend', '10'), ('room_dc_peak', '10')");
+
+    // 6) v5 → v6: 회원 소속 팀·보직 (회원관리에서 관리자가 입력)
+    if (!column_exists('users', 'team_id')) {
+        $pdo->exec("ALTER TABLE users ADD team_id INT UNSIGNED NULL AFTER can_delegate, ADD position VARCHAR(50) NULL AFTER team_id");
+    }
 
     // 5) v4 → v5: 일지 수정(누구나, 결재 초기화) 이력, 공지사항
     if (!column_exists('journals', 'revision')) {

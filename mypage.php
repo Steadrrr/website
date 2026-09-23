@@ -32,6 +32,8 @@ layout_header('내 정보');
   <?= csrf_field() ?>
   <h1>내 정보</h1>
   <p class="muted">아이디 <b><?= e($user['username']) ?></b> · 직급 <b><?= e(rank_name($user['rank_level'])) ?></b>
+    · 팀 <b><?= e(team_name($user['team_id'] ? (int) $user['team_id'] : null) ?: '미지정') ?></b>
+    · 보직 <b><?= e($user['position'] ?: '미지정') ?></b>
     <?= $user['is_admin'] ? ' · 최고관리자' : '' ?></p>
   <label>이름<input name="name" value="<?= e($user['name']) ?>" required></label>
   <label>연락처<input name="phone" value="<?= e($user['phone']) ?>"></label>

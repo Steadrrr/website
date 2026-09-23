@@ -11,6 +11,8 @@ CREATE TABLE IF NOT EXISTS users (
   rank_level    TINYINT UNSIGNED NOT NULL DEFAULT 1 COMMENT '1 관리원, 2 공무직, 3 주무관, 4 팀장',
   is_admin      TINYINT(1)   NOT NULL DEFAULT 0 COMMENT '최고관리자(사이트 관리)',
   can_delegate  TINYINT(1)   NOT NULL DEFAULT 0 COMMENT '전결 권한 (팀장 부재 시 주무관이 최종 결재)',
+  team_id       INT UNSIGNED NULL COMMENT '소속 팀 (관리자가 승인 시 지정)',
+  position      VARCHAR(50)  NULL COMMENT '보직 (관리자가 승인 시 입력)',
   status        ENUM('pending','active','disabled') NOT NULL DEFAULT 'pending',
   created_at    DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
   last_login_at DATETIME     NULL

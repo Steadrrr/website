@@ -297,3 +297,7 @@ tr.pinned td { background: #fffaf8; }
 .pager { display: flex; gap: .25rem; justify-content: center; margin-top: 1rem; }
 .pager a { padding: .25rem .6rem; border: 1px solid var(--line); border-radius: 4px; color: var(--text); }
 .pager a.on { background: var(--green); color: #fff; border-color: var(--green); }
+.position-input { min-width: 8rem; margin: 0; }
+.users-table th, .users-table td { white-space: nowrap; padding: .45rem .35rem; }
+.users-table select { min-width: 5.5rem; width: auto; }
+.users-table .position-input { width: 9rem; }
