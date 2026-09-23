@@ -1,5 +1,5 @@
 <?php
-/** 근무 설정 (관리원): 입사일·계약만료일·근무시간·휴무 요일 — 최고관리자·팀장 */
+/** 근무 설정 (사원): 입사일·계약만료일·근무시간·휴무 요일 — 최고관리자·팀장 */
 require dirname(__DIR__) . '/app/bootstrap.php';
 
 $me = require_manager();
@@ -43,7 +43,7 @@ if ($me['is_admin']) settings_nav('users');
     <a class="btn ghost" href="<?= e(url('admin/users.php')) ?>">‹ 회원관리</a>
   </div>
   <?php foreach ($errors as $m): ?><div class="flash flash-error"><?= e($m) ?></div><?php endforeach ?>
-  <?php if (!att_is_subject($u)): ?><p class="flash flash-warn">근태관리는 관리원 직급만 대상입니다. (지금 직급: <?= e(rank_name($u['rank_level'])) ?>)</p><?php endif ?>
+  <?php if (!att_is_subject($u)): ?><p class="flash flash-warn">근태관리는 사원 직급만 대상입니다. (지금 직급: <?= e(rank_name($u['rank_level'])) ?>)</p><?php endif ?>
 
   <div class="row">
     <label>입사일<input type="date" name="hire_date" value="<?= e($u['hire_date']) ?>" <?= att_is_subject($u) ? 'required' : '' ?>></label>

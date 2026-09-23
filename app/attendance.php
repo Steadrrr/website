@@ -2,7 +2,7 @@
 defined('APP_ROOT') || exit;
 
 /**
- * 근태관리 (관리원)
+ * 근태관리 (사원)
  *  - 근태 1건 = journals(type 'attendance') 1건 + attendance 1행. 결재선은 입력한 사람의 직급 기준 (일지와 같음)
  *  - 전일 근태(연차·병가·공가·결근)는 근무자의 휴무 요일과 공휴일을 뺀 근무일만 일수로 센다
  *  - 조퇴·외출은 시간 단위로 연차에서 차감 (연차 1일 = 8시간)
@@ -34,13 +34,13 @@ function att_is_time_kind(string $kind): bool
     return (ATT_KINDS[$kind][2] ?? '') === 'time';
 }
 
-/** 근태 대상자 = 사용 중인 관리원 */
+/** 근태 대상자 = 사용 중인 사원 */
 function att_is_subject(array $u): bool
 {
     return (int) $u['rank_level'] === RANK_KEEPER && ($u['status'] ?? 'active') === 'active';
 }
 
-/** 공무직 이상·최고관리자: 모든 관리원의 근태를 입력·조회 */
+/** 공무직 이상·최고관리자: 모든 사원의 근태를 입력·조회 */
 function att_is_manager(array $me): bool
 {
     return !empty($me['is_admin']) || (int) $me['rank_level'] >= RANK_WORKER;
@@ -70,7 +70,7 @@ function att_can_view(array $me, array $worker): bool
 function att_entry_error(array $me, array $worker, string $kind): ?string
 {
     if (!isset(ATT_KINDS[$kind])) return '근태 종류를 고르세요.';
-    if (!att_is_subject($worker)) return '근태 입력 대상은 관리원입니다.';
+    if (!att_is_subject($worker)) return '근태 입력 대상은 사원입니다.';
     if ($kind === 'absent' && empty($me['is_admin']) && (int) $me['rank_level'] < RANK_OFFICER) return '결근은 주무관 이상만 입력할 수 있습니다.';
     if ($kind === 'overtime' && !att_is_manager($me)) return '초과근무는 공무직 이상만 입력할 수 있습니다.';
     if (!att_is_manager($me) && (int) $me['id'] !== (int) $worker['id']) return '본인의 근태만 입력할 수 있습니다.';

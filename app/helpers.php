@@ -2,12 +2,12 @@
 defined('APP_ROOT') || exit;
 
 // 직급 (숫자가 클수록 상위)
-const RANK_KEEPER  = 1; // 관리원
+const RANK_KEEPER  = 1; // 사원
 const RANK_WORKER  = 2; // 공무직
 const RANK_OFFICER = 3; // 주무관
 const RANK_LEADER  = 4; // 팀장
 const RANKS = [
-    RANK_KEEPER  => '관리원',
+    RANK_KEEPER  => '사원',
     RANK_WORKER  => '공무직',
     RANK_OFFICER => '주무관',
     RANK_LEADER  => '팀장',
@@ -188,7 +188,7 @@ function status_badge(string $status): string
     return '<span class="badge st-' . e($status) . '">' . e(JOURNAL_STATUS[$status] ?? $status) . '</span>';
 }
 
-/** 공지사항 작성 권한: 최고관리자, 팀장, 주무관, 공무직 (관리원 제외) */
+/** 공지사항 작성 권한: 최고관리자, 팀장, 주무관, 공무직 (사원 제외) */
 function can_write_notice(array $u): bool
 {
     return (bool) $u['is_admin'] || (int) $u['rank_level'] >= RANK_WORKER;

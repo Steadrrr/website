@@ -1,6 +1,6 @@
 <?php
 /**
- * 근태관리 (관리원)
+ * 근태관리 (사원)
  *   attendance.php?ym=2026-09[&team=1][&user=5]      근태 달력 (모든 근무자, 팀·사람별 조회)
  *   attendance.php?view=sheet&user=5&ym=2026-09        개인 월간 근태표 (&export=xlsx 엑셀, 인쇄)
  *   attendance.php?api=check&...                       입력 창의 실시간 검사 (연차·병가 현황, 진단서 안내)
@@ -210,7 +210,7 @@ if ($view === 'sheet') {
   </form>
 
   <?php if (!$worker): ?>
-    <p class="muted">근태 대상 관리원이 없습니다. 회원관리에서 관리원을 등록하세요.</p>
+    <p class="muted">근태 대상 사원이 없습니다. 회원관리에서 사원을 등록하세요.</p>
   <?php else: ?>
     <div class="att-sheet-head">
       <div>

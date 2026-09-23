@@ -3,7 +3,7 @@
  * 일정표 (구글 캘린더 스타일): schedule.php?ym=2026-09[&view=month|list]
  * 누구나 일정을 만들 수 있고, 수정·삭제는 작성자·주무관 이상·최고관리자.
  * 공휴일·휴관일은 최고관리자만 등록하며 근태관리와 공유된다 (공휴일은 근태의 근무일에서 빠짐).
- * 근태(관리원) 결재중·완료 건도 '근태' 분류로 함께 보여 준다 (&att_team=팀 으로 팀별 조회).
+ * 근태(사원) 결재중·완료 건도 '근태' 분류로 함께 보여 준다 (&att_team=팀 으로 팀별 조회).
  */
 require __DIR__ . '/app/bootstrap.php';
 
@@ -74,7 +74,7 @@ $events = events_between($gridStart->format('Y-m-d'), $gridEnd->format('Y-m-d'))
 $monthEvents = array_filter($events, fn($e) => $e['start_date'] <= $last->format('Y-m-d') && $e['end_date'] >= $first->format('Y-m-d'));
 $catCount = array_count_values(array_column($monthEvents, 'category'));
 
-// 근태 (관리원) — 팀별 조회
+// 근태 (사원) — 팀별 조회
 $attTeam = (int) ($_GET['att_team'] ?? 0);
 if (!isset(teams_all()[$attTeam])) $attTeam = 0;
 $attItems = array_map(fn($i) => $i + ['src' => 'att'], att_calendar_items(att_records(['from' => $gridStart->format('Y-m-d'), 'to' => $gridEnd->format('Y-m-d'), 'team_id' => $attTeam])));
@@ -123,7 +123,7 @@ layout_header('일정표 ' . $first->format('Y년 n월'), 'schedule');
         <label style="--c: <?= $color ?>"><input type="checkbox" data-filter="<?= $key ?>" checked><span class="box"></span><?= e($label) ?>
           <small><?= (int) ($catCount[$key] ?? 0) ?></small></label>
       <?php endforeach ?>
-      <label style="--c: #1a73e8"><input type="checkbox" data-filter="att" checked><span class="box"></span>근태 (관리원)
+      <label style="--c: #1a73e8"><input type="checkbox" data-filter="att" checked><span class="box"></span>근태 (사원)
         <small><?= $attMonth ?></small></label>
       <form method="get">
         <input type="hidden" name="ym" value="<?= e($ym) ?>"><?php if ($view === 'list'): ?><input type="hidden" name="view" value="list"><?php endif ?>

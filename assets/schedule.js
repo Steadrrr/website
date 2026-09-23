@@ -87,7 +87,7 @@
       b.addEventListener('click', () => openView(e.id));
       box.appendChild(b);
     });
-    // 근태 (관리원)
+    // 근태 (사원)
     if (!gcal.classList.contains('hide-att')) {
       (data.att || []).filter((a) => a.start_date <= ds && a.end_date >= ds).forEach((a) => {
         const link = document.createElement('a');

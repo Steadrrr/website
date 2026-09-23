@@ -23,7 +23,7 @@ if (is_post()) {
     }
 
     if (!$errors) {
-        // 직급은 가입 때 고르지 않는다. 관리원으로 등록되고, 관리자(팀장)가 승인하면서 회원관리에서 직급을 정한다.
+        // 직급은 가입 때 고르지 않는다. 사원으로 등록되고, 관리자(팀장)가 승인하면서 회원관리에서 직급을 정한다.
         db()->prepare("INSERT INTO users (username, password_hash, name, phone, rank_level, status) VALUES (?, ?, ?, ?, ?, 'pending')")
             ->execute([$username, password_hash($password, PASSWORD_DEFAULT), $name, $phone ?: null, RANK_KEEPER]);
         flash('가입 신청이 완료되었습니다. 관리자 승인 후 로그인할 수 있습니다.', 'success');
