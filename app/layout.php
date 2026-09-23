@@ -74,6 +74,10 @@ function nav_groups(?array $user): array
     $groups = [
         'home'     => ['label' => '대시보드', 'href' => 'index.php'],
         'schedule' => ['label' => '일정표', 'href' => 'schedule.php'],
+        'att'      => ['label' => '근태관리', 'items' => [
+            'attendance' => ['attendance.php', '근태 달력'],
+            'att_sheet'  => ['attendance.php?view=sheet', '개인 월간 근태표'],
+        ]],
         'ops'      => ['label' => '운영관리', 'items' => [
             'daily'   => ['journal.php?type=daily', '업무일지'],
             'sales'   => ['journal.php?type=sales', '매출보고'],

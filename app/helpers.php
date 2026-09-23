@@ -18,6 +18,7 @@ const JOURNAL_TYPES = [
     'sales'    => '일일매출보고',
     'facility' => '시설물관리일지',
     'voucher'  => '상품권입고',
+    'attendance' => '근태',
 ];
 
 // 대시보드 '오늘 일지 현황'에 표시하는 매일 쓰는 일지
@@ -198,6 +199,7 @@ function journal_badges(array $j): string
 /** 이 사용자가 이 일지를 수정할 수 있는가: 임시저장은 작성자만, 상신된 일지는 모든 직원 */
 function can_edit_journal(array $journal, array $user): bool
 {
+    if ($journal['type'] === 'attendance') return false; // 근태는 수정 대신 취소 후 다시 입력
     return $journal['status'] !== 'draft' || (int) $journal['author_id'] === (int) $user['id'];
 }
 

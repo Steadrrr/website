@@ -20,6 +20,7 @@ if ($id) {
     $payload = items_load($journal);
 } else {
     $type = $_GET['type'] ?? 'daily';
+    if ($type === 'attendance') redirect('attendance.php');
     if (!isset(JOURNAL_TYPES[$type])) abort(404, '알 수 없는 일지 종류입니다.');
     $workDate = valid_date($_GET['date'] ?? '') ? $_GET['date'] : date('Y-m-d');
     // 시설점검은 관리팀별로 작성

@@ -16,6 +16,11 @@ CREATE TABLE IF NOT EXISTS users (
   photo         VARCHAR(200) NULL COMMENT '개인 사진 경로 (uploads/members/...)',
   squad_id      INT UNSIGNED NULL COMMENT '소속 반',
   is_squad_leader TINYINT(1) NOT NULL DEFAULT 0 COMMENT '반장',
+  hire_date     DATE NULL COMMENT '입사일 (연차 발생 기준)',
+  contract_end  DATE NULL COMMENT '계약 종료일 (비우면 입사일 + 1년)',
+  work_start    TIME NULL COMMENT '근무 시작 시각',
+  work_end      TIME NULL COMMENT '근무 종료 시각',
+  off_days      VARCHAR(20) NULL COMMENT '휴무 요일 (0=일 ~ 6=토, 쉼표 구분)',
   status        ENUM('pending','active','disabled') NOT NULL DEFAULT 'pending',
   created_at    DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
   last_login_at DATETIME     NULL
@@ -23,7 +28,7 @@ CREATE TABLE IF NOT EXISTS users (
 
 CREATE TABLE IF NOT EXISTS journals (
   id           INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-  type         ENUM('daily','sales','facility','voucher') NOT NULL COMMENT '업무일지/매출보고/시설물관리/상품권입고',
+  type         ENUM('daily','sales','facility','voucher','attendance') NOT NULL COMMENT '업무일지/매출보고/시설물관리/상품권입고/근태',
   team_id      INT UNSIGNED NULL COMMENT '시설점검일지의 관리팀',
   work_date    DATE         NOT NULL,
   author_id    INT UNSIGNED NOT NULL,
@@ -292,7 +297,7 @@ CREATE TABLE IF NOT EXISTS notices (
 CREATE TABLE IF NOT EXISTS events (
   id          INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   title       VARCHAR(100) NOT NULL,
-  category    ENUM('event','construction','program','etc') NOT NULL DEFAULT 'etc',
+  category    ENUM('event','construction','program','etc','holiday','closed') NOT NULL DEFAULT 'etc' COMMENT 'holiday 공휴일, closed 휴관일 (관리자만)',
   start_date  DATE NOT NULL,
   end_date    DATE NOT NULL,
   all_day     TINYINT(1) NOT NULL DEFAULT 1,
@@ -305,4 +310,23 @@ CREATE TABLE IF NOT EXISTS events (
   updated_at  DATETIME NULL,
   INDEX idx_range (start_date, end_date),
   CONSTRAINT fk_event_author FOREIGN KEY (author_id) REFERENCES users(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 근태 (결재는 journals 의 결재선을 그대로 사용. journals.author_id = 입력한 사람, user_id = 근무자)
+CREATE TABLE IF NOT EXISTS attendance (
+  journal_id    INT UNSIGNED PRIMARY KEY,
+  user_id       INT UNSIGNED NOT NULL COMMENT '근무자',
+  kind          ENUM('annual','sick','official','early','out','absent','overtime') NOT NULL COMMENT '연차/병가/공가/조퇴/외출/결근/초과근무',
+  start_date    DATE NOT NULL,
+  end_date      DATE NOT NULL,
+  start_time    TIME NULL,
+  end_time      TIME NULL,
+  days          INT UNSIGNED NOT NULL DEFAULT 0 COMMENT '전일 근태의 실제 근무일수 (휴무일·공휴일 제외)',
+  minutes       INT UNSIGNED NOT NULL DEFAULT 0 COMMENT '시간 단위 근태의 분',
+  attachment    VARCHAR(200) NULL COMMENT '진단서 등 첨부 (uploads/attendance/...)',
+  cert_required TINYINT(1) NOT NULL DEFAULT 0 COMMENT '진단서 제출 대상 병가',
+  INDEX idx_user_date (user_id, start_date, end_date),
+  INDEX idx_date (start_date, end_date),
+  CONSTRAINT fk_att_journal FOREIGN KEY (journal_id) REFERENCES journals(id) ON DELETE CASCADE,
+  CONSTRAINT fk_att_user FOREIGN KEY (user_id) REFERENCES users(id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

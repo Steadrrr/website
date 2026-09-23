@@ -23,7 +23,7 @@ layout_header('결재함', 'approval');
     <?php foreach ($waiting as $j): ?>
       <tr class="clickable" onclick="location.href='<?= e(url('view.php?id=' . $j['id'])) ?>'">
         <td><?= e($j['work_date']) ?></td>
-        <td><?= e(JOURNAL_TYPES[$j['type']]) ?><?= $j['revision'] ? ' <span class="badge st-edited">수정됨</span>' : '' ?></td>
+        <td><?= e(journal_type_label($j)) ?><?= $j['revision'] ? ' <span class="badge st-edited">수정됨</span>' : '' ?></td>
         <td><?= e($j['author_name']) ?> <small class="muted"><?= e(rank_name($j['author_rank'])) ?></small></td>
         <td><?= e($j['submitted_at']) ?></td>
       </tr>
@@ -41,7 +41,7 @@ layout_header('결재함', 'approval');
     <?php foreach ($mine as $j): ?>
       <tr class="clickable" onclick="location.href='<?= e(url('view.php?id=' . $j['id'])) ?>'">
         <td><?= e($j['work_date']) ?></td>
-        <td><?= e(JOURNAL_TYPES[$j['type']]) ?></td>
+        <td><?= e(journal_type_label($j)) ?></td>
         <td><?= journal_badges($j) ?></td>
       </tr>
     <?php endforeach ?>

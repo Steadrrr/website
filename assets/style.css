@@ -1,3 +1,4 @@
+[hidden] { display: none !important; }
 :root {
   --green: #2f7d4f;
   --green-d: #1f5a38;
@@ -574,3 +575,71 @@ a.nav-main:hover, .nav-main:hover, .nav-main.on, .nav-group.on > .nav-main, .nav
 @media (max-width: 900px) { .upcoming { display: none; } }
 .today-events { border-left-color: #3f51b5; }
 .ev-badge { background: var(--c); color: #fff; font-weight: 600; }
+
+/* ── 근태관리 */
+a.gcal-ev { color: inherit; text-decoration: none; }
+a.gcal-ev.bar { color: #fff; }
+.gcal-ev.bar.pending { background: #fff; color: var(--c); box-shadow: inset 0 0 0 1.5px var(--c); }
+.gcal-ev.dot.pending .n { font-style: italic; opacity: .8; }
+.gcal-ev.dot.pending i { background: #fff; box-shadow: inset 0 0 0 2px var(--c); }
+.att-week { min-height: 136px; }
+.gcal-day.holiday { background: #fdf3f2; }
+.gcal-day.holiday .gcal-num { color: #d93025; }
+.gcal-day.closed { background: #f3f3f3; }
+.gcal-day.offday { background: repeating-linear-gradient(135deg, #fafafa, #fafafa 6px, #f1f3f1 6px, #f1f3f1 12px); }
+.day-tag { display: block; font-size: .66rem; line-height: 1.2; padding: 0 .2rem; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; position: relative; z-index: 1; }
+.day-tag.hol { color: #d93025; font-weight: 700; }
+.day-tag.closed { color: #616161; }
+.day-tag.off { color: #9aa0a6; }
+.att-cal .gcal-events { padding-top: 3.1rem; }
+.att-cal .gcal-day { overflow: hidden; }
+.att-summary { background: #f6faf7; border: 1px solid #d9e7dd; border-radius: 10px; padding: .6rem .75rem; margin-bottom: 1rem; }
+.att-summary h4 { margin: 0 0 .4rem; font-size: .9rem; }
+.att-sum-list { list-style: none; margin: 0; padding: 0; font-size: .85rem; }
+.att-sum-list li { display: flex; justify-content: space-between; padding: .15rem 0; }
+.att-sum-list b.good { color: var(--green-d); } .att-sum-list b.warn, b.warn { color: #c0392b; }
+.tiny-text { font-size: .72rem; margin: .35rem 0 0; }
+.att-filter { display: flex; flex-direction: column; gap: .4rem; margin-bottom: 1rem; }
+.att-filter label { margin: 0; font-size: .85rem; }
+.att-legend { display: flex; align-items: center; gap: .35rem; }
+.lg-pending { display: inline-block; width: 22px; height: 10px; border: 1.5px solid #1a73e8; border-radius: 3px; }
+.att-dialog { width: min(520px, calc(100vw - 2rem)); }
+.att-check { margin: .2rem 0 .6rem; font-size: .85rem; }
+.att-check-sum { background: #f1f5f2; border-radius: 8px; padding: .45rem .6rem; }
+.att-check ul { list-style: none; margin: .4rem 0 0; padding: 0; }
+.att-check li { padding: .3rem .5rem; border-radius: 6px; margin-top: .25rem; }
+.att-check li.ok { background: #e6f4ea; color: #1e5631; }
+.att-check li.err { background: #fbeaea; color: #8e2a20; }
+.att-check li.note { background: #fff6e0; color: #6d4c00; }
+.att-check li.cert { background: #fff0d6; color: #8a4b00; font-weight: 700; border: 1px solid #f0b458; }
+.att-check li.cert::before { content: "⚠ "; }
+.att-sheet-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem; flex-wrap: wrap; }
+.att-sheet-head h2 { margin: 0 0 .2rem; }
+.att-sheet-table td, .att-sheet-table th { padding: .3rem .5rem; }
+.att-sheet-table tr.off td { background: #f7f7f7; color: #70757a; }
+.att-sheet-table tr.d-sun .wd { color: #d93025; } .att-sheet-table tr.d-sat .wd { color: #1a73e8; }
+.att-sheet-table tfoot th { text-align: left; background: #f1f5f2; }
+.att-box { border-left: 4px solid #1a73e8; }
+.cert-alert { background: #fff0d6; border: 1px solid #f0b458; color: #8a4b00; border-radius: 8px; padding: .5rem .75rem; font-weight: 600; }
+.profile-att { width: 100%; text-align: left; margin-top: .75rem; border-top: 1px solid var(--line); padding-top: .6rem; }
+.profile-att h4 { margin: 0 0 .4rem; font-size: .88rem; }
+.work-days { display: flex; flex-wrap: wrap; gap: .3rem; }
+.work-days label { display: inline-flex; align-items: center; gap: .25rem; font-weight: 400; margin: 0; padding: .3rem .6rem; border: 1px solid #c8d1c9; border-radius: 16px; cursor: pointer; }
+.work-days input { width: auto; }
+@media (max-width: 900px) {
+  .att-summary, .att-filter { flex: 1 1 200px; }
+  .day-tag { font-size: .58rem; }
+}
+@media print {
+  .att-sheet-table { font-size: .8rem; }
+  .att-sheet-table td, .att-sheet-table th { padding: .15rem .35rem; }
+  .gcal-day.holiday, .gcal-day.offday, .att-sheet-table tr.off td { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+}
+.filters { display: flex; flex-wrap: wrap; gap: .5rem; align-items: end; margin-bottom: .75rem; }
+.filters label { margin: 0; }
+.filters input, .filters select { width: auto; }
+.inline-form { display: flex; flex-wrap: wrap; gap: .5rem; align-items: end; margin: .6rem 0; }
+.inline-form label { margin: 0; }
+.card.narrow { max-width: 760px; }
+.gcal.hide-holiday [data-cat="holiday"], .gcal.hide-closed [data-cat="closed"], .gcal.hide-att [data-cat="att"] { display: none !important; }
+.gcal-filters select { width: 100%; margin: .2rem 0 .4rem; font-size: .85rem; }

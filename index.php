@@ -23,12 +23,12 @@ $notices = db()->query(
 $recent = db()->query(
     "SELECT j.*, u.name AS author_name
        FROM journals j JOIN users u ON u.id = j.author_id
-      WHERE j.status <> 'draft'
+      WHERE j.status <> 'draft' AND j.type <> 'attendance'
       ORDER BY j.updated_at DESC LIMIT 10"
 )->fetchAll();
 
 // 왼쪽 프로필: 오늘 내가 쓴 일지 수, 결재 대기
-$st = db()->prepare("SELECT COUNT(*) FROM journals WHERE author_id = ? AND work_date = ? AND status <> 'draft'");
+$st = db()->prepare("SELECT COUNT(*) FROM journals WHERE author_id = ? AND work_date = ? AND status <> 'draft' AND type <> 'attendance'");
 $st->execute([$user['id'], $today]);
 $myToday = (int) $st->fetchColumn();
 $myWaiting = count(waiting_for_user($user));
@@ -52,6 +52,22 @@ layout_header('대시보드', 'home');
     <li><span>오늘 작성한 일지</span><b><?= $myToday ?>건</b></li>
     <li><a href="<?= e(url('approvals.php')) ?>"><span>내 결재 대기</span><b class="<?= $myWaiting ? 'warn' : '' ?>"><?= $myWaiting ?>건</b></a></li>
   </ul>
+  <?php if (att_is_subject($user)): $as = att_summary($user); ?>
+  <div class="profile-att">
+    <h4><a href="<?= e(url('attendance.php?view=sheet')) ?>">내 연차·병가 ›</a></h4>
+    <?php if (!$as['set']): ?>
+      <p class="muted small">입사일이 등록되지 않아 연차를 계산할 수 없습니다. 관리자에게 근무 설정을 요청하세요.</p>
+    <?php else: ?>
+      <ul class="profile-stats">
+        <li><span>발생 연차</span><b><?= $as['accrued'] ?>일 <small class="muted">/ 최대 <?= $as['max'] ?>일</small></b></li>
+        <li><span>사용 연차</span><b><?= e(att_fmt_min($as['used_min'])) ?></b></li>
+        <li><span>남은 연차</span><b class="<?= $as['remain_min'] < 0 ? 'warn' : '' ?>"><?= e(att_fmt_min($as['remain_min'])) ?></b></li>
+        <li><span>병가 사용</span><b><?= $as['sick_used'] ?>일 <small class="muted">/ <?= $as['sick_limit'] ?>일</small></b></li>
+      </ul>
+    <?php endif ?>
+    <a class="btn small" href="<?= e(url('attendance.php?new=' . $today)) ?>">+ 근태 입력</a>
+  </div>
+  <?php endif ?>
   <div class="profile-links">
     <a href="<?= e(url('mypage.php')) ?>">내 정보</a> · <a href="<?= e(url('org.php')) ?>">조직도</a>
   </div>
@@ -168,7 +184,7 @@ layout_header('대시보드', 'home');
     <?php else: ?>
       <ul class="list">
         <?php foreach ($waiting as $j): ?>
-          <li><a href="<?= e(url('view.php?id=' . $j['id'])) ?>"><?= e(JOURNAL_TYPES[$j['type']]) ?> · <?= e($j['work_date']) ?></a><span><?= e($j['author_name']) ?></span></li>
+          <li><a href="<?= e(url('view.php?id=' . $j['id'])) ?>"><?= e(journal_type_label($j)) ?> · <?= e($j['work_date']) ?></a><span><?= e($j['author_name']) ?></span></li>
         <?php endforeach ?>
       </ul>
     <?php endif ?>
@@ -183,7 +199,7 @@ layout_header('대시보드', 'home');
     <?php foreach ($recent as $j): ?>
       <tr onclick="location.href='<?= e(url('view.php?id=' . $j['id'])) ?>'" class="clickable">
         <td><?= e($j['work_date']) ?></td>
-        <td><?= e(JOURNAL_TYPES[$j['type']]) ?></td>
+        <td><?= e(journal_type_label($j)) ?></td>
         <td><?= e($j['author_name']) ?></td>
         <td><?= journal_badges($j) ?></td>
         <td class="right"><?= can_edit_journal($j, $user) ? edit_button($j, 'btn small') : '' ?></td>

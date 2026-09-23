@@ -55,7 +55,8 @@
     form.reset();
     F('id').value = e ? e.id : '';
     F('title').value = e ? e.title : '';
-    form.querySelector(`[name="category"][value="${e ? e.category : 'event'}"]`).checked = true;
+    const catInput = form.querySelector(`[name="category"][value="${e ? e.category : (data.newCat || 'event')}"]`) || form.querySelector('[name="category"]');
+    catInput.checked = true;
     F('start_date').value = e ? e.start_date : date;
     F('end_date').value = e ? e.end_date : date;
     F('all_day').checked = e ? !!e.all_day : true;
@@ -86,13 +87,27 @@
       b.addEventListener('click', () => openView(e.id));
       box.appendChild(b);
     });
-    if (!list.length) box.innerHTML = '<p class="muted center">일정이 없습니다.</p>';
+    // 근태 (관리원)
+    if (!gcal.classList.contains('hide-att')) {
+      (data.att || []).filter((a) => a.start_date <= ds && a.end_date >= ds).forEach((a) => {
+        const link = document.createElement('a');
+        link.className = 'ag-ev';
+        link.href = data.viewUrl + a.id;
+        link.style.setProperty('--c', a.color);
+        link.innerHTML = '<i></i><span class="ag-when"></span><span class="ag-title"><b></b></span>';
+        link.querySelector('.ag-when').textContent = '근태' + (a.pending ? ' · 결재중' : '');
+        link.querySelector('b').textContent = a.title;
+        box.appendChild(link);
+      });
+    }
+    if (!box.children.length) box.innerHTML = '<p class="muted center">일정이 없습니다.</p>';
     $('[data-day-create]').onclick = () => openForm(null, ds);
     show('day');
   }
 
   // ── 클릭 연결
   gcal.addEventListener('click', (ev) => {
+    if (ev.target.closest('a.gcal-ev')) return; // 근태는 결재 문서로 이동
     const evBtn = ev.target.closest('.gcal-ev[data-id]');
     if (evBtn) return openView(+evBtn.dataset.id);
     const more = ev.target.closest('.gcal-more, .mini-d, .gcal-num');

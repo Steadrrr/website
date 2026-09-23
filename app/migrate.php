@@ -6,7 +6,7 @@ defined('APP_ROOT') || exit;
  * 새 버전 파일을 FTP로 덮어쓰기만 하면, 첫 접속 때 부족한 테이블/컬럼을 만든다.
  * (기존 자료는 그대로 유지)
  */
-const DB_VERSION = 9;
+const DB_VERSION = 10;
 
 function db_version(): int
 {
@@ -96,6 +96,15 @@ function db_migrate(): void
     $pdo->exec("INSERT IGNORE INTO settings (name, value) VALUES ('org_top_name', '양평군청 산림과 산림휴양팀'), ('org_park_name', '양평쉬자파크')");
 
     // 9) v8 → v9: 일정표 — events 테이블은 1) 단계(schema.sql)에서 만들어진다
+
+    // 10) v9 → v10: 근태관리 — 근무 설정(입사일·계약종료일·근무시간·휴무요일), 근태 문서, 공휴일·휴관일
+    //     (attendance 테이블은 1) 단계에서 만들어진다)
+    if (!column_exists('users', 'hire_date')) {
+        $pdo->exec("ALTER TABLE users ADD hire_date DATE NULL AFTER is_squad_leader, ADD contract_end DATE NULL AFTER hire_date,
+                    ADD work_start TIME NULL AFTER contract_end, ADD work_end TIME NULL AFTER work_start, ADD off_days VARCHAR(20) NULL AFTER work_end");
+    }
+    $pdo->exec("ALTER TABLE journals MODIFY type ENUM('daily','sales','facility','voucher','attendance') NOT NULL");
+    $pdo->exec("ALTER TABLE events MODIFY category ENUM('event','construction','program','etc','holiday','closed') NOT NULL DEFAULT 'etc'");
 
     $pdo->prepare("INSERT INTO settings (name, value) VALUES ('db_version', ?) ON DUPLICATE KEY UPDATE value = VALUES(value)")
         ->execute([(string) DB_VERSION]);

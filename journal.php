@@ -5,6 +5,7 @@ require __DIR__ . '/app/bootstrap.php';
 $user = require_login();
 
 $type = $_GET['type'] ?? 'daily';
+if ($type === 'attendance') redirect('attendance.php');
 if (!isset(JOURNAL_TYPES[$type])) $type = 'daily';
 
 $selected = $_GET['date'] ?? '';
