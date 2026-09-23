@@ -101,6 +101,7 @@ function nav_groups(?array $user): array
             'notices'  => ['notices.php', '공지사항'],
             'org'      => ['org.php', '조직도'],
             'approval' => ['approvals.php', '결재함'],
+            'sitemap'  => ['sitemap.php', '사이트맵'],
         ]],
     ];
     foreach (array_keys(MENU_OPTIONAL) as $g) {

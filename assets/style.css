@@ -715,3 +715,14 @@ a.gcal-ev.bar { color: #fff; }
 .sys-row td { background: #f6f8f6; }
 .auto-badge { background: #e3efe6; color: var(--green-d); font-weight: 700; }
 input[data-stay] { background: #f1f5f2; color: var(--green-d); font-weight: 700; }
+
+/* ── 사이트맵 */
+.sitemap { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 1rem; }
+.sitemap-group { border: 1px solid #dfe8e1; border-top: 4px solid var(--green); border-radius: 8px; padding: .8rem 1rem; background: #fbfdfb; break-inside: avoid; }
+.sitemap-group h2 { margin: 0 0 .5rem; font-size: 1.05rem; display: flex; align-items: center; gap: .4rem; }
+.sitemap-group ul { list-style: none; margin: 0; padding: 0; }
+.sitemap-group li { padding: .35rem 0; border-bottom: 1px dashed #e3ebe5; }
+.sitemap-group li:last-child { border-bottom: 0; }
+.sitemap-group li a { font-weight: 600; }
+.sitemap-group li small { display: block; color: var(--muted); font-size: .78rem; line-height: 1.35; }
+@media print { .sitemap { grid-template-columns: repeat(2, 1fr); } }
