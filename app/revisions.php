@@ -12,7 +12,7 @@ function journal_snapshot(array $journal): array
 {
     $p = items_load($journal);
     $snap = ['일자' => $journal['work_date']];
-    if ($journal['type'] !== 'voucher') $snap['날씨'] = (string) $journal['weather'];
+    if (!in_array($journal['type'], NO_WEATHER_TYPES, true)) $snap['날씨'] = (string) $journal['weather'];
     $contentLabel = ['daily' => '업무내용', 'sales' => '메모', 'voucher' => '적요'][$journal['type']] ?? '내용';
     $snap[$contentLabel] = (string) $journal['content'];
     $snap['특이사항'] = (string) $journal['remarks'];

@@ -28,6 +28,9 @@ const PROGRAM_TYPES = ['healing' => '산림치유센터', 'kidsforest' => '유�
 // 참여 인원 연령대 (program_sessions 의 m_* / f_* 컬럼)
 const PROGRAM_AGES = ['infant' => '유아', 'elem' => '초등', 'teen' => '중고등', 'adult' => '성인', 'senior' => '65세이상'];
 
+// 날씨 입력란이 없는 문서 (상품권입고, 일일매출보고)
+const NO_WEATHER_TYPES = ['voucher', 'sales'];
+
 // 대시보드 '오늘 일지 현황'에 표시하는 매일 쓰는 일지
 const DAILY_TYPES = ['daily', 'sales', 'facility'];
 

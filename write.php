@@ -39,7 +39,7 @@ $errors = [];
 if (is_post()) {
     csrf_verify();
     $workDate = post('work_date');
-    $weather  = mb_substr(post('weather'), 0, 30);
+    $weather  = in_array($type, NO_WEATHER_TYPES, true) ? '' : mb_substr(post('weather'), 0, 30);
     $content  = post('content');
     $remarks  = post('remarks');
     $submit   = $revision || post('action') === 'submit';
@@ -130,7 +130,7 @@ layout_header(JOURNAL_TYPES[$type] . ($journal ? ' 수정' : ' 작성'), $type =
       </label>
     <?php endif ?>
     <label>일자<input type="date" name="work_date" value="<?= e($workDate) ?>" required></label>
-    <?php if ($type !== 'voucher'): ?>
+    <?php if (!in_array($type, NO_WEATHER_TYPES, true)): ?>
     <label>날씨<input name="weather" value="<?= $v('weather') ?>" placeholder="맑음 / 18℃" list="weathers"></label>
     <datalist id="weathers"><option>맑음</option><option>구름많음</option><option>흐림</option><option>비</option><option>눈</option></datalist>
     <?php endif ?>
