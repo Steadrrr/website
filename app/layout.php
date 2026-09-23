@@ -88,6 +88,7 @@ function nav_groups(?array $user): array
         'prog'     => ['label' => '프로그램', 'items' => [
             'healing'    => ['journal.php?type=healing', '산림치유센터'],
             'kidsforest' => ['journal.php?type=kidsforest', '유아숲체험원'],
+            'kidsdirect' => ['journal.php?type=kidsdirect', '유아숲(직영)'],
             'guide'      => ['journal.php?type=guide', '숲해설'],
             'prog_stats' => ['program_stats.php', '프로그램 통계'],
         ]],

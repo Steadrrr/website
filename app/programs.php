@@ -2,9 +2,9 @@
 defined('APP_ROOT') || exit;
 
 /**
- * 프로그램 운영보고 (산림치유센터 · 유아숲체험원 · 숲해설)
+ * 프로그램 운영보고 (산림치유센터 · 유아숲체험원 · 유아숲(직영) · 숲해설)
  *  - 분야별로 하루 1건. 보고서 안에 회차(1회차부터 자동 번호)를 여러 개 입력
- *  - 회차: 단체명(개인 성명), 운영시간, 인원(남·여 × 유아·초등·중고등·성인·65세이상), 유료/무료, 활동내용
+ *  - 회차: 단체명(개인 성명), 담당자, 운영시간, 인원(남·여 × 유아·초등·중고등·성인·65세이상), 유료/무료, 활동내용
  *  - 프로그램 금액 = 인원 합계 × 1인 참가비 — 유료(기본 5,000원) / 할인(기본 3,000원) / 무료 (설정 › 기본 정보)
  *  - 활동사진은 보고서에 여러 장 (photos.owner_type 'program', 긴 변 PROGRAM_PHOTO_MAX px)
  */
@@ -45,7 +45,7 @@ function program_people_cols(): array
 
 function program_empty_session(): array
 {
-    return ['group_name' => '', 'start_time' => '', 'end_time' => '', 'is_paid' => 1, 'fee_type' => 'paid', 'activity' => '', 'total' => 0, 'amount' => 0]
+    return ['group_name' => '', 'staff' => '', 'start_time' => '', 'end_time' => '', 'is_paid' => 1, 'fee_type' => 'paid', 'activity' => '', 'total' => 0, 'amount' => 0]
         + array_fill_keys(program_people_cols(), 0);
 }
 
@@ -66,6 +66,7 @@ function program_parse(string $type, string $workDate, int $journalId): array
         if (!is_array($row)) continue;
         $s = program_empty_session();
         $s['group_name'] = mb_substr(trim((string) ($row['group_name'] ?? '')), 0, 100);
+        $s['staff'] = mb_substr(trim((string) ($row['staff'] ?? '')), 0, 100);
         foreach (program_people_cols() as $c) $s[$c] = min(9999, to_int($row[$c] ?? 0));
         $s['total'] = array_sum(array_intersect_key($s, array_flip(program_people_cols())));
         $s['activity'] = trim((string) ($row['activity'] ?? ''));
@@ -103,12 +104,13 @@ function program_save(int $journalId, array $payload): void
 {
     $pdo = db();
     $pdo->prepare('DELETE FROM program_sessions WHERE journal_id = ?')->execute([$journalId]);
-    $cols = ['session_no', 'group_name', 'start_time', 'end_time', ...program_people_cols(), 'total', 'is_paid', 'fee_type', 'fee', 'amount', 'activity'];
+    $cols = ['session_no', 'group_name', 'staff', 'start_time', 'end_time', ...program_people_cols(), 'total', 'is_paid', 'fee_type', 'fee', 'amount', 'activity'];
     $ins = $pdo->prepare('INSERT INTO program_sessions (journal_id, ' . implode(', ', $cols) . ') VALUES (?' . str_repeat(', ?', count($cols)) . ')');
     foreach ($payload['sessions'] as $s) {
         $s['start_time'] = $s['start_time'] ?: null;
         $s['end_time'] = $s['end_time'] ?: null;
         $s['activity'] = $s['activity'] !== '' ? $s['activity'] : null;
+        $s['staff'] = $s['staff'] !== '' ? $s['staff'] : null;
         $ins->execute([$journalId, ...array_map(fn($c) => $s[$c], $cols)]);
     }
     photos_delete('program', $journalId, (array) ($_POST['delete_photos'] ?? []));
@@ -158,6 +160,7 @@ function program_session_card(string $key, array $s, int $no): void
     </div>
     <div class="row">
       <label>단체명 (또는 개인 성명)<input name="<?= $n('group_name') ?>" value="<?= e($s['group_name'] ?? '') ?>" maxlength="100" placeholder="예: ○○어린이집 / 홍길동"></label>
+      <label>담당자<input name="<?= $n('staff') ?>" value="<?= e($s['staff'] ?? '') ?>" maxlength="100" placeholder="예: 김숲해설, 이치유"></label>
       <label>운영시간
         <span class="time-range"><input type="time" name="<?= $n('start_time') ?>" value="<?= e(substr((string) ($s['start_time'] ?? ''), 0, 5)) ?>" step="600">
           ~ <input type="time" name="<?= $n('end_time') ?>" value="<?= e(substr((string) ($s['end_time'] ?? ''), 0, 5)) ?>" step="600"></span></label>
@@ -230,19 +233,19 @@ function program_view(array $journal): void
   <div class="table-scroll">
   <table class="table prog-view">
     <thead>
-      <tr><th rowspan="2">회차</th><th rowspan="2">단체명(성명)</th><th rowspan="2">운영시간</th>
+      <tr><th rowspan="2">회차</th><th rowspan="2">단체명(성명)</th><th rowspan="2">담당자</th><th rowspan="2">운영시간</th>
         <?php foreach (PROGRAM_AGES as $label): ?><th colspan="2" class="center"><?= e($label) ?></th><?php endforeach ?>
         <th rowspan="2" class="right">합계</th><th rowspan="2">구분</th><th rowspan="2" class="right">금액</th></tr>
       <tr><?php foreach (PROGRAM_AGES as $_): ?><th class="right">남</th><th class="right">여</th><?php endforeach ?></tr>
     </thead>
     <tbody>
     <?php foreach ($sessions as $s): ?>
-      <tr><td class="center"><?= (int) $s['session_no'] ?></td><td><?= e($s['group_name']) ?></td><td class="nowrap"><?= e(program_time($s)) ?></td>
+      <tr><td class="center"><?= (int) $s['session_no'] ?></td><td><?= e($s['group_name']) ?></td><td><?= e($s['staff'] ?? '') ?></td><td class="nowrap"><?= e(program_time($s)) ?></td>
         <?php foreach (PROGRAM_AGES as $a => $_): ?><td class="right"><?= $s["m_$a"] ?: '' ?></td><td class="right"><?= $s["f_$a"] ?: '' ?></td><?php endforeach ?>
         <td class="right"><b><?= number_format($s['total']) ?></b></td><td><?= e(PROGRAM_FEE_TYPES[$s['fee_type']] ?? '') ?><?= $s['fee'] ? ' <small class="muted">' . number_format($s['fee']) . '</small>' : '' ?></td><td class="right"><?= number_format($s['amount']) ?></td></tr>
     <?php endforeach ?>
     </tbody>
-    <tfoot><tr><th colspan="3">합계 <?= $t['sessions'] ?>회</th>
+    <tfoot><tr><th colspan="4">합계 <?= $t['sessions'] ?>회</th>
       <?php foreach (PROGRAM_AGES as $a => $_): ?><th class="right"><?= $t["m_$a"] ?></th><th class="right"><?= $t["f_$a"] ?></th><?php endforeach ?>
       <th class="right"><?= number_format($t['total']) ?></th><th></th><th class="right"><?= number_format($t['amount']) ?></th></tr></tfoot>
   </table>
@@ -269,7 +272,7 @@ function program_snapshot(array $journal): array
         foreach (PROGRAM_AGES as $a => $label) {
             if ($s["m_$a"] || $s["f_$a"]) $people[] = "$label 남{$s["m_$a"]}·여{$s["f_$a"]}";
         }
-        $lines[] = "{$s['session_no']}회차 · {$s['group_name']}" . (program_time($s) ? ' · ' . program_time($s) : '')
+        $lines[] = "{$s['session_no']}회차 · {$s['group_name']}" . (!empty($s['staff']) ? " · 담당 {$s['staff']}" : '') . (program_time($s) ? ' · ' . program_time($s) : '')
             . ' · ' . implode(', ', $people) . " = {$s['total']}명 · " . (PROGRAM_FEE_TYPES[$s['fee_type']] ?? '') . ($s['amount'] ? ' ' . number_format($s['amount']) . '원' : '')
             . ($s['activity'] ? ' · 활동: ' . preg_replace('/\s+/', ' ', $s['activity']) : '');
     }

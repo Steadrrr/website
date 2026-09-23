@@ -6,7 +6,7 @@ defined('APP_ROOT') || exit;
  * 새 버전 파일을 FTP로 덮어쓰기만 하면, 첫 접속 때 부족한 테이블/컬럼을 만든다.
  * (기존 자료는 그대로 유지)
  */
-const DB_VERSION = 16;
+const DB_VERSION = 17;
 
 function db_version(): int
 {
@@ -174,6 +174,14 @@ function db_migrate(): void
         $pdo->exec("ALTER TABLE products ADD sys_key VARCHAR(20) NULL AFTER max_people");
     }
     db_seed_stay_products();
+
+    // 17) v16 → v17: 프로그램 회차 담당자, 분야 '유아숲(직영)' 추가
+    if (!enum_has('journals', 'type', 'kidsdirect')) {
+        $pdo->exec("ALTER TABLE journals MODIFY type ENUM('daily','sales','facility','voucher','attendance','healing','kidsforest','guide','kidsdirect') NOT NULL");
+    }
+    if (!column_exists('program_sessions', 'staff')) {
+        $pdo->exec("ALTER TABLE program_sessions ADD staff VARCHAR(100) NULL AFTER group_name");
+    }
 
     $pdo->prepare("INSERT INTO settings (name, value) VALUES ('db_version', ?) ON DUPLICATE KEY UPDATE value = VALUES(value)")
         ->execute([(string) DB_VERSION]);
