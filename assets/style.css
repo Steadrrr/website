@@ -686,3 +686,27 @@ a.gcal-ev.bar { color: #fff; }
 .card.narrow.lost-form { max-width: 980px; }
 .lost-search .btn { white-space: nowrap; flex-shrink: 0; }
 @media (max-width: 700px) { .lost-search { width: 100%; } .lost-search input { flex: 1; width: auto; } }
+
+/* ── 프로그램 운영보고 */
+.prog-session { border: 1px solid #d9e7dd; border-left: 4px solid var(--green); border-radius: 8px; padding: .75rem .9rem; margin-bottom: 1rem; background: #fbfdfb; }
+.prog-session-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: .4rem; }
+.prog-session-head b { font-size: 1.05rem; color: var(--green-d); }
+.time-range { display: flex; align-items: center; gap: .35rem; }
+.time-range input { flex: 1; min-width: 0; }
+.prog-paid { display: flex; flex-direction: column; gap: .2rem; }
+.prog-paid .label-text { font-weight: 600; font-size: .9rem; }
+.prog-people { width: auto; min-width: 100%; }
+.prog-people th, .prog-people td { padding: .3rem .35rem; text-align: center; }
+.prog-people input { width: 4.2rem; text-align: right; }
+.prog-amount { margin: .3rem 0 .6rem; }
+.prog-grand small { font-weight: 400; }
+.prog-view th, .prog-view td { padding: .35rem .4rem; }
+.prog-activity { margin-bottom: .6rem; }
+.prog-activity .pre { margin-top: .2rem; }
+.prog-kpis { margin-bottom: 1rem; }
+.stat-units { display: inline-flex; border: 1px solid #c8d1c9; border-radius: 6px; overflow: hidden; }
+.stat-units a { padding: .35rem .9rem; color: var(--text); }
+.stat-units a.on { background: var(--green); color: #fff; }
+.stat-units a:hover { text-decoration: none; }
+.prog-paid .inline-check { display: flex; align-items: center; gap: .35rem; margin: 0; white-space: nowrap; font-weight: 400; }
+.prog-paid .inline-check input { width: auto; margin: 0; }

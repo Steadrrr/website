@@ -21,7 +21,9 @@ function journal_snapshot(array $journal): array
         fn($d, $q) => $q ? denom_label((int) $d) . '×' . $q : null, array_keys($v), $v
     )));
 
-    if ($journal['type'] === 'sales') {
+    if (is_program_type($journal['type'])) {
+        $snap += program_snapshot($journal);
+    } elseif ($journal['type'] === 'sales') {
         $lines = [];
         foreach ($p['lines'] as $l) {
             if ($l['grp'] === 'rental') {

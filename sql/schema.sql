@@ -28,7 +28,7 @@ CREATE TABLE IF NOT EXISTS users (
 
 CREATE TABLE IF NOT EXISTS journals (
   id           INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-  type         ENUM('daily','sales','facility','voucher','attendance') NOT NULL COMMENT '업무일지/매출보고/시설물관리/상품권입고/근태',
+  type         ENUM('daily','sales','facility','voucher','attendance','healing','kidsforest','guide') NOT NULL COMMENT '업무일지/매출보고/시설물관리/상품권입고/근태/프로그램 운영보고(산림치유센터·유아숲체험원·숲해설)',
   team_id      INT UNSIGNED NULL COMMENT '시설점검일지의 관리팀',
   work_date    DATE         NOT NULL,
   author_id    INT UNSIGNED NOT NULL,
@@ -268,7 +268,7 @@ CREATE TABLE IF NOT EXISTS equipment_logs (
 -- 사진 (시설물·장비 공용). 파일은 uploads/ 폴더에 저장
 CREATE TABLE IF NOT EXISTS photos (
   id         INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-  owner_type ENUM('facility','equipment') NOT NULL,
+  owner_type ENUM('facility','equipment','program') NOT NULL COMMENT 'program = 프로그램 운영보고(journal_id) 활동사진',
   owner_id   INT UNSIGNED NOT NULL,
   path       VARCHAR(200) NOT NULL,
   user_id    INT UNSIGNED NULL,
@@ -358,4 +358,26 @@ CREATE TABLE IF NOT EXISTS lost_items (
   updated_at  DATETIME NULL,
   INDEX idx_status (status, found_date),
   CONSTRAINT fk_lost_author FOREIGN KEY (author_id) REFERENCES users(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 프로그램 운영보고의 회차 (산림치유센터·유아숲체험원·숲해설). 인원은 성별 × 연령대
+CREATE TABLE IF NOT EXISTS program_sessions (
+  id          INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  journal_id  INT UNSIGNED NOT NULL,
+  session_no  SMALLINT UNSIGNED NOT NULL COMMENT '회차 (1부터)',
+  group_name  VARCHAR(100) NOT NULL COMMENT '단체명 또는 개인 성명',
+  start_time  TIME NULL,
+  end_time    TIME NULL,
+  m_infant SMALLINT UNSIGNED NOT NULL DEFAULT 0, f_infant SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+  m_elem   SMALLINT UNSIGNED NOT NULL DEFAULT 0, f_elem   SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+  m_teen   SMALLINT UNSIGNED NOT NULL DEFAULT 0, f_teen   SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+  m_adult  SMALLINT UNSIGNED NOT NULL DEFAULT 0, f_adult  SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+  m_senior SMALLINT UNSIGNED NOT NULL DEFAULT 0, f_senior SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+  total       INT UNSIGNED NOT NULL DEFAULT 0 COMMENT '인원 합계',
+  is_paid     TINYINT(1) NOT NULL DEFAULT 1 COMMENT '1 유료, 0 무료',
+  fee         INT UNSIGNED NOT NULL DEFAULT 0 COMMENT '작성 당시 1인 참가비',
+  amount      INT UNSIGNED NOT NULL DEFAULT 0 COMMENT '프로그램 금액 = 유료면 인원 × 참가비',
+  activity    TEXT NULL COMMENT '활동내용',
+  INDEX idx_journal (journal_id, session_no),
+  CONSTRAINT fk_prog_journal FOREIGN KEY (journal_id) REFERENCES journals(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

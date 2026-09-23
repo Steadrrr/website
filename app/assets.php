@@ -195,7 +195,7 @@ function store_uploaded_image(string $name, string $tmp, int $err, string $type)
 }
 
 /** 시설물·장비 사진 여러 장 저장 ($_FILES['photos'][]) @return string[] 오류 메시지 */
-function photos_save_uploaded(string $type, int $ownerId, int $userId): array
+function photos_save_uploaded(string $type, int $ownerId, int $userId, ?int $max = null): array
 {
     $files = $_FILES['photos'] ?? null;
     if (!$files || !is_array($files['name'])) return [];
@@ -204,6 +204,7 @@ function photos_save_uploaded(string $type, int $ownerId, int $userId): array
         [$path, $error] = store_uploaded_image($name, $files['tmp_name'][$i], $files['error'][$i], $type);
         if ($error) $errors[] = $error;
         if ($path) {
+            if ($max) image_downscale(APP_ROOT . '/' . $path, $max); // 저해상도 (브라우저에서 못 줄였을 때 대비)
             db()->prepare('INSERT INTO photos (owner_type, owner_id, path, user_id) VALUES (?, ?, ?, ?)')
                 ->execute([$type, $ownerId, $path, $userId]);
         }
@@ -230,7 +231,7 @@ function photos_delete_all(string $type, int $ownerId): void
 }
 
 /** 사진 편집 영역 (등록/수정 폼 안에서 사용) */
-function render_photo_editor(string $type, ?int $ownerId): void
+function render_photo_editor(string $type, ?int $ownerId, ?int $max = null): void
 {
     $photos = $ownerId ? photos_for($type, $ownerId) : [];
     ?>
@@ -245,8 +246,8 @@ function render_photo_editor(string $type, ?int $ownerId): void
       <?php endforeach ?>
     </div>
   <?php endif ?>
-  <label>사진 추가 <small class="muted">(여러 장 선택 가능, 큰 사진은 자동으로 줄여서 올립니다)</small>
-    <input type="file" name="photos[]" accept="image/*" multiple data-resize>
+  <label>사진 추가 <small class="muted">(여러 장 선택 가능, 큰 사진은 자동으로 줄여서 올립니다<?= $max ? " — 긴 변 {$max}px" : '' ?>)</small>
+    <input type="file" name="photos[]" accept="image/*" multiple data-resize<?= $max ? "=\"$max\" data-quality=\"0.7\"" : '' ?>>
   </label>
 </div>
     <?php

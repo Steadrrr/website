@@ -85,6 +85,12 @@ function nav_groups(?array $user): array
             'stats'   => ['stats.php', '통계'],
             'lost'    => ['lost.php', '유실물관리'],
         ]],
+        'prog'     => ['label' => '프로그램', 'items' => [
+            'healing'    => ['journal.php?type=healing', '산림치유센터'],
+            'kidsforest' => ['journal.php?type=kidsforest', '유아숲체험원'],
+            'guide'      => ['journal.php?type=guide', '숲해설'],
+            'prog_stats' => ['program_stats.php', '프로그램 통계'],
+        ]],
         'fac'      => ['label' => '시설관리', 'items' => [
             'facility'   => ['journal.php?type=facility', '시설점검'],
             'facilities' => ['facilities.php', '시설물'],

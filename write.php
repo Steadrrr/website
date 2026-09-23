@@ -99,7 +99,7 @@ $line = approval_line_for((int) $user['rank_level']);
 
 layout_header(JOURNAL_TYPES[$type] . ($journal ? ' 수정' : ' 작성'), $type === 'voucher' ? 'voucher' : $type);
 ?>
-<form method="post" class="card">
+<form method="post" class="card" enctype="multipart/form-data">
   <?= csrf_field() ?>
   <div class="card-head">
     <h1><?= e(JOURNAL_TYPES[$type]) ?> <?= $journal ? '수정' : '작성' ?></h1>

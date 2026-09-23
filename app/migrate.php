@@ -6,7 +6,7 @@ defined('APP_ROOT') || exit;
  * 새 버전 파일을 FTP로 덮어쓰기만 하면, 첫 접속 때 부족한 테이블/컬럼을 만든다.
  * (기존 자료는 그대로 유지)
  */
-const DB_VERSION = 13;
+const DB_VERSION = 14;
 
 function db_version(): int
 {
@@ -149,6 +149,15 @@ function db_migrate(): void
     }
 
     // 13) v12 → v13: 유실물관리 — lost_items 테이블은 1) 단계(schema.sql)에서 만들어진다
+
+    // 14) v13 → v14: 프로그램 운영보고 (산림치유센터·유아숲체험원·숲해설) — program_sessions 는 1) 단계에서 만들어진다
+    if (!enum_has('journals', 'type', 'healing')) {
+        $pdo->exec("ALTER TABLE journals MODIFY type ENUM('daily','sales','facility','voucher','attendance','healing','kidsforest','guide') NOT NULL");
+    }
+    if (!enum_has('photos', 'owner_type', 'program')) {
+        $pdo->exec("ALTER TABLE photos MODIFY owner_type ENUM('facility','equipment','program') NOT NULL");
+    }
+    $pdo->exec("INSERT IGNORE INTO settings (name, value) VALUES ('program_fee', '5000')");
 
     $pdo->prepare("INSERT INTO settings (name, value) VALUES ('db_version', ?) ON DUPLICATE KEY UPDATE value = VALUES(value)")
         ->execute([(string) DB_VERSION]);

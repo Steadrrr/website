@@ -25,6 +25,7 @@ if (is_post()) {
     if ($target === 'general') {
         setting_set('org_top_name', mb_substr(post('org_top_name'), 0, 100));
         setting_set('org_park_name', mb_substr(post('org_park_name'), 0, 100));
+        setting_set('program_fee', (string) to_int(post('program_fee')));
         flash('기본 정보를 저장했습니다.', 'success');
         redirect('settings.php?tab=general');
     }
@@ -79,6 +80,10 @@ if ($tab === 'general'): ?>
   <div class="row">
     <label>상위 부서 (팀장·주무관 소속)<input name="org_top_name" value="<?= e(setting('org_top_name', '')) ?>" placeholder="예: 양평군청 산림과 산림휴양팀"></label>
     <label>사업장 (팀들이 속한 곳)<input name="org_park_name" value="<?= e(setting('org_park_name', '')) ?>" placeholder="예: 양평쉬자파크"></label>
+  </div>
+  <div class="row">
+    <label>프로그램 1인 참가비 (유료, 원)<input name="program_fee" value="<?= e(number_format(program_fee())) ?>" class="num" inputmode="numeric" data-money></label>
+    <p class="muted small">산림치유센터·유아숲체험원·숲해설 운영보고에서 '유료' 회차의 금액 = 인원 합계 × 이 금액. 바꿔도 이미 작성된 보고서 금액은 그대로입니다.</p>
   </div>
   <p class="muted small">사이트 이름(상단 제목)은 서버의 <code>app/config.php</code> 의 <code>site_name</code> 에서 바꿉니다.</p>
   <div class="actions"><button class="btn primary">저장</button></div>

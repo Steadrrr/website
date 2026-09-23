@@ -17,7 +17,7 @@ function items_default(string $type, ?int $teamId = null): array
         'facility' => ['team_id' => $teamId, 'facility' => []], // 등록 시설은 폼에서 채움
         'sales'    => ['lines' => [], 'ticket_cash' => 0, 'vouchers' => array_fill_keys(voucher_denoms(), 0), 'legacy' => []],
         'voucher'  => ['vouchers' => array_fill_keys(voucher_denoms(), 0)],
-        default    => [],
+        default    => is_program_type($type) ? ['sessions' => [program_empty_session()]] : [],
     };
 }
 
@@ -36,6 +36,8 @@ function items_load(array $journal): array
         }
         return $v;
     };
+
+    if (is_program_type($journal['type'])) return program_load($id);
 
     if ($journal['type'] === 'sales') {
         $lines = $q('SELECT * FROM sales_lines WHERE journal_id = ? ORDER BY grp DESC, id');
@@ -67,6 +69,8 @@ function items_load(array $journal): array
 /** @return array{0: array, 1: string[]} [payload, 오류메시지] */
 function items_parse(string $type, string $workDate, int $journalId): array
 {
+    if (is_program_type($type)) return program_parse($type, $workDate, $journalId);
+
     $errors = [];
     $teamId = (int) ($_POST['team_id'] ?? 0);
     $payload = items_default($type, isset(teams_all()[$teamId]) ? $teamId : null);
@@ -216,6 +220,10 @@ function items_parse(string $type, string $workDate, int $journalId): array
 function items_save(int $id, string $type, array $payload): void
 {
     $pdo = db();
+    if (is_program_type($type)) {
+        program_save($id, $payload);
+        return;
+    }
 
     if ($type === 'facility') {
         $pdo->prepare('DELETE FROM facility_items WHERE journal_id = ?')->execute([$id]);
@@ -260,6 +268,11 @@ function items_save(int $id, string $type, array $payload): void
 
 function items_form(string $type, array $payload, string $workDate, ?array $journal): void
 {
+    if (is_program_type($type)) {
+        program_form($type, $payload, $journal);
+        return;
+    }
+
     if ($type === 'facility') {
         facility_form_rows($payload);
         return;
@@ -530,6 +543,10 @@ function voucher_qty_table(string $field, string $label, array $values, array $s
 
 function items_view(array $journal): void
 {
+    if (is_program_type($journal['type'])) {
+        program_view($journal);
+        return;
+    }
     $payload = items_load($journal);
 
     if ($journal['type'] === 'facility'):

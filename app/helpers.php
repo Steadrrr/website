@@ -19,7 +19,14 @@ const JOURNAL_TYPES = [
     'facility' => '시설물관리일지',
     'voucher'  => '상품권입고',
     'attendance' => '근태',
+    'healing'    => '산림치유센터 운영보고',
+    'kidsforest' => '유아숲체험원 운영보고',
+    'guide'      => '숲해설 운영보고',
 ];
+// 프로그램 운영보고 분야 (journals.type)
+const PROGRAM_TYPES = ['healing' => '산림치유센터', 'kidsforest' => '유아숲체험원', 'guide' => '숲해설'];
+// 참여 인원 연령대 (program_sessions 의 m_* / f_* 컬럼)
+const PROGRAM_AGES = ['infant' => '유아', 'elem' => '초등', 'teen' => '중고등', 'adult' => '성인', 'senior' => '65세이상'];
 
 // 대시보드 '오늘 일지 현황'에 표시하는 매일 쓰는 일지
 const DAILY_TYPES = ['daily', 'sales', 'facility'];
