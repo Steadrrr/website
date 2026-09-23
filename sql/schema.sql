@@ -50,7 +50,7 @@ CREATE TABLE IF NOT EXISTS journals (
   CONSTRAINT fk_journal_author FOREIGN KEY (author_id) REFERENCES users(id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- 결재선: 문서 상신 시 작성자 직급에 따라 생성 (사원/공무직 → 주무관 → 팀장)
+-- 결재선: 문서 상신 시 작성자 직급에 따라 생성 (사원 → 공무직 → 주무관 → 팀장, 공무직 → 주무관 → 팀장)
 CREATE TABLE IF NOT EXISTS approvals (
   id            INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   journal_id    INT UNSIGNED NOT NULL,

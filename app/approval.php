@@ -3,16 +3,18 @@ defined('APP_ROOT') || exit;
 
 /**
  * 작성자 직급에 따른 결재선.
- *   사원·공무직 → 주무관 → 팀장
- *   주무관        → 팀장
- *   팀장          → (결재 없이 바로 완료)
+ *   사원   → 공무직 → 주무관 → 팀장
+ *   공무직 → 주무관 → 팀장
+ *   주무관 → 팀장
+ *   팀장   → (결재 없이 바로 완료)
  */
 function approval_line_for(int $authorRank): array
 {
     return match (true) {
-        $authorRank >= RANK_LEADER  => [],
+        $authorRank >= RANK_LEADER   => [],
         $authorRank === RANK_OFFICER => [RANK_LEADER],
-        default                      => [RANK_OFFICER, RANK_LEADER],
+        $authorRank === RANK_WORKER  => [RANK_OFFICER, RANK_LEADER],
+        default                      => [RANK_WORKER, RANK_OFFICER, RANK_LEADER],
     };
 }
 
