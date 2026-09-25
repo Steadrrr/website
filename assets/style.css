@@ -1058,3 +1058,7 @@ body.tab-shell > main.container .tab-frames { bottom: 38px; }
   .help-layout { grid-template-columns: 1fr; }
   .help-toc { position: static; max-height: 45vh; }
 }
+.tabbar-closeall { flex: 0 0 auto; border: 0; border-right: 1px solid rgba(255,255,255,.15); background: rgba(0,0,0,.18); color: inherit;
+  padding: 0 .8rem; font-size: .8rem; cursor: pointer; white-space: nowrap; }
+.tabbar-closeall:hover:not(:disabled) { background: rgba(255,255,255,.12); }
+.tabbar-closeall:disabled { opacity: .45; cursor: default; }

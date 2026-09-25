@@ -13,6 +13,7 @@ layout_header('업무일지', '', ['shell' => true]);
 ?>
 <div class="tab-frames" data-frames></div>
 <div class="tabbar no-print">
+  <button type="button" class="tabbar-closeall" data-tabs-closeall title="지금 보는 탭만 남기고 모두 닫기">모든 탭 닫기</button>
   <div class="tabbar-tabs" data-tabs></div>
   <div class="tabbar-tools">
     <span class="tabbar-count" data-tab-count></span>

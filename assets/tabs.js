@@ -28,6 +28,7 @@
       bar.appendChild(b);
     });
     document.querySelector('[data-tab-count]').textContent = `${tabs.length}/${CFG.max}`;
+    document.querySelector('[data-tabs-closeall]').disabled = tabs.length < 2;
     const t = tabs.find((x) => x.id === active);
     document.title = (t && t.title ? t.title : '업무일지') + CFG.site;
     syncMenu(t);
@@ -120,6 +121,17 @@
     document.body.classList.remove('nav-open');
     document.querySelectorAll('.nav-group.open').forEach((g) => g.classList.remove('open'));
     open(url, { title: a.textContent.trim() });
+  });
+
+  // 모든 탭 닫기: 지금 보는 탭만 남긴다 (입력 중인 탭이 있으면 확인)
+  document.querySelector('[data-tabs-closeall]').addEventListener('click', () => {
+    const others = tabs.filter((t) => t.id !== active);
+    if (!others.length) return;
+    const busy = others.filter(dirty);
+    if (busy.length && !confirm(`입력 중인 탭이 ${busy.length}개 있습니다 (${busy.map((t) => t.title).join(', ')}).\n닫으면 입력한 내용이 사라집니다. 지금 탭만 남기고 모두 닫을까요?`)) return;
+    others.forEach(removeTab);
+    render();
+    save();
   });
 
   // 각 페이지의 '?' 버튼: 도움말 탭을 열고(이미 있으면 그 탭) 해당 항목으로
