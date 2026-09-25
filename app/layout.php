@@ -43,6 +43,7 @@ function layout_header(string $title, string $active = ''): void
     <?php endif; endforeach ?>
   </nav>
   <div class="me">
+    <?php if (!empty($user['is_admin'])): ?><a href="<?= e(url('settings.php')) ?>" class="me-settings <?= $active === 'settings' ? 'on' : '' ?>" title="설정 (최고관리자)">⚙ 설정</a><?php endif ?>
     <a href="<?= e(url('mypage.php')) ?>"><?= e($user['name']) ?> <small><?= e(rank_name($user['rank_level'])) ?></small></a>
     <a href="<?= e(url('logout.php')) ?>" class="muted">로그아웃</a>
   </div>
@@ -119,7 +120,7 @@ function nav_groups(?array $user): array
         if (!can_menu($user, $g)) unset($groups[$g]); // 회원관리에서 끈 메뉴는 숨김
     }
     if ($user && $user['is_admin']) {
-        $groups['settings'] = ['label' => '⚙ 설정', 'href' => 'settings.php'];
+        // 설정은 상단바 오른쪽 끝(이름 앞)에 따로 표시 — layout_header
     } elseif ($user && can_manage_users($user)) {
         $groups['etc']['items']['admin'] = ['admin/users.php', '회원관리'];
     }

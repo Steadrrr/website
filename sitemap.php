@@ -47,6 +47,7 @@ const SITEMAP_SETTINGS_DESC = [
 const SITEMAP_ICON = ['home' => '🏠', 'schedule' => '📅', 'att' => '🕘', 'ops' => '📋', 'prog' => '🌲', 'stat' => '📊', 'fac' => '🛠', 'docs' => '🗂', 'etc' => '📌', 'settings' => '⚙'];
 
 $groups = nav_groups($user);
+if (!empty($user['is_admin'])) $groups['settings'] = ['label' => '⚙ 설정', 'href' => 'settings.php']; // 상단바 오른쪽 설정도 사이트맵에 표시
 layout_header('사이트맵', 'sitemap');
 ?>
 <section class="card">

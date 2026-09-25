@@ -897,3 +897,6 @@ tr.recur td { background: #fff4e0; }
 /* 통계 그래프 */
 .stat-chart { position: relative; height: 260px; }
 @media print { .stat-chart { height: 200px; } .stat-chart-card { break-inside: avoid; } }
+.me { align-items: center; }
+.me .me-settings { padding: .15rem .55rem; border: 1px solid rgba(255,255,255,.35); border-radius: 6px; }
+.me .me-settings:hover, .me .me-settings.on { background: rgba(255,255,255,.15); }
