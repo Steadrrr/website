@@ -108,6 +108,8 @@ settings_nav('prices');
 if (!$period):
     $periods = price_periods_all();
     $year = date('Y');
+    // 현재 가격이 쓰이기 시작한 날 = 마지막 가격표 종료일 다음 날 (새 가격표 시작일로 미리 채움)
+    $curFrom = $periods ? date('Y-m-d', strtotime(max(array_column($periods, 'date_to')) . ' +1 day')) : null;
     ?>
 <section class="card">
   <h1>기간별 가격</h1>
@@ -117,6 +119,18 @@ if (!$period):
     · 예) 현재 가격이 2026-10-14부터라면 '2026년 이전 요금' 2026-01-01 ~ 2026-10-13 가격표를 만들고, 달라진 상품 가격만 고치면 됩니다.<br>
     · 입장권의 기간요금(동절기 등)은 그대로 적용되고, 객실 할인율·대관 할인율은 기간과 관계없이 같습니다.
   </p>
+  <div class="pp-guide">
+    <b>💡 나중에 가격이 또 바뀌면</b> (예: 새 가격이 2027-03-01부터)
+    <ol>
+      <li><b>먼저 지금 가격을 가격표로 보관</b> — 아래 '새 기간 가격표'에서 기간을
+        <b><?= e($curFrom ?? '지금 가격을 쓰기 시작한 날') ?> ~ 2027-02-28</b>(새 가격 시작 전날)로 하고,
+        <b>'현재 가격으로 채워 두기'</b>를 체크한 채 만들기. 지금 가격이 그대로 복사되므로 고칠 것이 없습니다.</li>
+      <li><b>그다음 새 가격 입력</b> — <a href="<?= e(url('admin/products.php')) ?>">상품·요금</a>에서 가격을 새 가격으로 바꿉니다. 이 가격이 2027-03-01부터의 '현재 가격'이 됩니다.</li>
+    </ol>
+    <small class="muted">· 순서가 중요합니다. 상품·요금을 먼저 바꾸면 '현재 가격으로 채워 두기'에 새 가격이 복사되니, 그때는 만든 가격표를 열어 예전 가격으로 고치세요.<br>
+    · 미리 해 두어도 됩니다 (새 가격 시작 전 날짜의 매출보고는 계속 예전 가격). 늦게 해서 새 가격 시작일 이후 매출보고를 예전 가격으로 저장했다면, 그 보고서를 수정해서 다시 저장하면 새 가격으로 계산됩니다.<br>
+    · 가격을 바꾸면서 새로 만든 상품은 예전 가격표에 없으므로 모든 날짜에 현재 가격이 적용됩니다. 입장권 동절기 가격은 매년 반복되는 기간요금이라 상품·요금에서 직접 고칩니다.</small>
+  </div>
   <div class="table-scroll">
   <table class="table">
     <thead><tr><th>가격표</th><th>기간</th><th class="right">상품 수</th><th class="right">이 기간 매출보고</th><th>메모</th><th></th></tr></thead>
@@ -141,8 +155,8 @@ if (!$period):
   <h2>새 기간 가격표</h2>
   <form method="post" class="row price-period-form">
     <?= csrf_field() ?>
-    <label>이름<input name="name" required maxlength="50" placeholder="예: 2026년 이전 요금" value="<?= e($year) ?>년 이전 요금"></label>
-    <label>시작일<input type="date" name="date_from" required value="<?= e("$year-01-01") ?>"></label>
+    <label>이름<input name="name" required maxlength="50" placeholder="예: <?= e($curFrom ? "$curFrom ~ 요금" : '2026년 이전 요금') ?>" value="<?= $curFrom ? '' : e($year) . '년 이전 요금' ?>"></label>
+    <label>시작일<input type="date" name="date_from" required value="<?= e($curFrom ?? "$year-01-01") ?>"></label>
     <label>종료일<input type="date" name="date_to" required></label>
     <label>메모<input name="note" maxlength="200" placeholder="(선택)"></label>
     <label class="inline-check"><input type="checkbox" name="copy" value="1" checked> 현재 가격으로 채워 두기 (달라진 것만 고치면 됨)</label>
