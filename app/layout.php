@@ -82,8 +82,6 @@ function nav_groups(?array $user): array
             'daily'   => ['journal.php?type=daily', '업무일지'],
             'sales'   => ['journal.php?type=sales', '매출보고'],
             'voucher' => ['voucher.php', '상품권'],
-            'stats'   => ['stats.php', '매출통계'],
-            'room_stats' => ['room_stats.php', '객실이용통계'],
             'lost'    => ['lost.php', '유실물관리'],
         ]],
         'prog'     => ['label' => '프로그램', 'items' => [
@@ -92,6 +90,10 @@ function nav_groups(?array $user): array
             'kidsdirect' => ['journal.php?type=kidsdirect', '유아숲(직영)'],
             'guide'      => ['journal.php?type=guide', '숲해설'],
             'prog_stats' => ['program_stats.php', '프로그램 통계'],
+        ]],
+        'stat'     => ['label' => '통계', 'items' => [
+            'stats'      => ['stats.php', '매출통계'],
+            'room_stats' => ['room_stats.php', '객실이용통계'],
         ]],
         'fac'      => ['label' => '시설관리', 'items' => [
             'facility'   => ['journal.php?type=facility', '시설점검'],

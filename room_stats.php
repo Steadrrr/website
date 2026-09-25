@@ -10,7 +10,7 @@ require __DIR__ . '/app/bootstrap.php';
 require __DIR__ . '/app/xlsx.php';
 
 $user = require_login();
-require_menu($user, 'ops');
+require_menu($user, 'stat');
 $pdo = db();
 
 const RS_UNITS = ['day' => '일간', 'week' => '주간', 'month' => '월간', 'year' => '연간'];

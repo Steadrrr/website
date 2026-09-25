@@ -38,7 +38,7 @@ const SITEMAP_SETTINGS_DESC = [
     'facility'  => '팀별 시설 구역·건물',
     'equipment' => '팀별 장비 분류',
 ];
-const SITEMAP_ICON = ['home' => '🏠', 'schedule' => '📅', 'att' => '🕘', 'ops' => '📋', 'prog' => '🌲', 'fac' => '🛠', 'etc' => '📌', 'settings' => '⚙'];
+const SITEMAP_ICON = ['home' => '🏠', 'schedule' => '📅', 'att' => '🕘', 'ops' => '📋', 'prog' => '🌲', 'stat' => '📊', 'fac' => '🛠', 'etc' => '📌', 'settings' => '⚙'];
 
 $groups = nav_groups($user);
 layout_header('사이트맵', 'sitemap');

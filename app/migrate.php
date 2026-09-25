@@ -6,7 +6,7 @@ defined('APP_ROOT') || exit;
  * 새 버전 파일을 FTP로 덮어쓰기만 하면, 첫 접속 때 부족한 테이블/컬럼을 만든다.
  * (기존 자료는 그대로 유지)
  */
-const DB_VERSION = 21;
+const DB_VERSION = 22;
 
 function db_version(): int
 {
@@ -222,6 +222,10 @@ function db_migrate(): void
     if ((int) $pdo->query('SELECT COUNT(*) FROM room_types')->fetchColumn() === 0) {
         $pdo->exec("INSERT INTO room_types (name, sort_order) VALUES ('2인실', 10), ('4인실', 20), ('독채', 30)");
     }
+
+    // 22) v21 → v22: 메인메뉴 '통계' 분리 — 운영관리 권한이 있던 사원은 통계 권한도 켠다 (매출통계가 운영관리에 있었으므로)
+    $pdo->exec("UPDATE users SET menu_access = CONCAT(menu_access, ',stat')
+                 WHERE menu_access IS NOT NULL AND FIND_IN_SET('ops', menu_access) AND NOT FIND_IN_SET('stat', menu_access)");
 
     $pdo->prepare("INSERT INTO settings (name, value) VALUES ('db_version', ?) ON DUPLICATE KEY UPDATE value = VALUES(value)")
         ->execute([(string) DB_VERSION]);
