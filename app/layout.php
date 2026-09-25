@@ -95,6 +95,7 @@ function nav_groups(?array $user): array
         'stat'     => ['label' => '통계', 'items' => [
             'stats'      => ['stats.php', '매출통계'],
             'room_stats' => ['room_stats.php', '객실이용통계'],
+            'cpl_stats'  => ['complaint_stats.php', '민원통계'],
         ]],
         'fac'      => ['label' => '시설관리', 'items' => [
             'facility'   => ['journal.php?type=facility', '시설점검'],

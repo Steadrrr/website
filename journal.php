@@ -27,7 +27,7 @@ $next  = $first->modify('+1 month')->format('Y-m');
 
 // 이 달의 일지 (남의 임시저장은 제외)
 $st = db()->prepare(
-    "SELECT j.id, j.work_date, j.status, j.author_id, j.team_id, j.revision, j.submitted_at, u.name AS author_name,
+    "SELECT j.id, j.type, j.work_date, j.status, j.author_id, j.team_id, j.revision, j.submitted_at, u.name AS author_name,
             " . SALES_AMOUNT_SQL . " AS sales_amount,
             (SELECT COUNT(*) FROM program_sessions p WHERE p.journal_id = j.id) AS prog_sessions,
             (SELECT COALESCE(SUM(p.total), 0) FROM program_sessions p WHERE p.journal_id = j.id) AS prog_people
