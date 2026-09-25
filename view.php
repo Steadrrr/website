@@ -14,6 +14,7 @@ $deletable = ($isAuthor && in_array($journal['status'], ['draft', 'rejected'], t
 // 근태: 수정·재상신 없이 취소(삭제) 후 다시 입력
 $att = $journal['type'] === 'attendance' ? att_find($id) : null;
 if ($att) {
+    if (!att_can_open($user, $att + ['author_id' => $journal['author_id']])) abort(403, '다른 직원의 근태 문서는 볼 수 없습니다. (달력에서 표시만 볼 수 있습니다)');
     $editable = false;
     $attWorker = att_user((int) $att['user_id']);
     $canCancel = att_can_cancel($journal, $att, $user);

@@ -864,3 +864,21 @@ tr.recur td { background: #fff4e0; }
 .changelog-item h3 small { font-weight: 400; font-size: .82rem; }
 .changelog-item ul { margin: 0 0 0 1.2rem; padding: 0; font-size: .92rem; }
 .changelog-item li { margin-bottom: .15rem; }
+.gcal-ev.locked, .ag-ev.locked { cursor: default; }
+.ev-repeat { border-top: 1px dashed #dde5df; margin-top: .5rem; padding-top: .5rem; display: flex; flex-wrap: wrap; gap: .4rem .8rem; align-items: end; }
+.ev-repeat > label, .ev-repeat .rep-opt { margin: 0; }
+.ev-repeat select { width: auto; }
+.ev-repeat .rep-opt { display: flex; flex-wrap: wrap; align-items: center; gap: .3rem .6rem; }
+.ev-repeat .label-text { font-weight: 600; font-size: .9rem; }
+.ev-repeat .rep-wd { margin: 0; }
+.ev-repeat .rep-wd input { position: absolute; opacity: 0; width: 0; }
+.ev-repeat .rep-wd span { display: inline-block; min-width: 2rem; text-align: center; border: 1px solid #cfd8d2; border-radius: 1rem; padding: .2rem .4rem; cursor: pointer; font-weight: 400; }
+.ev-repeat .rep-wd input:checked + span { background: var(--green, #2e7d4f); border-color: var(--green, #2e7d4f); color: #fff; }
+.ev-repeat .inline-check { font-weight: 400; gap: .3rem; }
+.ev-repeat input.tiny { width: 3rem; min-width: 0; text-align: center; }
+.ev-repeat .rep-opt[data-rep="weekly"], .ev-repeat .rep-opt[data-rep="monthly yearly"] { flex-basis: 100%; }
+.ev-repeat [data-rep-preview] { flex-basis: 100%; }
+.ev-series { background: #f3f7f4; border-radius: 6px; padding: .4rem .6rem; margin-top: .6rem; }
+.ev-repeat .inline-check { display: inline-flex; align-items: center; white-space: nowrap; width: auto; margin: 0; }
+.ev-repeat .inline-check input[type="radio"] { width: auto; margin: 0 .2rem 0 0; }
+.ev-repeat input[name="rep_day"] { width: 3.2rem; padding-left: .3rem; padding-right: .3rem; }

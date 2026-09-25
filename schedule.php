@@ -28,8 +28,21 @@ if (is_post()) {
     $back = fn(string $date) => 'schedule.php?ym=' . substr($date, 0, 7) . ($view === 'list' ? '&view=list' : '');
 
     if (post('action') === 'delete' && $ev) {
-        $pdo->prepare('DELETE FROM events WHERE id = ?')->execute([$id]);
-        flash("'{$ev['title']}' 일정을 삭제했습니다.", 'success');
+        if (post('scope') === 'series' && $ev['series_id']) {
+            // 같은 묶음의 반복 일정 중 이 사람이 지울 수 있는 것 모두
+            $st = $pdo->prepare('SELECT * FROM events WHERE series_id = ?');
+            $st->execute([$ev['series_id']]);
+            $n = 0;
+            foreach ($st->fetchAll() as $s) {
+                if (!can_edit_event($s, $user)) continue;
+                $pdo->prepare('DELETE FROM events WHERE id = ?')->execute([$s['id']]);
+                $n++;
+            }
+            flash("'{$ev['title']}' 반복 일정 {$n}개를 모두 삭제했습니다.", 'success');
+        } else {
+            $pdo->prepare('DELETE FROM events WHERE id = ?')->execute([$id]);
+            flash("'{$ev['title']}' 일정을 삭제했습니다.", 'success');
+        }
         redirect($back($ev['start_date']));
     }
 
@@ -50,6 +63,29 @@ if (is_post()) {
     elseif (!$allDay && !$validTime($t1)) $err = '시작 시간을 확인하세요.';
     elseif (!$allDay && $t2 !== '' && !$validTime($t2)) $err = '종료 시간을 확인하세요.';
     elseif (!$allDay && $t2 !== '' && $start === $end && $t2 < $t1) $err = '종료 시간이 시작 시간보다 빠릅니다.';
+    // 반복 (새 일정만): 매주 요일 / 매월·매년 날짜 또는 N번째 요일, 반복 종료일까지
+    $rep = !$ev && isset(EVENT_REPEATS[post('repeat')]) ? [
+        'repeat' => post('repeat'),
+        'wd'     => array_values(array_unique(array_filter(array_map('intval', (array) ($_POST['rep_wd'] ?? [])), fn($w) => $w >= 0 && $w <= 6))),
+        'mode'   => post('rep_mode') === 'nth' ? 'nth' : 'date',
+        'day'    => max(1, min(31, (int) post('rep_day'))),
+        'nth'    => in_array((int) post('rep_nth'), [1, 2, 3, 4, -1], true) ? (int) post('rep_nth') : 1,
+        'nwd'    => max(0, min(6, (int) post('rep_nwd'))),
+        'month'  => max(1, min(12, (int) post('rep_month'))),
+    ] : null;
+    $dates = [$start];
+    if (!$err && $rep) {
+        $until = post('repeat_until');
+        sort($rep['wd']);
+        if (!valid_date($until) || $until < $start) $err = '반복 종료일을 시작일 이후로 입력하세요.';
+        elseif ($until > date('Y-m-d', strtotime($start . ' +' . EVENT_REPEAT_MAX_YEARS . ' years'))) $err = '반복 기간은 최대 ' . EVENT_REPEAT_MAX_YEARS . '년입니다.';
+        elseif ($rep['repeat'] === 'weekly' && !$rep['wd']) $err = '반복할 요일을 고르세요.';
+        else {
+            $dates = event_repeat_dates($start, $until, $rep);
+            if (!$dates) $err = '반복 조건에 맞는 날짜가 기간 안에 없습니다.';
+            elseif (count($dates) > EVENT_REPEAT_MAX) $err = '반복 일정은 한 번에 ' . EVENT_REPEAT_MAX . '개까지 만들 수 있습니다. 기간을 줄이세요.';
+        }
+    }
     if ($err) {
         flash($err, 'error');
         redirect($back(valid_date($start) ? $start : "$ym-01"));
@@ -60,8 +96,22 @@ if (is_post()) {
         $pdo->prepare('UPDATE events SET title = ?, category = ?, start_date = ?, end_date = ?, all_day = ?, start_time = ?, end_time = ?, location = ?, description = ?, updated_at = NOW() WHERE id = ?')
             ->execute([...$row, $id]);
     } else {
-        $pdo->prepare('INSERT INTO events (title, category, start_date, end_date, all_day, start_time, end_time, location, description, author_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
-            ->execute([...$row, $user['id']]);
+        // 반복이면 같은 내용을 날짜마다 (일정 길이는 그대로) 한꺼번에 등록
+        $span = (int) round((strtotime($end) - strtotime($start)) / 86400);
+        $series = count($dates) > 1 ? substr(bin2hex(random_bytes(8)), 0, 16) : null;
+        $ins = $pdo->prepare('INSERT INTO events (title, category, start_date, end_date, all_day, start_time, end_time, location, description, author_id, series_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
+        $pdo->beginTransaction();
+        foreach ($dates as $d) {
+            $r = $row;
+            $r[2] = $d;
+            $r[3] = date('Y-m-d', strtotime("$d +$span days"));
+            $ins->execute([...$r, $user['id'], $series]);
+        }
+        $pdo->commit();
+        if ($series) {
+            flash("'{$title}' 반복 일정 " . count($dates) . '개를 등록했습니다. (' . event_repeat_label($rep) . ", {$dates[0]} ~ " . end($dates) . ')', 'success');
+            redirect($back($start));
+        }
     }
     flash("'{$title}' 일정을 저장했습니다.", 'success');
     redirect($back($start));
@@ -84,12 +134,21 @@ $holidays = holiday_dates($gridStart->format('Y-m-d'), $gridEnd->format('Y-m-d')
 const VISIBLE_LANES = 3;
 
 // 화면(JS)에 넘길 일정 정보
+// 반복 일정 묶음의 전체 개수 (보기 창의 '반복 일정 모두 삭제'에 표시)
+$seriesIds = array_values(array_unique(array_filter(array_column($events, 'series_id'))));
+$seriesCount = [];
+if ($seriesIds) {
+    $st = $pdo->prepare('SELECT series_id, COUNT(*) FROM events WHERE series_id IN (' . implode(',', array_fill(0, count($seriesIds), '?')) . ') GROUP BY series_id');
+    $st->execute($seriesIds);
+    $seriesCount = $st->fetchAll(PDO::FETCH_KEY_PAIR);
+}
 $jsEvents = array_map(fn($e) => [
     'id' => (int) $e['id'], 'title' => $e['title'], 'category' => $e['category'],
     'start_date' => $e['start_date'], 'end_date' => $e['end_date'], 'all_day' => (int) $e['all_day'],
     'start_time' => $e['start_time'] ? substr($e['start_time'], 0, 5) : '', 'end_time' => $e['end_time'] ? substr($e['end_time'], 0, 5) : '',
     'location' => (string) $e['location'], 'description' => (string) $e['description'],
     'author' => $e['author_name'], 'when' => event_when($e, true), 'can_edit' => can_edit_event($e, $user),
+    'series' => $e['series_id'] ? (int) ($seriesCount[$e['series_id']] ?? 0) : 0,
 ], $events);
 
 $prev = $first->modify('-1 month')->format('Y-m');
@@ -165,11 +224,12 @@ layout_header('일정표 ' . $first->format('Y년 n월'), 'schedule');
           <div class="gcal-events">
             <?php foreach ($bars as $b): $e = $b['ev'];
                 if (($e['src'] ?? '') === 'att'): ?>
-              <a href="<?= e(url('view.php?id=' . $e['id'])) ?>" class="gcal-ev <?= $e['all_day'] ? 'bar' : 'dot' ?> <?= $e['status'] === 'pending' ? 'pending' : '' ?> <?= $b['contL'] ? 'cont-l' : '' ?> <?= $b['contR'] ? 'cont-r' : '' ?>"
+              <?php $open = att_can_open($user, $e['rec']); $tag = $open ? 'a' : 'span'; // 사원은 다른 사원 근태를 표시로만 ?>
+              <<?= $tag ?> <?= $open ? 'href="' . e(url('view.php?id=' . $e['id'])) . '"' : '' ?> class="gcal-ev <?= $e['all_day'] ? 'bar' : 'dot' ?> <?= $open ? '' : 'locked' ?> <?= $e['status'] === 'pending' ? 'pending' : '' ?> <?= $b['contL'] ? 'cont-l' : '' ?> <?= $b['contR'] ? 'cont-r' : '' ?>"
                  data-cat="att" style="--c: <?= ATT_KINDS[$e['kind']][1] ?>; grid-column: <?= $b['start'] + 1 ?> / span <?= $b['span'] ?>; grid-row: <?= $b['lane'] + 1 ?>;"
                  title="<?= e('근태 · ' . $e['title'] . ' · ' . $e['when'] . ($e['status'] === 'pending' ? ' · 결재중' : '')) ?>">
                 <?php if (!$e['all_day']): ?><i></i><?php endif ?><span class="n"><?= e($e['all_day'] ? $e['title'] : $e['rec']['user_name'] . ' ' . att_kind_name($e['kind'])) ?></span>
-              </a>
+              </<?= $tag ?>>
             <?php continue; endif;
                 $color = EVENT_CATEGORIES[$e['category']][1];
                 $bar = $e['all_day'] || $e['start_date'] !== $e['end_date']; ?>
@@ -202,12 +262,12 @@ layout_header('일정표 ' . $first->format('Y년 n월'), 'schedule');
         <div class="ag-day <?= $ds === $today ? 'today' : '' ?>">
           <div class="ag-date"><b><?= date('j', strtotime($ds)) ?></b><span><?= date('n월', strtotime($ds)) ?>, <?= weekday_ko($ds) ?></span></div>
           <div class="ag-list">
-            <?php foreach ($list as $e): if (($e['src'] ?? '') === 'att'): $kc = ATT_KINDS[$e['kind']][1]; ?>
-              <a class="ag-ev gcal-ev" href="<?= e(url('view.php?id=' . $e['id'])) ?>" data-cat="att" style="--c: <?= $kc ?>">
+            <?php foreach ($list as $e): if (($e['src'] ?? '') === 'att'): $kc = ATT_KINDS[$e['kind']][1]; $open = att_can_open($user, $e['rec']); $tag = $open ? 'a' : 'div'; ?>
+              <<?= $tag ?> class="ag-ev gcal-ev <?= $open ? '' : 'locked' ?>" <?= $open ? 'href="' . e(url('view.php?id=' . $e['id'])) . '"' : '' ?> data-cat="att" style="--c: <?= $kc ?>">
                 <i></i><span class="ag-when"><?= e($e['all_day'] ? ($e['start_date'] !== $e['end_date'] ? $e['when'] : '종일') : $e['when']) ?></span>
                 <span class="ag-title"><b><?= e($e['title']) ?></b><?= $e['status'] === 'pending' ? ' <small class="muted">· 결재중</small>' : '' ?></span>
                 <span class="ag-cat">근태</span>
-              </a>
+              </<?= $tag ?>>
             <?php continue; endif ?>
               <button type="button" class="ag-ev gcal-ev" data-id="<?= (int) $e['id'] ?>" data-cat="<?= e($e['category']) ?>" style="--c: <?= EVENT_CATEGORIES[$e['category']][1] ?>">
                 <i></i><span class="ag-when"><?= e(event_when($e)) ?></span>
@@ -228,8 +288,8 @@ layout_header('일정표 ' . $first->format('Y년 n월'), 'schedule');
 <dialog id="evDialog" class="ev-dialog">
   <div class="ev-pane" data-pane="view">
     <div class="ev-tools">
-      <form method="post" class="inline" data-delete-form onsubmit="return confirm('이 일정을 삭제할까요?')">
-        <?= csrf_field() ?><input type="hidden" name="id"><input type="hidden" name="action" value="delete">
+      <form method="post" class="inline" data-delete-form>
+        <?= csrf_field() ?><input type="hidden" name="id"><input type="hidden" name="action" value="delete"><input type="hidden" name="scope" value="one">
         <button class="icon-btn" data-can-edit title="삭제">🗑</button>
       </form>
       <button type="button" class="icon-btn" data-edit data-can-edit title="수정">✎</button>
@@ -243,6 +303,8 @@ layout_header('일정표 ' . $first->format('Y년 n월'), 'schedule');
         <p class="muted small"><span data-f="category"></span> · 작성 <span data-f="author"></span></p>
         <p data-f="location" class="ev-line">📍 <span></span></p>
         <div data-f="description" class="ev-desc"></div>
+        <p class="ev-series small" data-f="series" hidden>🔁 반복 일정 <b></b>개 중 하나입니다. 수정은 이 일정만 바뀝니다.
+          <button type="button" class="btn small ghost danger" data-series-delete data-can-edit>반복 일정 모두 삭제</button></p>
       </div>
     </div>
   </div>
@@ -265,6 +327,25 @@ layout_header('일정표 ' . $first->format('Y년 n월'), 'schedule');
       <label>시작 시간<input type="time" name="start_time" step="600"></label>
       <label>종료 시간<input type="time" name="end_time" step="600"></label>
     </div>
+    <div class="ev-repeat" data-repeat-box>
+      <label>반복<select name="repeat">
+        <option value="">반복 안 함</option>
+        <?php foreach (EVENT_REPEATS as $k => $v): ?><option value="<?= $k ?>"><?= $v ?></option><?php endforeach ?>
+      </select></label>
+      <div class="rep-opt" data-rep="weekly">
+        <span class="label-text">요일</span>
+        <?php foreach (['일', '월', '화', '수', '목', '금', '토'] as $i => $w): ?><label class="rep-wd"><input type="checkbox" name="rep_wd[]" value="<?= $i ?>"><span><?= $w ?></span></label><?php endforeach ?>
+      </div>
+      <div class="rep-opt" data-rep="monthly yearly">
+        <label data-rep="yearly" class="rep-month"><select name="rep_month"><?php for ($m = 1; $m <= 12; $m++): ?><option value="<?= $m ?>"><?= $m ?>월</option><?php endfor ?></select></label>
+        <label class="inline-check"><input type="radio" name="rep_mode" value="date" checked> 날짜 <input name="rep_day" inputmode="numeric" maxlength="2" class="num tiny">일</label>
+        <label class="inline-check"><input type="radio" name="rep_mode" value="nth"> 요일
+          <select name="rep_nth"><option value="1">첫째</option><option value="2">둘째</option><option value="3">셋째</option><option value="4">넷째</option><option value="-1">마지막</option></select>
+          <select name="rep_nwd"><?php foreach (['일', '월', '화', '수', '목', '금', '토'] as $i => $w): ?><option value="<?= $i ?>"><?= $w ?>요일</option><?php endforeach ?></select></label>
+      </div>
+      <label class="rep-opt" data-rep="weekly monthly yearly">반복 종료일<input type="date" name="repeat_until"></label>
+      <p class="muted small rep-opt" data-rep="weekly monthly yearly" data-rep-preview></p>
+    </div>
     <label>장소<input name="location" maxlength="100" placeholder="예: 숲속의집 앞 잔디광장"></label>
     <label>설명<textarea name="description" rows="3"></textarea></label>
     <div class="actions"><button type="button" class="btn ghost" data-close>취소</button><button class="btn primary">저장</button></div>
@@ -284,7 +365,7 @@ window.GCAL = {
   openNew: <?= json_encode(valid_date($_GET['new'] ?? '') ? $_GET['new'] : null) ?>, // 대시보드 '+ 일정 추가'에서 바로 만들기 창
   newCat: <?= json_encode(can_use_event_category((string) ($_GET['cat'] ?? ''), $user) ? $_GET['cat'] : 'event') ?>,
   att: <?= json_encode(array_map(fn($i) => ['id' => $i['id'], 'kind' => $i['kind'], 'start_date' => $i['start_date'], 'end_date' => $i['end_date'],
-      'title' => $i['title'], 'when' => $i['when'], 'pending' => $i['status'] === 'pending', 'color' => ATT_KINDS[$i['kind']][1]], $attItems), JSON_UNESCAPED_UNICODE) ?>,
+      'title' => $i['title'], 'when' => $i['when'], 'pending' => $i['status'] === 'pending', 'color' => ATT_KINDS[$i['kind']][1], 'open' => att_can_open($user, $i['rec'])], $attItems), JSON_UNESCAPED_UNICODE) ?>,
   viewUrl: <?= json_encode(url('view.php?id=')) ?>,
 };
 </script>

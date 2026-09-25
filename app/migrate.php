@@ -6,7 +6,7 @@ defined('APP_ROOT') || exit;
  * 새 버전 파일을 FTP로 덮어쓰기만 하면, 첫 접속 때 부족한 테이블/컬럼을 만든다.
  * (기존 자료는 그대로 유지)
  */
-const DB_VERSION = 26;
+const DB_VERSION = 27;
 
 function db_version(): int
 {
@@ -256,6 +256,14 @@ function db_migrate(): void
     }
     if ($applyTypes) { // 분류 값을 그 분류 객실에 적용 (같은 분류 객실은 인원·요금·환급액이 같아진다)
         $pdo->exec("UPDATE products p JOIN room_types t ON t.id = p.room_type_id SET " . implode(', ', array_map(fn($c) => "p.$c = t.$c", ROOM_TYPE_COLS)) . " WHERE p.grp = 'room'");
+    }
+
+    // 27) v26 → v27: 일정 분류 '대관', 반복 일정 묶음(series_id)
+    if (!enum_has('events', 'category', 'rental')) {
+        $pdo->exec("ALTER TABLE events MODIFY category ENUM('event','construction','program','rental','etc','holiday','closed') NOT NULL DEFAULT 'etc'");
+    }
+    if (!column_exists('events', 'series_id')) {
+        $pdo->exec("ALTER TABLE events ADD series_id VARCHAR(20) NULL AFTER author_id, ADD INDEX idx_series (series_id)");
     }
 
     $pdo->prepare("INSERT INTO settings (name, value) VALUES ('db_version', ?) ON DUPLICATE KEY UPDATE value = VALUES(value)")

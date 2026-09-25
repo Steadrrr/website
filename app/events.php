@@ -6,6 +6,7 @@ const EVENT_CATEGORIES = [
     'event'        => ['행사', '#3f51b5'],
     'construction' => ['공사', '#e8710a'],
     'program'      => ['프로그램', '#0b8043'],
+    'rental'       => ['대관', '#00897b'],
     'etc'          => ['기타', '#8e24aa'],
     'holiday'      => ['공휴일', '#d50000'],
     'closed'       => ['휴관일', '#616161'],
@@ -14,6 +15,41 @@ const EVENT_CATEGORIES = [
 const ADMIN_EVENT_CATEGORIES = ['holiday', 'closed'];
 
 /** 이 분류로 일정을 만들 수 있는가 */
+/* ───────────── 반복 일정 ───────────── */
+const EVENT_REPEATS = ['weekly' => '매주', 'monthly' => '매월', 'yearly' => '매년'];
+const EVENT_REPEAT_MAX = 400;          // 한 번에 만드는 최대 개수
+const EVENT_REPEAT_MAX_YEARS = 3;      // 반복 기간 최대 (년)
+
+/**
+ * 반복 규칙에 맞는 시작일 목록 (시작일 ~ 반복 종료일)
+ * $r = ['repeat' => weekly|monthly|yearly, 'wd' => [0..6], 'mode' => date|nth, 'day' => 1..31, 'nth' => 1..4|-1(마지막), 'nwd' => 0..6, 'month' => 1..12]
+ */
+function event_repeat_dates(string $start, string $until, array $r): array
+{
+    $out = [];
+    for ($t = strtotime($start), $end = strtotime($until); $t <= $end; $t = strtotime('+1 day', $t)) {
+        $w = (int) date('w', $t);
+        $day = (int) date('j', $t);
+        $monthOk = $r['repeat'] !== 'yearly' || (int) date('n', $t) === (int) $r['month'];
+        $inMonth = $r['mode'] === 'nth'
+            ? $w === (int) $r['nwd'] && ((int) $r['nth'] === -1 ? $day + 7 > (int) date('t', $t) : (int) ceil($day / 7) === (int) $r['nth'])
+            : $day === (int) $r['day'];
+        $ok = $r['repeat'] === 'weekly' ? in_array($w, $r['wd'], true) : $monthOk && $inMonth;
+        if ($ok) $out[] = date('Y-m-d', $t);
+        if (count($out) > EVENT_REPEAT_MAX) break;
+    }
+    return $out;
+}
+
+/** "매주 월·수" / "매월 15일" / "매월 마지막 금요일" / "매년 3월 1일" */
+function event_repeat_label(array $r): string
+{
+    $wd = ['일', '월', '화', '수', '목', '금', '토'];
+    if ($r['repeat'] === 'weekly') return '매주 ' . implode('·', array_map(fn($w) => $wd[$w], $r['wd']));
+    $pre = $r['repeat'] === 'yearly' ? '매년 ' . (int) $r['month'] . '월 ' : '매월 ';
+    return $pre . ($r['mode'] === 'nth' ? ((int) $r['nth'] === -1 ? '마지막' : (int) $r['nth'] . '번째') . ' ' . $wd[(int) $r['nwd']] . '요일' : (int) $r['day'] . '일');
+}
+
 function can_use_event_category(string $cat, array $user): bool
 {
     return isset(EVENT_CATEGORIES[$cat]) && (!in_array($cat, ADMIN_EVENT_CATEGORIES, true) || !empty($user['is_admin']));

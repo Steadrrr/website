@@ -393,7 +393,7 @@ CREATE TABLE IF NOT EXISTS notices (
 CREATE TABLE IF NOT EXISTS events (
   id          INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   title       VARCHAR(100) NOT NULL,
-  category    ENUM('event','construction','program','etc','holiday','closed') NOT NULL DEFAULT 'etc' COMMENT 'holiday 공휴일, closed 휴관일 (관리자만)',
+  category    ENUM('event','construction','program','rental','etc','holiday','closed') NOT NULL DEFAULT 'etc' COMMENT 'rental 대관, holiday 공휴일, closed 휴관일 (관리자만)',
   start_date  DATE NOT NULL,
   end_date    DATE NOT NULL,
   all_day     TINYINT(1) NOT NULL DEFAULT 1,
@@ -402,9 +402,11 @@ CREATE TABLE IF NOT EXISTS events (
   location    VARCHAR(100) NULL,
   description TEXT NULL,
   author_id   INT UNSIGNED NOT NULL,
+  series_id   VARCHAR(20) NULL COMMENT '반복 일정으로 한꺼번에 만든 묶음',
   created_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at  DATETIME NULL,
   INDEX idx_range (start_date, end_date),
+  INDEX idx_series (series_id),
   CONSTRAINT fk_event_author FOREIGN KEY (author_id) REFERENCES users(id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 

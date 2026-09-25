@@ -23,9 +23,9 @@
     const box = $('.ev-daylist');
     box.innerHTML = '';
     list.forEach((e) => {
-      const a = document.createElement('a');
-      a.className = 'ag-ev';
-      a.href = data.viewUrl + e.id;
+      const a = document.createElement(e.open ? 'a' : 'div'); // 다른 사원 근태는 표시만
+      a.className = 'ag-ev' + (e.open ? '' : ' locked');
+      if (e.open) a.href = data.viewUrl + e.id;
       a.style.setProperty('--c', data.kinds[e.kind].color);
       a.innerHTML = '<i></i><span class="ag-when"></span><span class="ag-title"><b></b></span>';
       a.querySelector('.ag-when').textContent = data.kinds[e.kind].label + (e.pending ? ' · 결재중' : '');
@@ -152,7 +152,7 @@
 
   // ── 클릭 연결
   gcal.addEventListener('click', (ev) => {
-    if (ev.target.closest('a')) return;
+    if (ev.target.closest('a, .gcal-ev.locked')) return;
     const more = ev.target.closest('.gcal-more, .gcal-num');
     if (more) return openDay(more.dataset.day);
     const create = ev.target.closest('[data-create]');

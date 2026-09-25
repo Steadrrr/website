@@ -61,6 +61,15 @@ function att_user(int $id): ?array
 }
 
 /** 이 사람의 근태를 볼 수 있는가 (본인, 공무직 이상, 최고관리자) */
+/**
+ * 근태 문서(결재 화면)를 열어 볼 수 있는가: 공무직 이상·관리자, 또는 본인 근태이거나 본인이 입력한 것.
+ * 사원은 다른 사원의 근태를 달력에서 표시로만 본다.
+ */
+function att_can_open(array $me, array $rec): bool
+{
+    return att_is_manager($me) || (int) $rec['user_id'] === (int) $me['id'] || (int) ($rec['author_id'] ?? 0) === (int) $me['id'];
+}
+
 function att_can_view(array $me, array $worker): bool
 {
     return (int) $me['id'] === (int) $worker['id'] || att_is_manager($me);

@@ -362,11 +362,12 @@ layout_header('근태관리 ' . $first->format('Y년 n월'), 'attendance');
           </div>
           <div class="gcal-events">
             <?php foreach ($bars as $b): $e = $b['ev']; $color = ATT_KINDS[$e['kind']][1]; $bar = (bool) $e['all_day']; ?>
-              <a href="<?= e(url('view.php?id=' . $e['id'])) ?>" class="gcal-ev <?= $bar ? 'bar' : 'dot' ?> <?= $e['status'] === 'pending' ? 'pending' : '' ?> <?= $b['contL'] ? 'cont-l' : '' ?> <?= $b['contR'] ? 'cont-r' : '' ?>"
+              <?php $open = att_can_open($me, $e['rec']); $tag = $open ? 'a' : 'span'; // 사원은 다른 사원 근태를 표시로만 ?>
+              <<?= $tag ?> <?= $open ? 'href="' . e(url('view.php?id=' . $e['id'])) . '"' : '' ?> class="gcal-ev <?= $bar ? 'bar' : 'dot' ?> <?= $open ? '' : 'locked' ?> <?= $e['status'] === 'pending' ? 'pending' : '' ?> <?= $b['contL'] ? 'cont-l' : '' ?> <?= $b['contR'] ? 'cont-r' : '' ?>"
                  data-kind="<?= e($e['kind']) ?>" style="--c: <?= $color ?>; grid-column: <?= $b['start'] + 1 ?> / span <?= $b['span'] ?>; grid-row: <?= $b['lane'] + 1 ?>;"
                  title="<?= e($e['title'] . ' · ' . $e['when'] . ($e['status'] === 'pending' ? ' · 결재중' : '')) ?>">
                 <?php if (!$bar): ?><i></i><?php endif ?><span class="n"><?= e($bar ? $e['title'] : $e['rec']['user_name'] . ' ' . att_kind_name($e['kind'])) ?></span>
-              </a>
+              </<?= $tag ?>>
             <?php endforeach ?>
             <?php foreach ($hidden as $i => $n): if (!$n) continue; ?>
               <button type="button" class="gcal-more" data-day="<?= $w->modify("+$i days")->format('Y-m-d') ?>" style="grid-column: <?= $i + 1 ?>; grid-row: <?= ATT_LANES + 1 ?>;">+<?= $n ?><span class="wide">개 더보기</span></button>
@@ -437,7 +438,7 @@ layout_header('근태관리 ' . $first->format('Y년 n월'), 'attendance');
 <script>
 window.ATT = {
   items: <?= json_encode(array_map(fn($i) => ['id' => $i['id'], 'kind' => $i['kind'], 'start_date' => $i['start_date'], 'end_date' => $i['end_date'],
-      'title' => $i['title'], 'when' => $i['when'], 'pending' => $i['status'] === 'pending'], $items), JSON_UNESCAPED_UNICODE) ?>,
+      'title' => $i['title'], 'when' => $i['when'], 'pending' => $i['status'] === 'pending', 'open' => att_can_open($me, $i['rec'])], $items), JSON_UNESCAPED_UNICODE) ?>,
   kinds: <?= json_encode(array_map(fn($k) => ['label' => $k[0], 'color' => $k[1], 'unit' => $k[2]], ATT_KINDS), JSON_UNESCAPED_UNICODE) ?>,
   workers: <?= json_encode(array_map(fn($w) => ['hours' => att_work_hours($w), 'options' => att_hour_options($w), 'break' => att_break($w)], $workerMap) ?: new stdClass(), JSON_UNESCAPED_UNICODE) ?>,
   viewUrl: <?= json_encode(url('view.php?id=')) ?>,
