@@ -22,6 +22,7 @@ if ($att) {
     $canAttach = $canSeeFile && ($isAuthor || (int) $att['user_id'] === (int) $user['id'] || att_is_manager($user));
 }
 if ($journal['type'] === 'arwork' && !can_ar($user)) abort(403, 'AR 사용보고는 공무직 이상만 볼 수 있습니다.');
+if ($journal['type'] === 'purchase' && !can_purchase($user)) abort(403, '물품구매는 공무직 이상만 볼 수 있습니다.');
 $listUrl = $att ? 'attendance.php?ym=' . substr($att['start_date'], 0, 7) : journal_list_url($journal['type'], $journal['work_date']);
 
 if (is_post()) {
@@ -126,7 +127,7 @@ $docTitle = $att ? '근태 신청 · ' . $att['user_name'] . ' ' . att_kind_name
   <?php if ($journal['type'] === 'rooms') vault_day_html($journal['work_date'], $id) ?>
 
   <?php if ($journal['content']): ?>
-    <h3><?= ['daily' => '업무내용', 'voucher' => '적요', 'attendance' => '사유', 'vcheck' => '점검 메모'][$journal['type']] ?? '메모' ?></h3>
+    <h3><?= ['daily' => '업무내용', 'voucher' => '적요', 'attendance' => '사유', 'vcheck' => '점검 메모', 'purchase' => '구매 사유 · 메모'][$journal['type']] ?? '메모' ?></h3>
     <div class="pre"><?= e($journal['content']) ?></div>
   <?php endif ?>
   <?php if ($journal['remarks']): ?>

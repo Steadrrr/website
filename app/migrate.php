@@ -6,7 +6,7 @@ defined('APP_ROOT') || exit;
  * 새 버전 파일을 FTP로 덮어쓰기만 하면, 첫 접속 때 부족한 테이블/컬럼을 만든다.
  * (기존 자료는 그대로 유지)
  */
-const DB_VERSION = 34;
+const DB_VERSION = 35;
 
 function db_version(): int
 {
@@ -349,6 +349,14 @@ function db_migrate(): void
         $pdo->exec("ALTER TABLE ar_workers ADD work_date DATE NULL AFTER journal_id, ADD INDEX idx_work_date (work_date)");
     }
     $pdo->exec("UPDATE ar_workers w JOIN journals j ON j.id = w.journal_id SET w.work_date = j.work_date WHERE w.work_date IS NULL");
+
+    // 35) v34 → v35: 시설관리 › 물품구매 (journals type purchase, purchase_meta·purchase_items 는 1) 단계에서 생성, 검수·영수증 사진은 photos)
+    if (!enum_has('journals', 'type', 'purchase')) {
+        $pdo->exec("ALTER TABLE journals MODIFY type ENUM('daily','sales','facility','voucher','attendance','healing','kidsforest','guide','kidsdirect','vcheck','rooms','guide2','arwork','purchase') NOT NULL");
+    }
+    if (!enum_has('photos', 'owner_type', 'purchase_check')) {
+        $pdo->exec("ALTER TABLE photos MODIFY owner_type ENUM('facility','equipment','program','purchase_check','purchase_receipt') NOT NULL");
+    }
 
     $pdo->prepare("INSERT INTO settings (name, value) VALUES ('db_version', ?) ON DUPLICATE KEY UPDATE value = VALUES(value)")
         ->execute([(string) DB_VERSION]);

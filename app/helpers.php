@@ -27,6 +27,7 @@ const JOURNAL_TYPES = [
     'vcheck'     => '상품권 금고점검',
     'rooms'      => '일일객실판매',
     'arwork'     => 'AR 월간 사용보고',
+    'purchase'   => '물품구매',
 ];
 // 프로그램 운영보고 분야 (journals.type)
 const PROGRAM_TYPES = ['healing' => '산림치유센터', 'kidsforest' => '유아숲체험원', 'kidsdirect' => '유아숲(직영)', 'guide' => '숲해설', 'guide2' => '숲해설(용문산)'];
@@ -37,7 +38,7 @@ const PROGRAM_AGES = ['infant' => '유아', 'elem' => '초등', 'teen' => '중�
 const SHARED_DRAFT_TYPES = ['daily', 'sales', 'rooms'];
 
 // 날씨 입력란이 없는 문서 (상품권입고, 일일매출보고)
-const NO_WEATHER_TYPES = ['voucher', 'sales', 'vcheck', 'rooms', 'arwork'];
+const NO_WEATHER_TYPES = ['voucher', 'sales', 'vcheck', 'rooms', 'arwork', 'purchase'];
 
 // 대시보드 '오늘 일지 현황'에 표시하는 매일 쓰는 일지
 const DAILY_TYPES = ['daily', 'sales', 'rooms', 'facility'];
@@ -241,6 +242,7 @@ function can_write_type(array $user, string $type): bool
     return match ($type) {
         'voucher', 'vcheck' => can_vault($user),
         'arwork' => can_ar($user),
+        'purchase' => can_purchase($user),
         default => true,
     };
 }
@@ -251,7 +253,7 @@ function journal_nav_key(string $type): string
     return match ($type) {
         'voucher', 'vcheck' => 'voucher',
         'arwork' => 'ar',
-        default => $type,
+        default => $type, // purchase → purchase
     };
 }
 
@@ -261,6 +263,7 @@ function journal_list_url(string $type, ?string $date = null): string
     return match ($type) {
         'voucher', 'vcheck' => 'voucher.php',
         'arwork' => 'ar.php' . ($date ? '?ym=' . substr($date, 0, 7) : ''),
+        'purchase' => 'purchase.php' . ($date ? '?ym=' . substr($date, 0, 7) : ''),
         default => "journal.php?type=$type" . ($date ? "&date=$date" : ''),
     };
 }
@@ -268,7 +271,8 @@ function journal_list_url(string $type, ?string $date = null): string
 /** 이 사용자가 이 일지를 수정할 수 있는가: 임시저장은 작성자만, 상신된 일지는 모든 직원 */
 function can_edit_journal(array $journal, array $user): bool
 {
-    if (!can_write_type($user, $journal['type'])) return false; // 상품권 입고·금고점검·AR 사용보고는 공무직 이상
+    if (!can_write_type($user, $journal['type'])) return false; // 상품권 입고·금고점검·AR 사용보고·물품구매는 공무직 이상
+    if ($journal['type'] === 'purchase' && purchase_is_paid((int) $journal['id'])) return false; // 지출 완료된 구매는 지출 취소 후 수정
     if ($journal['type'] === 'attendance') return false; // 근태는 수정 대신 취소 후 다시 입력
     if ($journal['status'] === 'draft' && in_array($journal['type'], SHARED_DRAFT_TYPES, true)) return true; // 공유 임시저장
     return $journal['status'] !== 'draft' || (int) $journal['author_id'] === (int) $user['id'];

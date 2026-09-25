@@ -7,9 +7,11 @@ defined('APP_ROOT') || exit;
  *   공무직 → 주무관 → 팀장
  *   주무관 → 팀장
  *   팀장   → (결재 없이 바로 완료)
+ * 물품구매는 주무관 결재 1단계 (주무관·팀장이 올리면 바로 완료)
  */
-function approval_line_for(int $authorRank): array
+function approval_line_for(int $authorRank, string $type = ''): array
 {
+    if ($type === 'purchase') return $authorRank >= RANK_OFFICER ? [] : [RANK_OFFICER];
     return match (true) {
         $authorRank >= RANK_LEADER   => [],
         $authorRank === RANK_OFFICER => [RANK_LEADER],
@@ -47,7 +49,7 @@ function journal_approvals(int $journalId): array
 function journal_submit(array $journal, ?int $rank = null): void
 {
     $pdo = db();
-    $line = approval_line_for($rank ?? (int) $journal['author_rank']);
+    $line = approval_line_for($rank ?? (int) $journal['author_rank'], (string) ($journal['type'] ?? ''));
 
     $pdo->beginTransaction();
     try {
@@ -117,6 +119,7 @@ function journal_delete(array $journal): void
     if ($att && $att['attachment'] && is_file(APP_ROOT . '/' . $att['attachment'])) @unlink(APP_ROOT . '/' . $att['attachment']);
     if (is_program_type($journal['type'])) { photos_delete_all('program', $id); sales_sync_programs($journal['work_date'], PROGRAM_TYPES[$journal['type']] . ' 운영보고 삭제 (문서 ' . $id . ')'); } // 매출보고 프로그램 판매도 다시 맞춤
     if ($journal['type'] === 'rooms') stay_sync_rooms($journal['work_date']); // 그 날 입실·다음 날 퇴실 인원 다시 계산
+    if ($journal['type'] === 'purchase') { photos_delete_all('purchase_check', $id); photos_delete_all('purchase_receipt', $id); }
 }
 
 /** 전결 권한 설정과 관계없이 주무관이면 전결할 수 있는 문서 (상품권 금고점검) */

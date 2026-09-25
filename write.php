@@ -109,7 +109,7 @@ if (is_post()) {
 }
 
 $v = fn(string $k) => e(is_post() ? post($k) : ($journal[$k] ?? ''));
-$line = approval_line_for((int) $user['rank_level']);
+$line = approval_line_for((int) $user['rank_level'], $type);
 
 layout_header(JOURNAL_TYPES[$type] . ($journal ? ' 수정' : ' 작성'), journal_nav_key($type));
 ?>
@@ -146,7 +146,7 @@ layout_header(JOURNAL_TYPES[$type] . ($journal ? ' 수정' : ' 작성'), journal
       <label>사용 월<input type="month" name="ar_month" value="<?= e(substr($workDate, 0, 7)) ?>" required
         <?= $journal ? '' : "onchange=\"if (this.value) location.href='?type=arwork&date=' + this.value + '-01'\"" ?>></label>
     <?php else: ?>
-    <label>일자<input type="date" name="work_date" value="<?= e($workDate) ?>" required></label>
+    <label><?= $type === 'purchase' ? '구매일' : '일자' ?><input type="date" name="work_date" value="<?= e($workDate) ?>" required></label>
     <?php endif ?>
     <?php if (!in_array($type, NO_WEATHER_TYPES, true)): ?>
     <label>날씨<input name="weather" value="<?= $v('weather') ?>" placeholder="맑음 / 18℃" list="weathers"></label>
@@ -166,6 +166,8 @@ layout_header(JOURNAL_TYPES[$type] . ($journal ? ' 수정' : ' 작성'), journal
       <label>메모<textarea name="content" rows="3" placeholder="입실 취소, 상품권 미지급 객실, 정산 차이 등"><?= $v('content') ?></textarea></label>
     <?php elseif ($type === 'voucher'): ?>
       <label>적요<textarea name="content" rows="3" placeholder="구입처, 구입일, 기초재고 등록 등"><?= $v('content') ?></textarea></label>
+    <?php elseif ($type === 'purchase'): ?>
+      <label>구매 사유 · 메모<textarea name="content" rows="2" placeholder="예: 객실 전구 교체용, 긴급 구매"><?= $v('content') ?></textarea></label>
     <?php elseif ($type === 'vcheck'): ?>
       <label>차이 사유 <small class="muted">(장부와 실제 매수가 다르면 필수)</small><textarea name="remarks" rows="3" placeholder="예: 5/12 불출 입력 누락 확인"><?= $v('remarks') ?></textarea></label>
       <label>점검 메모<textarea name="content" rows="3" placeholder="점검 시각, 입회자, 점검 방법 등"><?= $v('content') ?></textarea></label>

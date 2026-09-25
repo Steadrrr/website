@@ -195,9 +195,9 @@ function store_uploaded_image(string $name, string $tmp, int $err, string $type)
 }
 
 /** 시설물·장비 사진 여러 장 저장 ($_FILES['photos'][]) @return string[] 오류 메시지 */
-function photos_save_uploaded(string $type, int $ownerId, int $userId, ?int $max = null): array
+function photos_save_uploaded(string $type, int $ownerId, int $userId, ?int $max = null, string $field = 'photos'): array
 {
-    $files = $_FILES['photos'] ?? null;
+    $files = $_FILES[$field] ?? null;
     if (!$files || !is_array($files['name'])) return [];
     $errors = [];
     foreach ($files['name'] as $i => $name) {
@@ -231,7 +231,7 @@ function photos_delete_all(string $type, int $ownerId): void
 }
 
 /** 사진 편집 영역 (등록/수정 폼 안에서 사용) */
-function render_photo_editor(string $type, ?int $ownerId, ?int $max = null): void
+function render_photo_editor(string $type, ?int $ownerId, ?int $max = null, string $field = 'photos', string $label = '사진 추가'): void
 {
     $photos = $ownerId ? photos_for($type, $ownerId) : [];
     ?>
@@ -246,8 +246,8 @@ function render_photo_editor(string $type, ?int $ownerId, ?int $max = null): voi
       <?php endforeach ?>
     </div>
   <?php endif ?>
-  <label>사진 추가 <small class="muted">(여러 장 선택 가능, 큰 사진은 자동으로 줄여서 올립니다<?= $max ? " — 긴 변 {$max}px" : '' ?>)</small>
-    <input type="file" name="photos[]" accept="image/*" multiple data-resize<?= $max ? "=\"$max\" data-quality=\"0.7\"" : '' ?>>
+  <label><?= e($label) ?> <small class="muted">(여러 장 선택 가능, 큰 사진은 자동으로 줄여서 올립니다<?= $max ? " — 긴 변 {$max}px" : '' ?>)</small>
+    <input type="file" name="<?= e($field) ?>[]" accept="image/*" multiple data-resize<?= $max ? "=\"$max\" data-quality=\"0.7\"" : '' ?>>
   </label>
 </div>
     <?php

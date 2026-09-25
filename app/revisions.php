@@ -60,7 +60,9 @@ function journal_snapshot(array $journal): array
     if ($journal['type'] === 'daily') {
         $snap['민원'] = cpl_snapshot((int) $journal['id']);
     }
-    if ($journal['type'] === 'arwork') {
+    if ($journal['type'] === 'purchase') {
+        $snap += purchase_snapshot($journal);
+    } elseif ($journal['type'] === 'arwork') {
         $snap += ar_snapshot($journal);
     } elseif (is_program_type($journal['type'])) {
         $snap += program_snapshot($journal);

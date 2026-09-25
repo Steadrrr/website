@@ -63,6 +63,18 @@ function can_ar(?array $u): bool
     return $u && (!empty($u['is_admin']) || (int) $u['rank_level'] >= RANK_WORKER);
 }
 
+/** 물품구매(시설관리 › 물품구매): 공무직 이상 */
+function can_purchase(?array $u): bool
+{
+    return $u && (!empty($u['is_admin']) || (int) $u['rank_level'] >= RANK_WORKER);
+}
+
+/** 물품구매 지출 완료 처리: 주무관 이상·최고관리자 */
+function can_purchase_pay(?array $u): bool
+{
+    return $u && (!empty($u['is_admin']) || (int) $u['rank_level'] >= RANK_OFFICER);
+}
+
 /** 일지 종류가 속한 메인메뉴 (권한 확인용) */
 function journal_menu(string $type): ?string
 {

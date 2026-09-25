@@ -109,6 +109,7 @@ function nav_groups(?array $user): array
             'facility'   => ['journal.php?type=facility', '시설점검'],
             'facilities' => ['facilities.php', '시설물'],
             'equipment'  => ['equipment.php', '장비'],
+            'purchase'   => ['purchase.php', '물품구매'],
         ]],
         'docs'     => ['label' => '문서관리', 'items' => [
             'approval' => ['approvals.php', '결재함'],
@@ -131,6 +132,7 @@ function nav_groups(?array $user): array
     }
     if (!$user || !can_manage_docs($user)) unset($groups['docs']['items']['docs']); // 문서조회및수정은 공무직 이상
     if (!$user || !can_ar($user)) unset($groups['room']['items']['ar']); // AR사용관리는 공무직 이상
+    if (!$user || !can_purchase($user)) unset($groups['fac']['items']['purchase']); // 물품구매는 공무직 이상
     // 기타는 항상 맨 마지막
     $etc = $groups['etc'];
     unset($groups['etc']);

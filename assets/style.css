@@ -953,3 +953,22 @@ tr.recur td { background: #fff4e0; }
 @media print { .supply-thumb { width: 40px; height: 40px; } }
 .supply-card-head { flex-wrap: wrap; gap: .5rem; }
 .ar-cal-nav .ar-plan-save { margin-left: auto; }
+
+/* ── 시설관리 › 물품구매 ── */
+.pc-table td, .pc-table th { white-space: nowrap; }
+.pc-table input { margin: 0; }
+.pc-table .pc-name { min-width: 10rem; }
+.pc-table .num.tiny { width: 4.5rem; }
+.pc-table .num[data-pc-price] { width: 7.5rem; }
+.pc-photos { margin-top: .5rem; }
+.pc-photos h3 { margin-bottom: .3rem; }
+.pc-pay { display: flex; flex-wrap: wrap; gap: .5rem .8rem; align-items: flex-end; margin-top: 1rem; padding: .8rem 1rem; border: 1px solid var(--line); border-radius: 8px; background: #f7faf8; }
+.pc-pay label { margin: 0; }
+.pc-pay input { margin: 0; }
+.pc-list td { vertical-align: middle; }
+.pc-list tr.pc-day-first td { border-top: 2px solid var(--line); }
+.pc-list td.pc-day { background: #fafcfa; }
+.pc-items { max-width: 22rem; }
+.pc-filter { margin-left: auto; }
+.pc-filter a { padding: .3rem .7rem; font-size: .85rem; }
+.kpi.warn-kpi { border-color: #e8c96b; background: #fffbea; }

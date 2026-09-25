@@ -506,6 +506,7 @@ function att_calendar_items(array $recs): array
 function journal_type_label(array $j): string
 {
     if ($j['type'] === 'arwork' && !empty($j['work_date'])) return 'AR 월간 사용보고 · ' . ar_month_label($j['work_date']);
+    if ($j['type'] === 'purchase' && !empty($j['id'])) return '물품구매 · ' . (purchase_meta((int) $j['id'])['vendor'] ?? '');
     if ($j['type'] !== 'attendance') return JOURNAL_TYPES[$j['type']] ?? $j['type'];
     $a = att_find((int) $j['id']);
     return $a ? '근태 · ' . $a['user_name'] . ' ' . att_kind_name($a['kind']) . ' ' . att_when($a, false) : '근태';

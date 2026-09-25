@@ -30,7 +30,7 @@ CREATE TABLE IF NOT EXISTS users (
 
 CREATE TABLE IF NOT EXISTS journals (
   id           INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-  type         ENUM('daily','sales','facility','voucher','attendance','healing','kidsforest','guide','kidsdirect','vcheck','rooms','guide2','arwork') NOT NULL COMMENT '업무일지/매출보고/시설물관리/상품권입고/근태/프로그램 운영보고(산림치유센터·유아숲체험원·숲해설·유아숲 직영·숲해설 용문산)/상품권 금고점검/일일객실판매/AR 사용보고',
+  type         ENUM('daily','sales','facility','voucher','attendance','healing','kidsforest','guide','kidsdirect','vcheck','rooms','guide2','arwork','purchase') NOT NULL COMMENT '업무일지/매출보고/시설물관리/상품권입고/근태/프로그램 운영보고(산림치유센터·유아숲체험원·숲해설·유아숲 직영·숲해설 용문산)/상품권 금고점검/일일객실판매/AR 사용보고/물품구매',
   team_id      INT UNSIGNED NULL COMMENT '시설점검일지의 관리팀',
   work_date    DATE         NOT NULL,
   author_id    INT UNSIGNED NOT NULL,
@@ -360,7 +360,7 @@ CREATE TABLE IF NOT EXISTS equipment_logs (
 -- 사진 (시설물·장비 공용). 파일은 uploads/ 폴더에 저장
 CREATE TABLE IF NOT EXISTS photos (
   id         INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-  owner_type ENUM('facility','equipment','program') NOT NULL COMMENT 'program = 프로그램 운영보고(journal_id) 활동사진',
+  owner_type ENUM('facility','equipment','program','purchase_check','purchase_receipt') NOT NULL COMMENT 'program = 프로그램 운영보고 활동사진, purchase_check/receipt = 물품구매 검수·영수증 사진 (owner_id = journal_id)',
   owner_id   INT UNSIGNED NOT NULL,
   path       VARCHAR(200) NOT NULL,
   user_id    INT UNSIGNED NULL,
@@ -590,4 +590,31 @@ CREATE TABLE IF NOT EXISTS ar_workers (
   INDEX idx_journal (journal_id, sort_no),
   INDEX idx_work_date (work_date),
   CONSTRAINT fk_ar_journal FOREIGN KEY (journal_id) REFERENCES journals(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 물품구매 (시설관리 › 물품구매, journals type purchase): 구매처·결제방법·합계·지출 완료
+CREATE TABLE IF NOT EXISTS purchase_meta (
+  journal_id INT UNSIGNED PRIMARY KEY,
+  vendor     VARCHAR(100) NOT NULL COMMENT '구매처',
+  pay_method ENUM('card','credit') NOT NULL DEFAULT 'card' COMMENT '카드 / 외상',
+  total      INT UNSIGNED NOT NULL DEFAULT 0 COMMENT '구매 금액 합계',
+  paid_at    DATE NULL COMMENT '지출 완료일 (주무관 처리)',
+  paid_by    INT UNSIGNED NULL,
+  paid_note  VARCHAR(200) NULL,
+  INDEX idx_vendor (vendor),
+  CONSTRAINT fk_purchase_journal FOREIGN KEY (journal_id) REFERENCES journals(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 물품구매 품목 (재고관리와 별개, 구매 증빙용)
+CREATE TABLE IF NOT EXISTS purchase_items (
+  id         INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  journal_id INT UNSIGNED NOT NULL,
+  sort_no    SMALLINT UNSIGNED NOT NULL DEFAULT 1,
+  name       VARCHAR(100) NOT NULL COMMENT '품목',
+  spec       VARCHAR(100) NULL COMMENT '규격',
+  qty        INT UNSIGNED NOT NULL DEFAULT 1,
+  unit_price INT UNSIGNED NOT NULL DEFAULT 0,
+  amount     INT UNSIGNED NOT NULL DEFAULT 0 COMMENT '수량 × 단가',
+  INDEX idx_journal (journal_id, sort_no),
+  CONSTRAINT fk_purchase_item_journal FOREIGN KEY (journal_id) REFERENCES journals(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
