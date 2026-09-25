@@ -806,3 +806,5 @@ input[data-stay] { background: #f1f5f2; color: var(--green-d); font-weight: 700;
 tr.recur td { background: #fff4e0; }
 .journal-logs table { font-size: .9rem; }
 @media (max-width: 700px) { .cpl-texts { grid-template-columns: 1fr; } }
+.cpl-trend th, .cpl-trend td { white-space: nowrap; }
+.cpl-trend thead a { color: inherit; }
