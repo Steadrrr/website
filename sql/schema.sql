@@ -101,9 +101,10 @@ CREATE TABLE IF NOT EXISTS settings (
 --           (할인은 settings 의 요금구분별 할인율로 일괄 적용. dc_* 는 이전 버전 컬럼으로 사용 안 함)
 --   시설대관: price_2h / price_4h / price_day(4시간 이상, 18시까지) + price_night(야간 18~21시 추가요금)
 --   대관 숙박시설: price = 정액 요금 (매출보고에서 할인율 % 입력)
+--   프로그램: price = 유료 1인 요금, price_discount = 할인 1인 요금, prog_types = 쓰는 분야 (운영보고 회차마다 고름)
 CREATE TABLE IF NOT EXISTS products (
   id            INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-  grp           ENUM('ticket','room','rental','lodge') NOT NULL,
+  grp           ENUM('ticket','room','rental','lodge','program') NOT NULL,
   name          VARCHAR(100) NOT NULL,
   is_free       TINYINT(1)   NOT NULL DEFAULT 0,
   price         INT UNSIGNED NOT NULL DEFAULT 0,
@@ -116,6 +117,8 @@ CREATE TABLE IF NOT EXISTS products (
   price_4h      INT UNSIGNED NOT NULL DEFAULT 0 COMMENT '시설대관 4시간',
   price_day     INT UNSIGNED NOT NULL DEFAULT 0 COMMENT '시설대관 4시간 이상(18시까지)',
   price_night   INT UNSIGNED NOT NULL DEFAULT 0 COMMENT '시설대관 야간(18~21시) 추가요금',
+  price_discount INT UNSIGNED NOT NULL DEFAULT 0 COMMENT '프로그램 할인 1인 요금 (price = 유료 1인 요금)',
+  prog_types    VARCHAR(200) NULL COMMENT '프로그램을 쓰는 분야 (healing,guide… 쉼표 구분, NULL = 모든 분야)',
   dc_weekday    INT UNSIGNED NOT NULL DEFAULT 0,
   dc_weekend    INT UNSIGNED NOT NULL DEFAULT 0,
   base_people   SMALLINT UNSIGNED NOT NULL DEFAULT 0 COMMENT '객실 기준인원 (객실 분류에서 복사)',
@@ -223,6 +226,7 @@ CREATE TABLE IF NOT EXISTS price_period_items (
   price_4h       INT UNSIGNED NOT NULL DEFAULT 0,
   price_day      INT UNSIGNED NOT NULL DEFAULT 0,
   price_night    INT UNSIGNED NOT NULL DEFAULT 0,
+  price_discount INT UNSIGNED NOT NULL DEFAULT 0,
   PRIMARY KEY (period_id, product_id),
   CONSTRAINT fk_ppi_period FOREIGN KEY (period_id) REFERENCES price_periods(id) ON DELETE CASCADE,
   CONSTRAINT fk_ppi_product FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE
@@ -458,6 +462,8 @@ CREATE TABLE IF NOT EXISTS program_sessions (
   session_no  SMALLINT UNSIGNED NOT NULL COMMENT '회차 (1부터)',
   group_name  VARCHAR(100) NOT NULL COMMENT '단체명 또는 개인 성명',
   staff       VARCHAR(100) NULL COMMENT '담당자 (직접 입력)',
+  product_id  INT UNSIGNED NULL COMMENT '프로그램 상품 (products grp=program)',
+  product_name VARCHAR(100) NULL COMMENT '작성 당시 프로그램명',
   start_time  TIME NULL,
   end_time    TIME NULL,
   m_infant SMALLINT UNSIGNED NOT NULL DEFAULT 0, f_infant SMALLINT UNSIGNED NOT NULL DEFAULT 0,

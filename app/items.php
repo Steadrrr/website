@@ -371,7 +371,7 @@ function items_save(int $id, string $type, array $payload): void
 function items_form(string $type, array $payload, string $workDate, ?array $journal): void
 {
     if (is_program_type($type)) {
-        program_form($type, $payload, $journal);
+        program_form($type, $payload, $workDate, $journal);
         return;
     }
 

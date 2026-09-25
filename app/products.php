@@ -58,6 +58,7 @@ const PRICE_COLS = [
                  'refund_amount' => '환급 평일', 'refund_weekend' => '환급 주말', 'refund_peak' => '환급 성수기'],
     'rental' => ['price_2h' => '2시간', 'price_4h' => '4시간', 'price_day' => '4시간 이상', 'price_night' => '야간 추가'],
     'lodge'  => ['price' => '1실 요금'],
+    'program' => ['price' => '유료 1인', 'price_discount' => '할인 1인'],
 ];
 
 /** @return array<int,array> 기간 id => 기간 (시작일 순) */

@@ -1,4 +1,4 @@
-// 프로그램 운영보고: 회차 추가·삭제(번호 자동), 인원 합계, 프로그램 금액, 보고서 합계
+// 프로그램 운영보고: 회차 추가·삭제(번호 자동), 인원 합계, 프로그램 금액(고른 프로그램의 1인 요금), 보고서 합계
 (function () {
   const form = document.querySelector('[data-program-form]');
   if (!form) return;
@@ -24,7 +24,11 @@
       card.querySelectorAll('[data-asum]').forEach((c) => set(c, fmt(as[c.dataset.asum] || 0)));
       const ft = card.querySelector('[data-fee-type]:checked'); // 유료 / 할인 / 무료
       const type = ft ? ft.value : 'paid';
-      const amount = total * (ft ? num(ft.dataset.fee) : 0);
+      const sel = card.querySelector('[data-product]'); // 고른 프로그램의 1인 요금
+      const opt = sel && sel.value ? sel.selectedOptions[0] : null;
+      const fees = { paid: opt ? num(opt.dataset.price) : 0, discount: opt ? num(opt.dataset.discount) : 0, free: 0 };
+      card.querySelectorAll('[data-fee-label]').forEach((el) => set(el, opt ? `(1인 ${fmt(fees[el.dataset.feeLabel])}원)` : ''));
+      const amount = total * fees[type];
       set(card.querySelector('[data-total]'), fmt(total));
       set(card.querySelector('[data-total-text]'), fmt(total) + '명');
       set(card.querySelector('[data-amount]'), type === 'free' ? '무료' : fmt(amount) + '원');

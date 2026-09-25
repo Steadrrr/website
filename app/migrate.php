@@ -6,7 +6,7 @@ defined('APP_ROOT') || exit;
  * 새 버전 파일을 FTP로 덮어쓰기만 하면, 첫 접속 때 부족한 테이블/컬럼을 만든다.
  * (기존 자료는 그대로 유지)
  */
-const DB_VERSION = 31;
+const DB_VERSION = 32;
 
 function db_version(): int
 {
@@ -309,6 +309,31 @@ function db_migrate(): void
                            l.guests = (SELECT COALESCE(SUM(IF(p.fee_type = 'free', p.total, 0)), 0) FROM journals j JOIN program_sessions p ON p.journal_id = j.id
                                      WHERE j.type = l.prog_type AND j.work_date = s.work_date AND j.status <> 'rejected')
                      WHERE l.grp = 'program' AND l.auto = 1");
+    }
+
+    // 32) v31 → v32: 프로그램 상품 (products grp program, 유료·할인 1인 요금). 운영보고 회차마다 프로그램을 고른다.
+    //     기본정보의 1인 참가비(유료·할인)로 '기본 프로그램'을 만들고, 지난 회차는 모두 그 프로그램으로 둔다.
+    if (!enum_has('products', 'grp', 'program')) {
+        $pdo->exec("ALTER TABLE products MODIFY grp ENUM('ticket','room','rental','lodge','program') NOT NULL");
+    }
+    if (!column_exists('products', 'price_discount')) {
+        $pdo->exec("ALTER TABLE products ADD price_discount INT UNSIGNED NOT NULL DEFAULT 0 AFTER price_night, ADD prog_types VARCHAR(200) NULL AFTER price_discount");
+    }
+    if (!column_exists('price_period_items', 'price_discount')) {
+        $pdo->exec("ALTER TABLE price_period_items ADD price_discount INT UNSIGNED NOT NULL DEFAULT 0 AFTER price_night");
+    }
+    if (!column_exists('program_sessions', 'product_id')) {
+        $pdo->exec("ALTER TABLE program_sessions ADD product_id INT UNSIGNED NULL AFTER staff, ADD product_name VARCHAR(100) NULL AFTER product_id");
+    }
+    if (!(int) $pdo->query("SELECT COUNT(*) FROM products WHERE grp = 'program'")->fetchColumn()) {
+        $fee = function (string $k, int $d) use ($pdo): int {
+            $v = $pdo->query('SELECT value FROM settings WHERE name = ' . $pdo->quote($k))->fetchColumn();
+            return $v === false || $v === '' ? $d : (int) $v;
+        };
+        $pdo->prepare("INSERT INTO products (grp, name, price, price_discount, sort_order, is_active) VALUES ('program', '기본 프로그램', ?, ?, 10, 1)")
+            ->execute([$fee('program_fee', 5000), $fee('program_fee_dc', 3000)]);
+        $pid = (int) $pdo->lastInsertId();
+        $pdo->prepare("UPDATE program_sessions SET product_id = ?, product_name = '기본 프로그램' WHERE product_id IS NULL")->execute([$pid]);
     }
 
     $pdo->prepare("INSERT INTO settings (name, value) VALUES ('db_version', ?) ON DUPLICATE KEY UPDATE value = VALUES(value)")

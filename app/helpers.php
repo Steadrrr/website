@@ -45,7 +45,7 @@ const DAILY_TYPES = ['daily', 'sales', 'rooms', 'facility'];
 const SALE_DOC_TYPES = ['sales', 'rooms'];
 const SALE_DOC_SQL = "j.type IN ('sales', 'rooms')";
 
-const PRODUCT_GROUPS = ['ticket' => '입장권', 'room' => '객실', 'rental' => '시설대관', 'lodge' => '대관 숙박시설'];
+const PRODUCT_GROUPS = ['ticket' => '입장권', 'room' => '객실', 'rental' => '시설대관', 'lodge' => '대관 숙박시설', 'program' => '프로그램'];
 // 유실물 상태 => [이름, 색]
 const LOST_STATUS = [
     'received'  => ['접수', '#e8710a'],

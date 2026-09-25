@@ -1,5 +1,5 @@
 <?php
-/** 설정 › 상품·요금: 입장권·객실·시설대관·대관 숙박시설 상품, 가격, 할인율, 상품권 환급액, 최대인원, 기간요금 (최고관리자) */
+/** 설정 › 상품·요금: 입장권·객실·시설대관·대관 숙박시설·프로그램 상품, 가격, 할인율, 상품권 환급액, 최대인원, 기간요금 (최고관리자) */
 require dirname(__DIR__) . '/app/bootstrap.php';
 
 $me = require_admin();
@@ -86,10 +86,10 @@ if (is_post()) {
     if ($id && !empty(products_all()[$id]['sys_key'])) abort(400, '쉬자파크숙박(입실·퇴실)은 자동 상품이라 수정·삭제할 수 없습니다.');
 
     if ($action === 'delete') {
-        $st = $pdo->prepare('SELECT COUNT(*) FROM sales_lines WHERE product_id = ?');
+        $st = $pdo->prepare($grp === 'program' ? 'SELECT COUNT(*) FROM program_sessions WHERE product_id = ?' : 'SELECT COUNT(*) FROM sales_lines WHERE product_id = ?');
         $st->execute([$id]);
         if ((int) $st->fetchColumn() > 0) {
-            flash('이미 매출보고에 사용된 상품은 삭제할 수 없습니다. 대신 "판매"를 해제(판매중지)하세요.', 'error');
+            flash('이미 ' . ($grp === 'program' ? '프로그램 운영보고' : '매출보고') . '에 사용된 상품은 삭제할 수 없습니다. 대신 "판매"를 해제(판매중지)하세요.', 'error');
         } else {
             $pdo->prepare('DELETE FROM products WHERE id = ?')->execute([$id]);
             flash('삭제했습니다.', 'success');
@@ -111,6 +111,8 @@ if (is_post()) {
         'price_4h'      => $grp === 'rental' ? to_int(post('price_4h')) : 0,
         'price_day'     => $grp === 'rental' ? to_int(post('price_day')) : 0,
         'price_night'   => $grp === 'rental' ? to_int(post('price_night')) : 0,
+        'price_discount' => $grp === 'program' ? to_int(post('price_discount')) : 0,
+        'prog_types'    => $grp === 'program' ? (implode(',', array_intersect(array_keys(PROGRAM_TYPES), (array) ($_POST['prog_types'] ?? []))) ?: null) : null,
         'max_people'    => $grp === 'room' ? to_int(post('max_people')) : 0,
         'room_type_id'  => $grp === 'room' && isset(room_types_all()[(int) post('room_type_id')]) ? (int) post('room_type_id') : null,
         'sort_order'    => (int) post('sort_order', '0'),
@@ -145,7 +147,8 @@ if (is_post()) {
         }
         if ($grp === 'room') room_type_apply((int) $data['room_type_id'], $id);
         $pdo->commit();
-        flash("{$name} 저장했습니다." . ($grp === 'room' ? " (분류 '" . room_type_name((int) $data['room_type_id']) . "'의 인원·요금·환급액 적용)" : '') . ' (이미 작성된 매출보고의 금액은 바뀌지 않습니다)', 'success');
+        flash("{$name} 저장했습니다." . ($grp === 'room' ? " (분류 '" . room_type_name((int) $data['room_type_id']) . "'의 인원·요금·환급액 적용)" : '')
+            . ' (이미 작성된 ' . ($grp === 'program' ? '프로그램 운영보고' : '매출보고') . '의 금액은 바뀌지 않습니다)', 'success');
     }
     redirect('admin/products.php#' . $grp);
 }
@@ -174,13 +177,19 @@ function product_row(string $grp, ?array $p, int $sort, array $ticketSeasons): v
     ?>
   <tr class="<?= $p ? ($p['is_active'] ? '' : 'inactive') : 'new-row' ?>">
     <td><input form="<?= $fid ?>" name="sort_order" value="<?= $val('sort_order', $sort) ?>" class="num tiny" inputmode="numeric"></td>
-    <td><input form="<?= $fid ?>" name="name" value="<?= $val('name') ?>" placeholder="<?= $p ? '' : ['ticket' => '새 입장권 (예: 어른)', 'room' => '새 객실 (예: 숲속의집 101호)', 'rental' => '새 대관시설 (예: 세미나실)', 'lodge' => '새 대관 숙박시설 (예: 연수동)'][$grp] ?>" required></td>
+    <td><input form="<?= $fid ?>" name="name" value="<?= $val('name') ?>" placeholder="<?= $p ? '' : ['ticket' => '새 입장권 (예: 어른)', 'room' => '새 객실 (예: 숲속의집 101호)', 'rental' => '새 대관시설 (예: 세미나실)', 'lodge' => '새 대관 숙박시설 (예: 연수동)', 'program' => '새 프로그램 (예: 숲 치유 체험)'][$grp] ?>" required></td>
     <?php if ($grp === 'rental'): ?>
       <?php foreach ([...array_column(RENT_TIMES, 1), 'price_night'] as $col): ?>
         <td><input form="<?= $fid ?>" name="<?= $col ?>" value="<?= $money($col) ?>" class="num" inputmode="numeric" data-money placeholder="0"></td>
       <?php endforeach ?>
     <?php elseif ($grp === 'lodge'): ?>
       <td><input form="<?= $fid ?>" name="price" value="<?= $money('price') ?>" class="num" inputmode="numeric" data-money placeholder="0"></td>
+    <?php elseif ($grp === 'program'): $types = $p ? program_product_types($p) : []; ?>
+      <td><input form="<?= $fid ?>" name="price" value="<?= $money('price') ?>" class="num" inputmode="numeric" data-money placeholder="0"></td>
+      <td><input form="<?= $fid ?>" name="price_discount" value="<?= $money('price_discount') ?>" class="num" inputmode="numeric" data-money placeholder="0"></td>
+      <td class="prog-types"><?php foreach (PROGRAM_TYPES as $t => $tl): ?>
+        <label class="inline-check"><input form="<?= $fid ?>" type="checkbox" name="prog_types[]" value="<?= $t ?>" <?= in_array($t, $types, true) ? 'checked' : '' ?>> <?= e($tl) ?></label>
+      <?php endforeach ?></td>
     <?php elseif ($grp === 'ticket'): ?>
       <td><select form="<?= $fid ?>" name="is_free">
         <option value="0">유료</option><option value="1" <?= !empty($p['is_free']) ? 'selected' : '' ?>>무료</option>
@@ -374,6 +383,22 @@ settings_nav('products');
   </div>
 </section>
 
+<section class="card" id="program">
+  <h1>상품관리 · 프로그램</h1>
+  <p class="muted small">프로그램 운영보고(<?= e(implode(' · ', PROGRAM_TYPES)) ?>)에서 회차마다 프로그램을 고르면
+    <b>인원 합계 × 1인 요금</b>으로 프로그램 금액이 계산됩니다. 요금 구분이 '할인'이면 할인 1인 요금, '무료'면 0원입니다.<br>
+    <b>사용 분야</b>를 고르면 그 분야 운영보고에만 나오고, 아무것도 고르지 않으면 모든 분야에 나옵니다.</p>
+  <div class="table-scroll">
+  <table class="table product-table">
+    <thead><tr><th>순서</th><th>프로그램명</th><th>유료 1인 요금(원)</th><th>할인 1인 요금(원)</th><th>사용 분야 <small class="muted">(비우면 전체)</small></th><th>판매</th><th></th></tr></thead>
+    <tbody>
+      <?php foreach ($byGroup['program'] as $p) product_row('program', $p, 0, []) ?>
+      <?php product_row('program', null, $nextSort($byGroup['program']), []) ?>
+    </tbody>
+  </table>
+  </div>
+</section>
+
 <section class="card" id="seasons">
   <h1>기간요금</h1>
   <p class="muted small">
@@ -391,7 +416,7 @@ settings_nav('products');
   </table>
   </div>
 </section>
-<p class="muted small">· 상품 가격을 바꿔도 이미 작성된 매출보고의 금액은 바뀌지 않습니다(작성 당시 가격으로 저장).<br>
+<p class="muted small">· 상품 가격을 바꿔도 이미 작성된 매출보고·운영보고의 금액은 바뀌지 않습니다(작성 당시 가격으로 저장).<br>
 · 여기 가격은 <b>현재 가격</b>입니다. 지난 기간에 다른 가격을 썼다면 <a href="<?= e(url('admin/prices.php')) ?>">기간별 가격</a>에서 그 기간의 가격표를 만드세요.<br>
-· 매출보고에 한 번이라도 쓰인 상품은 삭제 대신 '판매' 체크를 해제하세요.</p>
+· 매출보고(프로그램은 운영보고)에 한 번이라도 쓰인 상품은 삭제 대신 '판매' 체크를 해제하세요.</p>
 <?php layout_footer();
