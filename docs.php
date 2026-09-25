@@ -1,6 +1,6 @@
 <?php
 /**
- * 문서관리 › 문서조회및수정: 모든 결재 문서를 분류·기간·상태·작성자로 조회하고 정렬한다.
+ * 개인업무 › 문서관리: 모든 결재 문서를 분류·기간·상태·작성자로 조회하고 정렬한다.
  *   docs.php?type=&from=&to=&status=&author=&q=&sort=date|id|type|author|status|submitted|edited&dir=asc|desc&page=
  * 공무직 이상·최고관리자만. 수정하면 결재가 처음부터 다시 진행된다 (근태는 수정 대신 취소 후 다시 입력).
  * 삭제는 최고관리자만. 다른 사람의 임시저장 문서(업무일지·매출보고 제외)는 보이지 않는다.
@@ -9,7 +9,7 @@ require __DIR__ . '/app/bootstrap.php';
 require __DIR__ . '/app/xlsx.php';
 
 $user = require_login();
-if (!can_manage_docs($user)) abort(403, '문서조회및수정은 공무직 이상만 사용할 수 있습니다.');
+if (!can_manage_docs($user)) abort(403, '문서관리는 공무직 이상만 사용할 수 있습니다.');
 $pdo = db();
 $isAdmin = !empty($user['is_admin']);
 
@@ -125,11 +125,11 @@ $presets = [
 ];
 $back = $link(['page' => $page > 1 ? $page : null]);
 
-layout_header('문서조회및수정', 'docs');
+layout_header('문서관리', 'docs');
 ?>
 <section class="card">
   <div class="card-head">
-    <h1>문서조회및수정</h1>
+    <h1>문서관리</h1>
     <div class="actions no-margin no-print">
       <a class="btn" href="<?= e(url($link(['export' => 'xlsx', 'page' => null]))) ?>">엑셀</a>
       <button class="btn ghost" type="button" onclick="window.print()">인쇄</button>

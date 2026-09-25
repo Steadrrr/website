@@ -95,9 +95,9 @@ function nav_groups(?array $user): array
         'schedule' => ['label' => '일정표', 'href' => 'schedule.php'],
         'personal' => ['label' => '개인업무', 'items' => [
             'attendance' => ['attendance.php', '근태 달력'],
-            'att_sheet'  => ['attendance.php?view=sheet', '개인 월간 근태표'],
+            'att_sheet'  => ['attendance.php?view=sheet', '월간 근태'],
             'approval'   => ['approvals.php', '결재함'],
-            'docs'       => ['docs.php', '문서조회및수정'],
+            'docs'       => ['docs.php', '문서관리'],
         ]],
         'ops'      => ['label' => '운영관리', 'items' => [
             'daily'   => ['journal.php?type=daily', '업무일지'],
@@ -147,7 +147,7 @@ function nav_groups(?array $user): array
         $groups['etc']['items']['admin'] = ['admin/users.php', '회원관리'];
     }
     if (!can_menu($user, 'att')) unset($groups['personal']['items']['attendance'], $groups['personal']['items']['att_sheet']); // 근태는 메뉴 권한
-    if (!$user || !can_manage_docs($user)) unset($groups['personal']['items']['docs']); // 문서조회및수정은 공무직 이상
+    if (!$user || !can_manage_docs($user)) unset($groups['personal']['items']['docs']); // 문서관리는 공무직 이상
     if (!$user || !can_ar($user)) unset($groups['room']['items']['ar']); // AR사용관리는 공무직 이상
     if (!$user || !can_purchase($user)) unset($groups['fac']['items']['purchase']); // 물품구매는 공무직 이상
     // 기타는 항상 맨 마지막

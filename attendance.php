@@ -2,7 +2,7 @@
 /**
  * 근태관리 (사원)
  *   attendance.php?ym=2026-09[&team=1][&user=5]      근태 달력 (모든 근무자, 팀·사람별 조회)
- *   attendance.php?view=sheet&user=5&ym=2026-09        개인 월간 근태표 (&export=xlsx 엑셀, 인쇄)
+ *   attendance.php?view=sheet&user=5&ym=2026-09        월간 근태 (&export=xlsx 엑셀, 인쇄)
  *   attendance.php?api=check&...                       입력 창의 실시간 검사 (연차·병가 현황, 진단서 안내)
  *   attendance.php?file=문서번호                       진단서 등 첨부 열람 (본인·공무직 이상)
  */
@@ -112,7 +112,7 @@ if (!isset($teams[$teamId])) $teamId = 0;
 $allWorkers = att_workers();
 $workerMap = array_column($allWorkers, null, 'id');
 
-/* ═════════════ 개인 월간 근태표 ═════════════ */
+/* ═════════════ 월간 근태 ═════════════ */
 if ($view === 'sheet') {
     $uid = (int) ($_GET['user'] ?? 0);
     if (!$uid) $uid = att_is_subject($me) ? (int) $me['id'] : (int) ($allWorkers[0]['id'] ?? 0);
@@ -183,7 +183,7 @@ if ($view === 'sheet') {
     ?>
 <section class="card att-sheet">
   <div class="card-head no-print">
-    <h1>개인 월간 근태표</h1>
+    <h1>월간 근태</h1>
     <div class="actions no-margin">
       <?php if ($worker): ?>
         <a class="btn" href="<?= e(url('attendance.php?' . http_build_query(['view' => 'sheet', 'user' => $worker['id'], 'ym' => $ym, 'export' => 'xlsx']))) ?>">엑셀 다운로드</a>
@@ -338,7 +338,7 @@ layout_header('근태관리 ' . $first->format('Y년 n월'), 'attendance');
       <h1><?= e($first->format('Y년 n월')) ?> <small class="muted"><?= e($person ? $person['name'] : ($teamId ? $teams[$teamId]['name'] : '전체')) ?></small></h1>
       <div class="actions no-margin no-print" style="margin-left:auto">
         <?php if (!empty($me['is_admin'])): ?><a class="btn ghost" href="<?= e(url('schedule.php?ym=' . $ym . '&new=' . "$ym-01" . '&cat=holiday')) ?>">+ 공휴일·휴관일</a><?php endif ?>
-        <a class="btn ghost" href="<?= e(url('attendance.php?' . http_build_query(['view' => 'sheet', 'user' => $person['id'] ?? null, 'ym' => $ym]))) ?>">월간 근태표</a>
+        <a class="btn ghost" href="<?= e(url('attendance.php?' . http_build_query(['view' => 'sheet', 'user' => $person['id'] ?? null, 'ym' => $ym]))) ?>">월간 근태</a>
         <button class="btn ghost" type="button" onclick="window.print()">인쇄</button>
       </div>
     </div>

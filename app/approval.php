@@ -104,7 +104,7 @@ function can_delegate(array $user, ?array $step): bool
     return (int) $st->fetchColumn() > 0;
 }
 
-/** 문서관리 › 문서조회및수정: 공무직 이상·최고관리자는 모든 문서를 조회·수정 (삭제는 최고관리자만) */
+/** 개인업무 › 문서관리: 공무직 이상·최고관리자는 모든 문서를 조회·수정 (삭제는 최고관리자만) */
 function can_manage_docs(array $user): bool
 {
     return !empty($user['is_admin']) || (int) $user['rank_level'] >= RANK_WORKER;
