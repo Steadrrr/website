@@ -618,3 +618,18 @@ CREATE TABLE IF NOT EXISTS purchase_items (
   INDEX idx_journal (journal_id, sort_no),
   CONSTRAINT fk_purchase_item_journal FOREIGN KEY (journal_id) REFERENCES journals(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 자동 로그인 토큰 (로그인 화면 '자동 로그인'). 쿠키 = selector:validator, DB에는 validator 의 SHA-256만 저장
+CREATE TABLE IF NOT EXISTS auth_tokens (
+  id           INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  user_id      INT UNSIGNED NOT NULL,
+  selector     CHAR(18) NOT NULL,
+  token_hash   CHAR(64) NOT NULL,
+  user_agent   VARCHAR(200) NULL,
+  expires_at   DATETIME NOT NULL,
+  last_used_at DATETIME NULL,
+  created_at   DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_selector (selector),
+  INDEX idx_user (user_id),
+  CONSTRAINT fk_auth_token_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

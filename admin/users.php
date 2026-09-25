@@ -17,6 +17,7 @@ if (is_post()) {
     if (post('action') === 'reset_password') {
         $temp = substr(str_replace(['+', '/', '='], '', base64_encode(random_bytes(9))), 0, 10);
         db()->prepare('UPDATE users SET password_hash = ? WHERE id = ?')->execute([password_hash($temp, PASSWORD_DEFAULT), $id]);
+        remember_forget_user($id); // 그 사람의 자동 로그인 모두 해제
         flash("{$target['name']}님의 임시 비밀번호: $temp  (본인에게 전달 후 내 정보에서 변경하도록 안내하세요)", 'success');
     } else {
         $rank   = (int) post('rank_level');

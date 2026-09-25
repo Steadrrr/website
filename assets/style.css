@@ -972,3 +972,9 @@ tr.recur td { background: #fff4e0; }
 .pc-filter { margin-left: auto; }
 .pc-filter a { padding: .3rem .7rem; font-size: .85rem; }
 .kpi.warn-kpi { border-color: #e8c96b; background: #fffbea; }
+
+/* ── 로그인: ID 저장 · 암호 저장 · 자동 로그인 ── */
+.login-opts { display: flex; flex-wrap: wrap; gap: .4rem 1.2rem; margin: .2rem 0 .6rem; }
+.login-opts .inline-check { display: inline-flex; align-items: center; gap: .35rem; margin: 0; font-weight: 400; }
+.login-opts .inline-check input { width: auto; margin: 0; }
+.login-note { margin: 0 0 .5rem; }

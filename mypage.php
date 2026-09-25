@@ -20,6 +20,7 @@ if (is_post()) {
         if ($new !== '') {
             db()->prepare('UPDATE users SET password_hash = ? WHERE id = ?')
                 ->execute([password_hash($new, PASSWORD_DEFAULT), $user['id']]);
+            remember_forget_user((int) $user['id'], true); // 다른 기기의 자동 로그인은 해제
         }
         flash('저장했습니다.', 'success');
     }
