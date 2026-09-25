@@ -6,7 +6,7 @@ defined('APP_ROOT') || exit;
  * 새 버전 파일을 FTP로 덮어쓰기만 하면, 첫 접속 때 부족한 테이블/컬럼을 만든다.
  * (기존 자료는 그대로 유지)
  */
-const DB_VERSION = 23;
+const DB_VERSION = 24;
 
 function db_version(): int
 {
@@ -228,6 +228,8 @@ function db_migrate(): void
                  WHERE menu_access IS NOT NULL AND FIND_IN_SET('ops', menu_access) AND NOT FIND_IN_SET('stat', menu_access)");
 
     // 23) v22 → v23: 민원(complaints), 일지 작성·수정 기록(journal_logs) — 둘 다 1) 단계에서 생성
+
+    // 24) v23 → v24: 기간별 가격표(price_periods, price_period_items) — 1) 단계에서 생성
 
     $pdo->prepare("INSERT INTO settings (name, value) VALUES ('db_version', ?) ON DUPLICATE KEY UPDATE value = VALUES(value)")
         ->execute([(string) DB_VERSION]);

@@ -189,6 +189,18 @@
         tr.dataset.price = price;
         setText($(tr, '[data-unit]'), fmt(price));
       });
+      // 기간별 가격표가 바뀌는 날짜로 옮기면: 아직 아무것도 입력하지 않았으면 그 날짜로 다시 불러오고, 입력했으면 알림
+      const pp = (window.PRICE_PERIODS || []).find((x) => dateInput.value >= x.from && dateInput.value <= x.to);
+      const changed = $(document, '[data-price-period-changed]');
+      if ((pp ? pp.id : 0) !== (window.PRICE_PERIOD_NOW || 0)) {
+        const entered = $$(document, '[data-sales-form] input').some((i) => !i.dataset.stay && (
+          i.type === 'checkbox' || i.type === 'radio' ? i.checked !== i.defaultChecked : i.type !== 'hidden' && num(i.value) > 0));
+        if (window.SALES_RELOAD && !entered) { location.href = window.SALES_RELOAD + encodeURIComponent(dateInput.value); return; }
+        if (changed) {
+          changed.textContent = '⚠ 이 날짜는 ' + (pp ? "기간별 가격표 '" + pp.label + "'" : '현재 가격') + '이 적용됩니다. 화면의 단가는 이전 날짜 기준이지만, 저장하면 새 날짜의 가격으로 다시 계산됩니다.';
+          changed.hidden = false;
+        }
+      } else if (changed) changed.hidden = true;
       const rate = seasonFor('room', md) ? 'peak' : (d.getDay() === 5 || d.getDay() === 6 ? 'weekend' : 'weekday');
       document.querySelectorAll('[data-rate]').forEach((s) => { s.value = rate; });
       // 쉬자파크숙박(퇴실) = 전날 입실인원 합계 → 날짜를 바꾸면 다시 불러옴

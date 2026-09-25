@@ -105,7 +105,7 @@ function items_parse(string $type, string $workDate, int $journalId): array
     }
 
     if ($type === 'sales') {
-        $products = products_all();
+        $products = products_at($workDate); // 기간별 가격표가 있으면 그 날짜의 가격
         $lines = [];
 
         foreach ((array) ($_POST['ticket'] ?? []) as $pid => $row) {
@@ -332,10 +332,10 @@ function items_form(string $type, array $payload, string $workDate, ?array $jour
     $byProduct = [];
     foreach ($payload['lines'] as $l) $byProduct[(int) $l['product_id']] = $l;
     $ids = array_keys($byProduct);
-    $tickets = products_for_form('ticket', $ids);
-    $rooms = products_for_form('room', $ids);
-    $rentals = products_for_form('rental', $ids);
-    $lodges = products_for_form('lodge', $ids);
+    $tickets = products_for_form('ticket', $ids, $workDate);
+    $rooms = products_for_form('room', $ids, $workDate);
+    $rentals = products_for_form('rental', $ids, $workDate);
+    $lodges = products_for_form('lodge', $ids, $workDate);
     $defaultRate = rate_for_date($workDate);
 
     if (!$tickets && !$rooms && !$rentals && !$lodges): ?>
@@ -347,6 +347,12 @@ function items_form(string $type, array $payload, string $workDate, ?array $jour
     fn($s) => ['id' => (int) $s['id'], 'grp' => $s['grp'], 'label' => season_label($s), 'start' => $s['start_md'], 'end' => $s['end_md']],
     array_filter(seasons_all(), fn($s) => $s['is_active'])
 )), JSON_UNESCAPED_UNICODE) ?>;</script>
+<?php $pp = price_period_for($workDate); ?>
+<script>window.PRICE_PERIODS = <?= json_encode(array_values(array_map(
+    fn($x) => ['id' => (int) $x['id'], 'label' => price_period_label($x), 'from' => $x['date_from'], 'to' => $x['date_to']], price_periods_all()
+)), JSON_UNESCAPED_UNICODE) ?>; window.PRICE_PERIOD_NOW = <?= (int) ($pp['id'] ?? 0) ?>; window.SALES_RELOAD = <?= json_encode($journal ? null : url('write.php?type=sales&date=')) ?>;</script>
+<div class="flash price-period-note" data-price-period<?= $pp ? '' : ' hidden' ?>>📅 이 날짜는 <b>기간별 가격표 '<?= e($pp ? price_period_label($pp) : '') ?>'</b>의 가격으로 계산됩니다. (가격표에 없는 상품은 현재 가격)</div>
+<div class="flash flash-warn" data-price-period-changed hidden></div>
 <div data-sales-form>
   <?php if ($tickets): ?>
   <?php $ts = season_for('ticket', $workDate); ?>

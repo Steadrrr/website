@@ -364,5 +364,6 @@ settings_nav('products');
   </div>
 </section>
 <p class="muted small">· 상품 가격을 바꿔도 이미 작성된 매출보고의 금액은 바뀌지 않습니다(작성 당시 가격으로 저장).<br>
+· 여기 가격은 <b>현재 가격</b>입니다. 지난 기간에 다른 가격을 썼다면 <a href="<?= e(url('admin/prices.php')) ?>">기간별 가격</a>에서 그 기간의 가격표를 만드세요.<br>
 · 매출보고에 한 번이라도 쓰인 상품은 삭제 대신 '판매' 체크를 해제하세요.</p>
 <?php layout_footer();

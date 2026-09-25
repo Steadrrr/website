@@ -194,6 +194,36 @@ CREATE TABLE IF NOT EXISTS season_prices (
   CONSTRAINT fk_sp_product FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- 기간별 가격표: 상품관리의 가격은 '현재 가격'이고, 지난 기간(예: 2026-01-01 ~ 2026-10-13)에 다른 가격을 썼으면
+-- 그 기간과 상품별 가격을 여기에 둔다. 매출보고 일자가 기간 안이면 이 가격으로 계산한다 (가격이 없는 상품은 현재 가격).
+CREATE TABLE IF NOT EXISTS price_periods (
+  id         INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  name       VARCHAR(50)  NOT NULL,
+  date_from  DATE         NOT NULL,
+  date_to    DATE         NOT NULL,
+  note       VARCHAR(200) NULL,
+  created_at DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_dates (date_from, date_to)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS price_period_items (
+  period_id      INT UNSIGNED NOT NULL,
+  product_id     INT UNSIGNED NOT NULL,
+  price          INT UNSIGNED NOT NULL DEFAULT 0,
+  price_weekend  INT UNSIGNED NOT NULL DEFAULT 0,
+  price_peak     INT UNSIGNED NOT NULL DEFAULT 0,
+  refund_amount  INT UNSIGNED NOT NULL DEFAULT 0,
+  refund_weekend INT UNSIGNED NOT NULL DEFAULT 0,
+  refund_peak    INT UNSIGNED NOT NULL DEFAULT 0,
+  price_2h       INT UNSIGNED NOT NULL DEFAULT 0,
+  price_4h       INT UNSIGNED NOT NULL DEFAULT 0,
+  price_day      INT UNSIGNED NOT NULL DEFAULT 0,
+  price_night    INT UNSIGNED NOT NULL DEFAULT 0,
+  PRIMARY KEY (period_id, product_id),
+  CONSTRAINT fk_ppi_period FOREIGN KEY (period_id) REFERENCES price_periods(id) ON DELETE CASCADE,
+  CONSTRAINT fk_ppi_product FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 -- 관리팀 (대분류): 휴양림팀, 산림문화팀
 CREATE TABLE IF NOT EXISTS teams (
   id         INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,

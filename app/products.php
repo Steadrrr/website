@@ -34,11 +34,81 @@ function room_type_name(?int $id): string
     return $id && isset(room_types_all()[$id]) ? room_types_all()[$id]['name'] : '미분류';
 }
 
+/* ───────────── 기간별 가격표 ───────────── */
+
+/** 상품 그룹별로 기간 가격을 따로 두는 가격 칸 (products 컬럼명 => 표시 이름) */
+const PRICE_COLS = [
+    'ticket' => ['price' => '가격'],
+    'room'   => ['price' => '비수기 평일', 'price_weekend' => '비수기 주말', 'price_peak' => '성수기',
+                 'refund_amount' => '환급 평일', 'refund_weekend' => '환급 주말', 'refund_peak' => '환급 성수기'],
+    'rental' => ['price_2h' => '2시간', 'price_4h' => '4시간', 'price_day' => '4시간 이상', 'price_night' => '야간 추가'],
+    'lodge'  => ['price' => '1실 요금'],
+];
+
+/** @return array<int,array> 기간 id => 기간 (시작일 순) */
+function price_periods_all(): array
+{
+    static $cache = null;
+    if ($cache === null) {
+        $cache = [];
+        try {
+            foreach (db()->query('SELECT * FROM price_periods ORDER BY date_from, id') as $r) $cache[(int) $r['id']] = $r;
+        } catch (PDOException) {
+            $cache = []; // 업그레이드 전
+        }
+    }
+    return $cache;
+}
+
+/** @return array<int,array<int,array>> [period_id][product_id] => 기간 가격 행 */
+function price_period_items(): array
+{
+    static $cache = null;
+    if ($cache === null) {
+        $cache = [];
+        if (price_periods_all()) {
+            foreach (db()->query('SELECT * FROM price_period_items') as $r) $cache[(int) $r['period_id']][(int) $r['product_id']] = $r;
+        }
+    }
+    return $cache;
+}
+
+/** 그 날짜에 적용되는 기간 가격표 (없으면 null = 현재 가격) */
+function price_period_for(string $date): ?array
+{
+    foreach (price_periods_all() as $pp) {
+        if ($date >= $pp['date_from'] && $date <= $pp['date_to']) return $pp;
+    }
+    return null;
+}
+
+function price_period_label(array $pp): string
+{
+    return $pp['name'] . ' (' . $pp['date_from'] . ' ~ ' . $pp['date_to'] . ')';
+}
+
+/** 그 날짜의 상품 가격: 기간 가격표에 이 상품 가격이 있으면 그 가격으로 바꾼 상품 (없으면 그대로) */
+function product_at(array $p, string $date): array
+{
+    $pp = price_period_for($date);
+    $row = $pp ? (price_period_items()[(int) $pp['id']][(int) $p['id']] ?? null) : null;
+    if (!$row) return $p;
+    foreach (array_keys(PRICE_COLS[$p['grp']] ?? []) as $col) $p[$col] = (int) $row[$col];
+    $p['price_period'] = $pp['name'];
+    return $p;
+}
+
+/** @return array<int,array> 그 날짜 가격이 적용된 전체 상품 */
+function products_at(string $date): array
+{
+    return array_map(fn($p) => product_at($p, $date), products_all());
+}
+
 /** 그룹별 판매중 상품 + (수정 중인 보고서에 이미 들어있는) 미사용 상품 */
-function products_for_form(string $grp, array $includeIds = []): array
+function products_for_form(string $grp, array $includeIds = [], ?string $date = null): array
 {
     return array_filter(
-        products_all(),
+        $date ? products_at($date) : products_all(),
         fn($p) => $p['grp'] === $grp && ($p['is_active'] || in_array((int) $p['id'], $includeIds, true))
     );
 }

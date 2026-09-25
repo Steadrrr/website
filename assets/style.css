@@ -808,3 +808,9 @@ tr.recur td { background: #fff4e0; }
 @media (max-width: 700px) { .cpl-texts { grid-template-columns: 1fr; } }
 .cpl-trend th, .cpl-trend td { white-space: nowrap; }
 .cpl-trend thead a { color: inherit; }
+.pp-table td.pp-diff, .pp-diff-sample { background: #fff4c7; }
+.pp-table td.right { text-align: right; vertical-align: top; }
+.pp-table td.right input { width: 7.5rem; display: inline-block; text-align: right; margin: 0; }
+.pp-table td.right small { display: block; margin-top: .15rem; }
+.price-period-form { align-items: end; }
+.price-period-note { background: #eaf2fb; }
