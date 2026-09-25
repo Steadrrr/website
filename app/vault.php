@@ -190,7 +190,7 @@ function vault_day_html(string $date, int $journalId = 0, bool $compact = false)
       <th class="right <?= $v['ok'] ? '' : 'warn' ?>"><?= e(won(voucher_amount($v['diff']))) ?></th></tr></tfoot>
   </table>
   </div>
-  <?php if ($noIssue): ?><p class="warn small">⚠ 이 날 불출 기록이 없습니다. 운영관리 › 상품권에서 불출을 입력했는지 확인하세요.</p><?php endif ?>
+  <?php if ($noIssue): ?><p class="warn small">⚠ 이 날 불출 기록이 없습니다. 운영관리 › 상품권관리에서 불출을 입력했는지 확인하세요.</p><?php endif ?>
   <?php if (!$v['ok'] && !$noIssue): ?><p class="warn small">⚠ <?= array_sum($v['diff']) > 0 ? '불출한 상품권 중 지급·반납으로 확인되지 않은 것이 있습니다 (담당자 보유 또는 반납 누락).' : '불출보다 많이 지급·반납되었습니다 (불출 입력 누락 또는 매출보고 환급 입력 확인).' ?></p><?php endif ?>
   <?php if ($unpaidRooms): ?><p class="small">미지급 반납: <b><?= e(implode(', ', $unpaidRooms)) ?></b></p><?php endif ?>
   <?php if ($v['mismatch']): ?><p class="small">매출보고 환급액이 기준과 다른 객실:
