@@ -78,7 +78,6 @@ layout_header('조직도', 'org');
             <h2 class="org-team-name"><?= e($t['name']) ?> <small><?= $teamCount($t) ?>명</small></h2>
             <div class="org-top">
               <?php foreach ($t['heads'] as $m) $card($m, 'head'); ?>
-              <?php if (!$t['heads']): ?><p class="muted small">공무직 미배치</p><?php endif ?>
             </div>
             <div class="org-squads">
               <?php foreach ($t['squads'] as $s): ?>
