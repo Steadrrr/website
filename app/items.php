@@ -429,7 +429,7 @@ function items_form(string $type, array $payload, string $workDate, ?array $jour
     if (!$tickets && !$rooms && !$rentals && !$lodges): ?>
   <div class="flash flash-error">등록된 판매 상품이 없습니다. 관리자에게 <b>상품관리</b>에서 <?= $isRooms ? '객실' : '입장권·시설대관' ?>을 등록해 달라고 요청하세요.</div>
     <?php endif ?>
-    <?php if (!$isRooms): ?><p class="muted small">객실 판매와 지역상품권 환급은 <a href="<?= e(url('journal.php?type=rooms&date=' . $workDate)) ?>">운영관리 › 객실판매관리</a>에서 따로 입력·결재합니다.</p><?php endif ?>
+    <?php if (!$isRooms): ?><p class="muted small">객실 판매와 지역상품권 환급은 <a href="<?= e(url('journal.php?type=rooms&date=' . $workDate)) ?>">객실관리 › 객실판매관리</a>에서 따로 입력·결재합니다.</p><?php endif ?>
 
 <script>window.STAY_API = <?= json_encode(url('api/stay.php')) ?>;</script>
 <script>window.SEASONS = <?= json_encode(array_values(array_map(

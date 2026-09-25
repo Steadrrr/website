@@ -5,6 +5,7 @@ defined('APP_ROOT') || exit;
 function layout_header(string $title, string $active = '', array $opt = []): void
 {
     $shell = !empty($opt['shell']);
+    $GLOBALS['HELP_KEY'] = $active !== '' ? $active : basename((string) ($_SERVER['SCRIPT_NAME'] ?? ''), '.php'); // '?' 버튼이 찾아갈 도움말
     $user = current_user();
     $site = config('site_name', '휴양림 업무일지');
     $waiting = $user ? count(waiting_for_user($user)) : 0;
@@ -136,6 +137,7 @@ function nav_groups(?array $user): array
             'org'      => ['org.php', '조직도'],
             'sitemap'  => ['sitemap.php', '사이트맵'],
             'updates'  => ['updates.php', '업데이트'],
+            'help'     => ['help.php', '도움말'],
         ]],
     ];
     foreach (array_keys(MENU_OPTIONAL) as $g) {
@@ -161,6 +163,10 @@ function layout_footer(array $scripts = []): void
 {
     ?>
 </main>
+<?php if (current_user() && !in_array($GLOBALS['HELP_KEY'] ?? '', ['help', 'shell'], true)):
+    $anchor = help_anchor((string) ($GLOBALS['HELP_KEY'] ?? '')); ?>
+<a class="help-fab no-print" href="<?= e(url('help.php') . ($anchor ? '#' . $anchor : '')) ?>" target="_blank" data-help-fab title="이 화면 도움말" aria-label="이 화면 도움말">?</a>
+<?php endif ?>
 <?php if (current_user()): ?>
 <footer class="footer"><?= e(config('site_name', '')) ?></footer>
 <?php else: // 로그인·회원가입 화면: 사이트 이름을 크게 + 저작권 문구 ?>
@@ -215,6 +221,7 @@ const SETTINGS_MENU = [
 
 function settings_nav(string $active): void
 {
+    $GLOBALS['HELP_KEY'] = 'settings_' . $active;
     ?>
 <nav class="settings-nav no-print">
   <b>⚙ 설정</b>

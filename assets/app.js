@@ -330,3 +330,16 @@
   });
   me.prepend(a);
 })();
+
+// '?' 도움말 버튼: 탭 화면 안이면 도움말 탭으로 열기 (탭이 아니면 브라우저 새 창)
+(function () {
+  const fab = document.querySelector('[data-help-fab]');
+  if (!fab) return;
+  fab.addEventListener('click', (ev) => {
+    let tabs = null;
+    try { tabs = window.top !== window.self && window.top.FORESTLOG_TABS; } catch (e) {}
+    if (!tabs || !tabs.openHelp) return;
+    ev.preventDefault();
+    tabs.openHelp(fab.href);
+  });
+})();

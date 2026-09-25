@@ -1,6 +1,6 @@
 <?php
 /**
- * 객실이용통계 (운영관리 › 객실이용통계)
+ * 객실이용통계 (통계 › 객실이용통계)
  *   room_stats.php?unit=day|week|month|year&from=&to=[&type=객실분류][&cmp=prev|lastyear|custom&cfrom=&cto=][&approved=1][&export=xlsx]
  * 매출보고의 객실 판매(대관 숙박시설 제외)로 판매 객실·입실인원·매출·가동률·평균 객실단가·RevPAR 를
  * 일간·주간·월간·연간으로 집계하고, 두 기간을 비교한다.

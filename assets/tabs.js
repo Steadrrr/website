@@ -1,4 +1,4 @@
-// 탭 화면(shell.php): 메뉴로 연 페이지를 최대 5개 탭으로 띄우고, 하단 탭으로 오간다.
+// 탭 화면(shell.php): 메뉴로 연 페이지를 최대 10개 탭으로 띄우고, 하단 탭으로 오간다.
 // 탭마다 iframe 을 살려 두므로 다른 탭을 봐도 입력하던 내용이 남는다.
 (function () {
   const CFG = window.FORESTLOG_TABS;
@@ -81,7 +81,7 @@
   }
 
   function open(url, { title = '' } = {}) {
-    const same = tabs.find((t) => t.url === url);
+    const same = tabs.find((t) => t.url === url.split('#')[0]);
     if (same) { activate(same); return; }
     if (tabs.length >= CFG.max) {
       const cand = tabs.filter((t) => !dirty(t)).sort((a, b) => (a.used || 0) - (b.used || 0))[0];
@@ -121,6 +121,19 @@
     document.querySelectorAll('.nav-group.open').forEach((g) => g.classList.remove('open'));
     open(url, { title: a.textContent.trim() });
   });
+
+  // 각 페이지의 '?' 버튼: 도움말 탭을 열고(이미 있으면 그 탭) 해당 항목으로
+  CFG.openHelp = (href) => {
+    const u = new URL(href, location.href);
+    const url = u.pathname + u.search;
+    const t = tabs.find((x) => x.url === url);
+    if (t) {
+      activate(t);
+      try { frameOf(t).contentWindow.location.hash = u.hash; } catch (e) {}
+      return;
+    }
+    open(url + u.hash, { title: '도움말' });
+  };
 
   document.querySelector('[data-tabs-off]').addEventListener('click', () => {
     const t = tabs.find((x) => x.id === active);

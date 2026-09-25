@@ -46,6 +46,7 @@ require __DIR__ . '/ar.php';
 require __DIR__ . '/supplies.php';
 require __DIR__ . '/purchase.php';
 require __DIR__ . '/changelog.php';
+require __DIR__ . '/help.php';
 require __DIR__ . '/charts.php';
 require __DIR__ . '/sales.php';
 require __DIR__ . '/layout.php';
