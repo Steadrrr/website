@@ -1007,3 +1007,8 @@ body.tab-shell > main.container .tab-frames { bottom: 38px; }
 .tabbar-off:hover { background: rgba(255,255,255,.1); }
 .me-tabs { font-size: .85rem; }
 @media print { .tabbar { display: none; } }
+
+/* 로그인 화면 하단: 사이트 이름 크게 + 저작권 */
+.footer-login { padding: 2.2rem 0 2.5rem; }
+.footer-login .footer-site { font-size: 1.35rem; font-weight: 700; color: var(--green-d, #1f5c3a); letter-spacing: -.01em; }
+.footer-login .footer-copy { margin-top: .45rem; font-size: .8rem; color: var(--muted); }

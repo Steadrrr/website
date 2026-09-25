@@ -162,7 +162,14 @@ function layout_footer(array $scripts = []): void
 {
     ?>
 </main>
+<?php if (current_user()): ?>
 <footer class="footer"><?= e(config('site_name', '')) ?></footer>
+<?php else: // 로그인·회원가입 화면: 사이트 이름을 크게 + 저작권 문구 ?>
+<footer class="footer footer-login">
+  <div class="footer-site"><?= e(config('site_name', '')) ?></div>
+  <div class="footer-copy">Copyright © 2026 임일래 · Made with Claude.ai</div>
+</footer>
+<?php endif ?>
 <script src="<?= e(url('assets/app.js')) ?>"></script>
 <?php foreach ($scripts as $src): ?>
 <script src="<?= e($src) ?>"></script>
