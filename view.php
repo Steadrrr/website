@@ -21,8 +21,8 @@ if ($att) {
     $canSeeFile = $attWorker && att_can_view($user, $attWorker);
     $canAttach = $canSeeFile && ($isAuthor || (int) $att['user_id'] === (int) $user['id'] || att_is_manager($user));
 }
-$listUrl = $att ? 'attendance.php?ym=' . substr($att['start_date'], 0, 7)
-    : 'journal.php?type=' . $journal['type'] . '&date=' . $journal['work_date'];
+if ($journal['type'] === 'arwork' && !can_ar($user)) abort(403, 'AR 사용보고는 공무직 이상만 볼 수 있습니다.');
+$listUrl = $att ? 'attendance.php?ym=' . substr($att['start_date'], 0, 7) : journal_list_url($journal['type'], $journal['work_date']);
 
 if (is_post()) {
     csrf_verify();
@@ -62,7 +62,7 @@ if (is_post()) {
                 if ($att ? !$canCancel : !$deletable) abort(403, '삭제 권한이 없습니다.');
                 journal_delete($journal);
                 flash($att ? '근태를 취소(삭제)했습니다.' : '삭제했습니다.', 'success');
-                redirect(in_array($journal['type'], ['voucher', 'vcheck'], true) ? 'voucher.php' : $listUrl);
+                redirect($listUrl);
         }
     } catch (RuntimeException $e) {
         flash($e->getMessage(), 'error');
@@ -77,7 +77,7 @@ $delegatable = can_delegate($user, $step);
 $revisions = journal_revisions($id);
 $lastEditor = $revisions[0]['user_name'] ?? '';
 
-layout_header(JOURNAL_TYPES[$journal['type']], in_array($journal['type'], ['voucher', 'vcheck'], true) ? 'voucher' : $journal['type']);
+layout_header(JOURNAL_TYPES[$journal['type']], journal_nav_key($journal['type']));
 $docTitle = $att ? '근태 신청 · ' . $att['user_name'] . ' ' . att_kind_name($att['kind']) : JOURNAL_TYPES[$journal['type']];
 ?>
 <article class="card doc">

@@ -6,7 +6,7 @@ defined('APP_ROOT') || exit;
  * 새 버전 파일을 FTP로 덮어쓰기만 하면, 첫 접속 때 부족한 테이블/컬럼을 만든다.
  * (기존 자료는 그대로 유지)
  */
-const DB_VERSION = 32;
+const DB_VERSION = 33;
 
 function db_version(): int
 {
@@ -334,6 +334,14 @@ function db_migrate(): void
             ->execute([$fee('program_fee', 5000), $fee('program_fee_dc', 3000)]);
         $pid = (int) $pdo->lastInsertId();
         $pdo->prepare("UPDATE program_sessions SET product_id = ?, product_name = '기본 프로그램' WHERE product_id IS NULL")->execute([$pid]);
+    }
+
+    // 33) v32 → v33: 메인메뉴 객실관리 (객실판매관리·소모품관리·AR사용관리). supplies·supply_moves·ar_plans·ar_workers 는 1) 단계에서 생성
+    //     운영관리 메뉴 권한이 있던 사원은 객실관리 권한도 켠다 (객실판매관리를 계속 쓰도록)
+    if (!enum_has('journals', 'type', 'arwork')) {
+        $pdo->exec("ALTER TABLE journals MODIFY type ENUM('daily','sales','facility','voucher','attendance','healing','kidsforest','guide','kidsdirect','vcheck','rooms','guide2','arwork') NOT NULL");
+        $pdo->exec("UPDATE users SET menu_access = CONCAT(menu_access, ',room')
+                     WHERE menu_access IS NOT NULL AND FIND_IN_SET('ops', menu_access) AND NOT FIND_IN_SET('room', menu_access)");
     }
 
     $pdo->prepare("INSERT INTO settings (name, value) VALUES ('db_version', ?) ON DUPLICATE KEY UPDATE value = VALUES(value)")

@@ -107,7 +107,7 @@ tr.highlight { background: #fff8e5; }
 .tabs button.on { background: var(--green); color: #fff; }
 
 /* 달력 */
-.cal-nav { display: flex; align-items: center; gap: .5rem; margin-bottom: .75rem; }
+.cal-nav { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; margin-bottom: .75rem; }
 .cal-nav strong { font-size: 1.1rem; min-width: 7.5rem; text-align: center; }
 .calendar { display: grid; grid-template-columns: repeat(7, 1fr); border-top: 1px solid var(--line); border-left: 1px solid var(--line); }
 .cal-h, .cal-d { border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); }
@@ -915,3 +915,40 @@ tr.recur td { background: #fff4e0; }
 .me { align-items: center; }
 .me .me-settings { padding: .15rem .55rem; border: 1px solid rgba(255,255,255,.35); border-radius: 6px; }
 .me .me-settings:hover, .me .me-settings.on { background: rgba(255,255,255,.15); }
+
+/* ── 객실관리 › AR사용관리 ── */
+.ar-kpis .kpi { position: relative; }
+.ar-quota-form { display: flex; gap: .3rem; align-items: center; margin-top: .35rem; }
+.ar-quota-form input { width: 5.5rem; margin: 0; }
+.ar-bar { position: relative; height: 8px; border-radius: 4px; background: #e7ece8; margin-top: .45rem; overflow: hidden; }
+.ar-bar i { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 4px; }
+.ar-bar i.plan { background: #b9d3e8; }
+.ar-bar i.used { background: var(--green); }
+.ar-calendar .cal-d .num { color: var(--text); text-decoration: none; }
+.ar-calendar .cal-d .num:hover { color: var(--green); }
+.ar-plan-in { display: flex; align-items: center; gap: .2rem; margin: 0; font-size: .75rem; font-weight: 400; color: var(--muted); }
+.ar-plan-in input { width: 3.2rem; padding: .1rem .3rem; margin: 0; font-size: .85rem; min-height: 0; height: 1.7rem; }
+.ar-memo { font-size: .75rem; cursor: help; }
+.ar-table td { white-space: nowrap; }
+.ar-table input { margin: 0; display: inline-block; vertical-align: middle; }
+.ar-table .ar-name { width: 8rem; }
+.ar-table input[type=time] { width: 7.6rem; }
+.ar-table .num.tiny { width: 4rem; }
+.ar-table td:nth-child(6) input { min-width: 12rem; }
+.ar-list td, .ar-list th { white-space: nowrap; }
+.legend .chip { white-space: nowrap; }
+@media (max-width: 700px) { .ar-plan-in { font-size: 0; width: 100%; } .ar-plan-in input { width: 100%; min-width: 0; padding: .1rem .15rem; font-size: .8rem; } }
+
+/* ── 객실관리 › 소모품관리 ── */
+.supply-thumb { width: 48px; height: 48px; border-radius: 6px; object-fit: cover; display: inline-flex; align-items: center; justify-content: center; background: #f1f3f1; border: 1px solid var(--line); vertical-align: middle; }
+.supply-nophoto { font-size: .62rem; color: var(--muted); text-align: center; line-height: 1.2; }
+.supply-photo { width: 110px; height: 110px; border-radius: 8px; object-fit: cover; display: inline-flex; align-items: center; justify-content: center; background: #f1f3f1; border: 1px solid var(--line); }
+.supply-head { display: flex; gap: 1rem; align-items: center; margin: .5rem 0 1rem; }
+.supply-head h2 { margin: 0 0 .2rem; }
+.supply-table td { vertical-align: middle; }
+.supply-day input { margin: 0; }
+.supply-day .num.tiny { width: 5rem; }
+.supply-note { min-width: 10rem; }
+.date-jump { width: auto; margin: 0; }
+@media print { .supply-thumb { width: 32px; height: 32px; } }
+.supply-card-head { flex-wrap: wrap; gap: .5rem; }

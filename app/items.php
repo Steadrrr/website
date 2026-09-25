@@ -21,6 +21,7 @@ function items_default(string $type, ?int $teamId = null): array
         'voucher'  => ['vouchers' => array_fill_keys(voucher_denoms(), 0)],
         'daily'    => ['complaints' => []],
         'vcheck'   => ['checks' => []], // 장부 매수는 폼에서 그 날짜 기준으로 계산
+        'arwork'   => ['workers' => []],
         default    => is_program_type($type) ? ['sessions' => [program_empty_session()]] : [],
     };
 }
@@ -42,6 +43,7 @@ function items_load(array $journal): array
     };
 
     if (is_program_type($journal['type'])) return program_load($id);
+    if ($journal['type'] === 'arwork') return ar_load($id);
     if ($journal['type'] === 'daily') return ['complaints' => cpl_load($id)];
 
     if (in_array($journal['type'], SALE_DOC_TYPES, true)) {
@@ -79,6 +81,7 @@ function items_load(array $journal): array
 function items_parse(string $type, string $workDate, int $journalId): array
 {
     if (is_program_type($type)) return program_parse($type, $workDate, $journalId);
+    if ($type === 'arwork') return ar_parse($workDate, $journalId);
     if ($type === 'daily') {
         [$rows, $errors] = cpl_parse($workDate);
         return [['complaints' => $rows], $errors];
@@ -312,6 +315,11 @@ function items_save(int $id, string $type, array $payload): void
         return;
     }
 
+    if ($type === 'arwork') {
+        ar_save($id, $payload);
+        return;
+    }
+
     if ($type === 'vcheck') {
         $pdo->prepare('DELETE FROM voucher_checks WHERE journal_id = ?')->execute([$id]);
         $ins = $pdo->prepare('INSERT INTO voucher_checks (journal_id, denom, book_qty, actual_qty) VALUES (?, ?, ?, ?)');
@@ -385,6 +393,10 @@ function items_form(string $type, array $payload, string $workDate, ?array $jour
         return;
     }
 
+    if ($type === 'arwork') {
+        ar_form($payload, $workDate, $journal);
+        return;
+    }
     if ($type === 'vcheck') {
         vcheck_form($payload, $workDate, $journal);
         return;
@@ -746,6 +758,10 @@ function items_view(array $journal): void
 </div>
     <?php return; endif;
 
+    if ($journal['type'] === 'arwork') {
+        ar_view($journal);
+        return;
+    }
     if ($journal['type'] === 'vcheck') {
         vcheck_view($journal, $payload['checks']);
         return;

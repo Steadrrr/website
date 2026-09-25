@@ -42,7 +42,7 @@ function require_manager(): array
 }
 
 /** 회원별로 켜고 끌 수 있는 메인메뉴 (회원관리에서 설정) */
-const MENU_OPTIONAL = ['att' => '근태관리', 'ops' => '운영관리', 'prog' => '프로그램', 'stat' => '통계'];
+const MENU_OPTIONAL = ['att' => '근태관리', 'ops' => '운영관리', 'room' => '객실관리', 'prog' => '프로그램', 'stat' => '통계'];
 
 /** 이 메인메뉴를 볼 수 있는가. 최고관리자·공무직 이상과 설정 전(NULL) 회원은 전부 (메뉴 권한은 사원에게만 적용) */
 function can_menu(?array $u, string $group): bool
@@ -57,11 +57,18 @@ function require_menu(array $u, string $group): void
     if (!can_menu($u, $group)) abort(403, "'" . MENU_OPTIONAL[$group] . "' 메뉴 사용 권한이 없습니다. 관리자에게 회원관리 › 메뉴 권한을 요청하세요.");
 }
 
+/** AR(아르바이트) 사용관리·보고서: 공무직 이상 */
+function can_ar(?array $u): bool
+{
+    return $u && (!empty($u['is_admin']) || (int) $u['rank_level'] >= RANK_WORKER);
+}
+
 /** 일지 종류가 속한 메인메뉴 (권한 확인용) */
 function journal_menu(string $type): ?string
 {
     return match (true) {
-        in_array($type, ['daily', 'sales', 'rooms', 'voucher', 'vcheck'], true) => 'ops',
+        in_array($type, ['daily', 'sales', 'voucher', 'vcheck'], true) => 'ops',
+        in_array($type, ['rooms', 'arwork'], true) => 'room',
         isset(PROGRAM_TYPES[$type]) => 'prog',
         $type === 'attendance' => 'att',
         default => null,

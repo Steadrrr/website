@@ -82,10 +82,14 @@ function nav_groups(?array $user): array
         'ops'      => ['label' => '운영관리', 'items' => [
             'daily'   => ['journal.php?type=daily', '업무일지'],
             'sales'   => ['journal.php?type=sales', '매출보고'],
-            'rooms'   => ['journal.php?type=rooms', '객실판매관리'],
             'voucher' => ['voucher.php', '상품권관리'],
             'complaints' => ['complaints.php', '민원관리'],
             'lost'    => ['lost.php', '유실물관리'],
+        ]],
+        'room'     => ['label' => '객실관리', 'items' => [
+            'rooms'    => ['journal.php?type=rooms', '객실판매관리'],
+            'supplies' => ['supplies.php', '소모품관리'],
+            'ar'       => ['ar.php', 'AR사용관리'],
         ]],
         'prog'     => ['label' => '프로그램', 'items' => [
             'healing'    => ['journal.php?type=healing', '산림치유센터'],
@@ -126,6 +130,7 @@ function nav_groups(?array $user): array
         $groups['etc']['items']['admin'] = ['admin/users.php', '회원관리'];
     }
     if (!$user || !can_manage_docs($user)) unset($groups['docs']['items']['docs']); // 문서조회및수정은 공무직 이상
+    if (!$user || !can_ar($user)) unset($groups['room']['items']['ar']); // AR사용관리는 공무직 이상
     // 기타는 항상 맨 마지막
     $etc = $groups['etc'];
     unset($groups['etc']);

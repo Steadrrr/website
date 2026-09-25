@@ -7,6 +7,7 @@ $user = require_login();
 $type = $_GET['type'] ?? 'daily';
 if ($type === 'attendance') redirect('attendance.php');
 if (!isset(JOURNAL_TYPES[$type])) $type = 'daily';
+if ($type === 'arwork') redirect('ar.php' . (valid_date($_GET['date'] ?? '') ? '?date=' . $_GET['date'] : '')); // AR 사용보고는 AR사용관리 달력에서
 if ($menu = journal_menu($type)) require_menu($user, $menu);
 
 $selected = $_GET['date'] ?? '';
@@ -42,8 +43,8 @@ foreach ($st as $row) {
     $byDate[$row['work_date']][] = $row;
 }
 
-layout_header(JOURNAL_TYPES[$type], in_array($type, ['voucher', 'vcheck'], true) ? 'voucher' : $type);
-$canWrite = !in_array($type, ['vcheck', 'voucher'], true) || can_vault($user); // 상품권 입고·금고점검은 공무직 이상만 작성
+layout_header(JOURNAL_TYPES[$type], journal_nav_key($type));
+$canWrite = can_write_type($user, $type); // 상품권 입고·금고점검은 공무직 이상만 작성
 ?>
 <div class="card">
   <div class="card-head">

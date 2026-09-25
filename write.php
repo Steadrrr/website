@@ -33,8 +33,11 @@ if ($id) {
 }
 
 if ($menu = journal_menu($type)) require_menu($user, $menu);
-if ($type === 'vcheck' && !can_vault($user)) abort(403, '상품권 금고점검 보고서는 공무직 이상이 작성합니다.');
-if ($type === 'voucher' && !can_vault($user)) abort(403, '상품권 입고 등록·수정은 공무직 이상이 합니다.');
+if (!can_write_type($user, $type)) abort(403, match ($type) {
+    'vcheck' => '상품권 금고점검 보고서는 공무직 이상이 작성합니다.',
+    'arwork' => 'AR 사용보고는 공무직 이상이 작성합니다.',
+    default  => '상품권 입고 등록·수정은 공무직 이상이 합니다.',
+});
 $revision = $journal && is_revision_edit($journal); // 상신된 적 있는 일지 수정 → 이력 + 결재 초기화
 $errors = [];
 
@@ -107,7 +110,7 @@ if (is_post()) {
 $v = fn(string $k) => e(is_post() ? post($k) : ($journal[$k] ?? ''));
 $line = approval_line_for((int) $user['rank_level']);
 
-layout_header(JOURNAL_TYPES[$type] . ($journal ? ' 수정' : ' 작성'), in_array($type, ['voucher', 'vcheck'], true) ? 'voucher' : $type);
+layout_header(JOURNAL_TYPES[$type] . ($journal ? ' 수정' : ' 작성'), journal_nav_key($type));
 ?>
 <form method="post" class="card" enctype="multipart/form-data">
   <?= csrf_field() ?>
@@ -166,7 +169,7 @@ layout_header(JOURNAL_TYPES[$type] . ($journal ? ' 수정' : ' 작성'), in_arra
   <?php endif ?>
 
   <div class="actions">
-    <a class="btn ghost" href="<?= e(url($journal ? 'view.php?id=' . $journal['id'] : (in_array($type, ['voucher', 'vcheck'], true) ? 'voucher.php' : "journal.php?type=$type"))) ?>">취소</a>
+    <a class="btn ghost" href="<?= e(url($journal ? 'view.php?id=' . $journal['id'] : journal_list_url($type, $workDate))) ?>">취소</a>
     <?php if ($revision): ?>
       <input name="edit_reason" value="<?= e(post('edit_reason')) ?>" placeholder="수정 사유 (선택)" class="reason-input" maxlength="500">
       <button class="btn primary" name="action" value="submit" onclick="return confirm('결재 상태가 초기화되고 처음부터 다시 결재를 받습니다. 저장할까요?')">

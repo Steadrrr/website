@@ -30,7 +30,7 @@ CREATE TABLE IF NOT EXISTS users (
 
 CREATE TABLE IF NOT EXISTS journals (
   id           INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-  type         ENUM('daily','sales','facility','voucher','attendance','healing','kidsforest','guide','kidsdirect','vcheck','rooms','guide2') NOT NULL COMMENT '업무일지/매출보고/시설물관리/상품권입고/근태/프로그램 운영보고(산림치유센터·유아숲체험원·숲해설·유아숲 직영·숲해설 용문산)/상품권 금고점검/일일객실판매',
+  type         ENUM('daily','sales','facility','voucher','attendance','healing','kidsforest','guide','kidsdirect','vcheck','rooms','guide2','arwork') NOT NULL COMMENT '업무일지/매출보고/시설물관리/상품권입고/근태/프로그램 운영보고(산림치유센터·유아숲체험원·숲해설·유아숲 직영·숲해설 용문산)/상품권 금고점검/일일객실판매/AR 사용보고',
   team_id      INT UNSIGNED NULL COMMENT '시설점검일지의 관리팀',
   work_date    DATE         NOT NULL,
   author_id    INT UNSIGNED NOT NULL,
@@ -533,4 +533,59 @@ CREATE TABLE IF NOT EXISTS journal_logs (
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   INDEX idx_journal (journal_id, id),
   CONSTRAINT fk_log_journal FOREIGN KEY (journal_id) REFERENCES journals(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 객실 소모품 (객실관리 › 소모품관리): 사진·품명·규격·단위·적정재고
+CREATE TABLE IF NOT EXISTS supplies (
+  id           INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  name         VARCHAR(100) NOT NULL COMMENT '품명',
+  spec         VARCHAR(200) NULL COMMENT '규격·스펙',
+  category     VARCHAR(50)  NULL COMMENT '분류 (예: 욕실용품)',
+  unit         VARCHAR(20)  NOT NULL DEFAULT '개' COMMENT '단위',
+  safety_stock INT UNSIGNED NOT NULL DEFAULT 0 COMMENT '적정재고 (이보다 적으면 부족 표시)',
+  photo        VARCHAR(200) NULL,
+  memo         TEXT NULL,
+  sort_order   INT NOT NULL DEFAULT 0,
+  is_active    TINYINT(1) NOT NULL DEFAULT 1,
+  created_by   INT UNSIGNED NULL,
+  created_at   DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 소모품 일별 수불 (품목·날짜마다 1줄: 입고·출고). 재고 = 그 날까지의 입고 합 − 출고 합
+CREATE TABLE IF NOT EXISTS supply_moves (
+  id         INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  supply_id  INT UNSIGNED NOT NULL,
+  move_date  DATE NOT NULL,
+  in_qty     INT UNSIGNED NOT NULL DEFAULT 0,
+  out_qty    INT UNSIGNED NOT NULL DEFAULT 0,
+  note       VARCHAR(200) NULL,
+  user_id    INT UNSIGNED NULL COMMENT '마지막 입력자',
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_supply_date (supply_id, move_date),
+  INDEX idx_date (move_date),
+  CONSTRAINT fk_supply_move FOREIGN KEY (supply_id) REFERENCES supplies(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- AR(아르바이트) 사용계획: 날짜별 계획 인원 (1명 하루 = 1회)
+CREATE TABLE IF NOT EXISTS ar_plans (
+  work_date  DATE PRIMARY KEY,
+  people     SMALLINT UNSIGNED NOT NULL DEFAULT 0 COMMENT '계획 인원',
+  memo       VARCHAR(200) NULL,
+  user_id    INT UNSIGNED NULL,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- AR 사용보고(journals type arwork)의 아르바이트별 사용시간
+CREATE TABLE IF NOT EXISTS ar_workers (
+  id         INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  journal_id INT UNSIGNED NOT NULL,
+  sort_no    SMALLINT UNSIGNED NOT NULL DEFAULT 1,
+  name       VARCHAR(50) NOT NULL COMMENT '아르바이트 성명',
+  start_time TIME NOT NULL,
+  end_time   TIME NOT NULL,
+  break_min  SMALLINT UNSIGNED NOT NULL DEFAULT 0 COMMENT '휴게(분)',
+  minutes    INT UNSIGNED NOT NULL DEFAULT 0 COMMENT '근무시간(분) = 종료 − 시작 − 휴게',
+  task       VARCHAR(200) NULL COMMENT '업무내용',
+  INDEX idx_journal (journal_id, sort_no),
+  CONSTRAINT fk_ar_journal FOREIGN KEY (journal_id) REFERENCES journals(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
