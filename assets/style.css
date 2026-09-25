@@ -1012,3 +1012,12 @@ body.tab-shell > main.container .tab-frames { bottom: 38px; }
 .footer-login { padding: 2.2rem 0 2.5rem; }
 .footer-login .footer-site { font-size: 1.35rem; font-weight: 700; color: var(--green-d, #1f5c3a); letter-spacing: -.01em; }
 .footer-login .footer-copy { margin-top: .45rem; font-size: .8rem; color: var(--muted); }
+
+/* 메인메뉴 바 글씨 크게 (대신 메뉴 사이 여백을 줄여 1366px 화면에서도 한 줄) */
+.topbar { gap: .5rem .9rem; }
+.topbar .brand { font-size: 1.12rem; }
+.nav { gap: 0; }
+.nav-main { font-size: 1.07rem; padding: .4rem .52rem; }
+.nav-main .caret { font-size: .6rem; }
+.nav-sub a { font-size: 1rem; }
+.me { font-size: .95rem; gap: .6rem; }
