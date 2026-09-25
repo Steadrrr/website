@@ -1,0 +1,36 @@
+# FTP 접속 점검 (작업 브랜치에 push 할 때만 실행, 배포하지 않음)
+# Secret 값은 출력하지 않고 길이·앞뒤 공백·형식만 확인한 뒤, FTP 로그인만 시도해 서버 응답을 기록한다.
+name: FTP 접속 점검
+
+on:
+  push:
+    branches: ['claude/**']
+    paths: ['.github/workflows/ftp-check.yml']
+  workflow_dispatch:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Secret 형식 확인 (값은 출력하지 않음)
+        env:
+          S: ${{ secrets.FTP_SERVER }}
+          U: ${{ secrets.FTP_USERNAME }}
+          P: ${{ secrets.FTP_PASSWORD }}
+        run: |
+          for n in S U P; do
+            v="${!n}"
+            t="$(printf '%s' "$v" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
+            echo "$n: 길이=${#v}, 앞뒤공백제거후=${#t}, 줄바꿈포함=$(printf '%s' "$v" | grep -c $'\r\|$' )"
+          done
+          case "$S" in *://*|*/*) echo "::warning::FTP_SERVER 에 ftp:// 나 / 가 들어 있습니다. 주소만 넣으세요.";; esac
+          echo "서버 주소 끝부분: ...${S: -12}"
+          getent hosts "$S" || echo "주소를 찾을 수 없음(DNS)"
+          echo "러너 공인 IP: $(curl -s https://api.ipify.org)"
+      - name: FTP 로그인 시도 (목록만)
+        env:
+          S: ${{ secrets.FTP_SERVER }}
+          U: ${{ secrets.FTP_USERNAME }}
+          P: ${{ secrets.FTP_PASSWORD }}
+        run: |
+          curl -v --ftp-pasv --max-time 30 --user "$U:$P" "ftp://$S/" --list-only 2>&1 | grep -E '^[<>*]|^[a-zA-Z0-9_.-]+$' | head -40 || true
