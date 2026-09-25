@@ -62,7 +62,7 @@ if ($tab === 'sales') {
         $st->execute([...$statuses, $rangeFrom, $rangeTo]);
         return $st->fetchAll();
     };
-    $metrics = ['paid' => 0, 'free' => 0, 'ticket_amt' => 0, 'cash' => 0, 'card' => 0, 'rooms' => 0, 'guests' => 0, 'room_amt' => 0, 'rent_qty' => 0, 'rent_amt' => 0, 'voucher' => 0, 'total' => 0];
+    $metrics = ['paid' => 0, 'free' => 0, 'ticket_amt' => 0, 'cash' => 0, 'card' => 0, 'rooms' => 0, 'guests' => 0, 'room_amt' => 0, 'rent_qty' => 0, 'rent_amt' => 0, 'prog_qty' => 0, 'prog_amt' => 0, 'voucher' => 0, 'total' => 0];
     $data = array_fill_keys(array_keys($labels), $metrics);
 
     foreach ($run("SELECT $keySql AS k,
@@ -73,11 +73,13 @@ if ($tab === 'sales') {
                 SUM(IF(l.grp = 'room', l.guests, 0)) AS guests,
                 SUM(IF(l.grp = 'room', l.amount, 0)) AS room_amt,
                 SUM(IF(l.grp IN ('rental', 'lodge'), l.qty, 0)) AS rent_qty,
-                SUM(IF(l.grp IN ('rental', 'lodge'), l.amount, 0)) AS rent_amt
+                SUM(IF(l.grp IN ('rental', 'lodge'), l.amount, 0)) AS rent_amt,
+                SUM(IF(l.grp = 'program', l.qty, 0)) AS prog_qty,
+                SUM(IF(l.grp = 'program', l.amount, 0)) AS prog_amt
            FROM journals j JOIN sales_lines l ON l.journal_id = j.id
           WHERE " . SALE_DOC_SQL . " AND $statusSql AND j.work_date BETWEEN ? AND ? GROUP BY k") as $r) {
         if (!isset($data[$r['k']])) continue;
-        foreach (['paid', 'free', 'ticket_amt', 'rooms', 'guests', 'room_amt', 'rent_qty', 'rent_amt'] as $m) $data[$r['k']][$m] = (int) $r[$m];
+        foreach (['paid', 'free', 'ticket_amt', 'rooms', 'guests', 'room_amt', 'rent_qty', 'rent_amt', 'prog_qty', 'prog_amt'] as $m) $data[$r['k']][$m] = (int) $r[$m];
     }
     foreach ($run("SELECT $keySql AS k, SUM(m.ticket_cash) AS cash FROM journals j JOIN sales_meta m ON m.journal_id = j.id
           WHERE " . SALE_DOC_SQL . " AND $statusSql AND j.work_date BETWEEN ? AND ? GROUP BY k") as $r) {
@@ -90,7 +92,7 @@ if ($tab === 'sales') {
     $sum = $metrics;
     foreach ($data as $k => &$row) {
         $row['card'] = max($row['ticket_amt'] - $row['cash'], 0);
-        $row['total'] = $row['ticket_amt'] + $row['room_amt'] + $row['rent_amt'];
+        $row['total'] = $row['ticket_amt'] + $row['room_amt'] + $row['rent_amt'] + $row['prog_amt'];
         foreach ($row as $m => $v) $sum[$m] += $v;
     }
     unset($row);
@@ -113,8 +115,8 @@ if ($tab === 'sales') {
          WHERE " . SALE_DOC_SQL . " AND l.grp IN ('rental', 'lodge') AND $statusSql AND j.work_date BETWEEN ? AND ?
          GROUP BY l.grp, l.name ORDER BY l.grp, MIN(l.product_id), l.name");
 
-    $head = [$keyHead, '입장권 유료(매)', '입장권 무료(매)', '입장권 금액', '└ 현금', '└ 카드', '판매 객실', '입실 인원', '객실 금액', '시설대관(건)', '시설대관 금액', '상품권 환급', '매출 합계'];
-    $order = ['paid', 'free', 'ticket_amt', 'cash', 'card', 'rooms', 'guests', 'room_amt', 'rent_qty', 'rent_amt', 'voucher', 'total'];
+    $head = [$keyHead, '입장권 유료(매)', '입장권 무료(매)', '입장권 금액', '└ 현금', '└ 카드', '판매 객실', '입실 인원', '객실 금액', '시설대관(건)', '시설대관 금액', '프로그램(명)', '프로그램 금액', '상품권 환급', '매출 합계'];
+    $order = ['paid', 'free', 'ticket_amt', 'cash', 'card', 'rooms', 'guests', 'room_amt', 'rent_qty', 'rent_amt', 'prog_qty', 'prog_amt', 'voucher', 'total'];
 
     if (($_GET['export'] ?? '') === 'xlsx') {
         $sub = $statusLabel . ' 집계 · 출력 ' . date('Y-m-d H:i') . ' · ' . $user['name'];
@@ -123,7 +125,7 @@ if ($tab === 'sales') {
                 'name' => '매출 요약', 'title' => config('site_name') . ' ' . $title, 'subtitle' => $sub, 'header' => $head,
                 'rows' => array_map(fn($k) => [$labels[$k], ...array_map(fn($m) => $data[$k][$m], $order)], array_keys($data)),
                 'footer' => [['합계', ...array_map(fn($m) => $sum[$m], $order)]],
-                'widths' => [16, 11, 11, 13, 11, 11, 10, 10, 13, 11, 13, 12, 14],
+                'widths' => [16, 11, 11, 13, 11, 11, 10, 10, 13, 11, 13, 11, 13, 12, 14],
             ],
             [
                 'name' => '입장권별', 'title' => $title . ' · 입장권별', 'subtitle' => $sub, 'header' => ['상품', '구분', '수량(매)', '금액'],
@@ -231,17 +233,17 @@ layout_header($title, 'stats');
     <div class="kpi"><span>입장권 (유료 / 무료)</span><b><?= number_format($sum['paid'] + $sum['free']) ?>매</b><small class="muted">유료 <?= number_format($sum['paid']) ?> · 무료 <?= number_format($sum['free']) ?></small></div>
     <div class="kpi"><span>판매 객실 / 입실 인원</span><b><?= number_format($sum['rooms']) ?>실</b><small class="muted"><?= number_format($sum['guests']) ?>명</small></div>
     <div class="kpi"><span>상품권 환급</span><b><?= e(won($sum['voucher'])) ?></b></div>
-    <div class="kpi total"><span>매출 합계</span><b><?= e(won($sum['total'])) ?></b><small class="muted">입장권 <?= e(won($sum['ticket_amt'])) ?> · 객실 <?= e(won($sum['room_amt'])) ?><?= $sum['rent_amt'] ? ' · 시설대관 ' . e(won($sum['rent_amt'])) : '' ?></small></div>
+    <div class="kpi total"><span>매출 합계</span><b><?= e(won($sum['total'])) ?></b><small class="muted">입장권 <?= e(won($sum['ticket_amt'])) ?> · 객실 <?= e(won($sum['room_amt'])) ?><?= $sum['rent_amt'] ? ' · 시설대관 ' . e(won($sum['rent_amt'])) : '' ?><?= $sum['prog_amt'] ? ' · 프로그램 ' . e(won($sum['prog_amt'])) : '' ?></small></div>
   </div>
   <div class="table-scroll">
   <table class="table stats-table">
     <thead>
-      <tr><th rowspan="2"><?= e($keyHead) ?></th><th colspan="5" class="center">입장권</th><th colspan="3" class="center">객실</th><th colspan="2" class="center">시설대관</th><th rowspan="2" class="right">상품권<br>환급</th><th rowspan="2" class="right">매출 합계</th></tr>
+      <tr><th rowspan="2"><?= e($keyHead) ?></th><th colspan="5" class="center">입장권</th><th colspan="3" class="center">객실</th><th colspan="2" class="center">시설대관</th><th colspan="2" class="center">프로그램</th><th rowspan="2" class="right">상품권<br>환급</th><th rowspan="2" class="right">매출 합계</th></tr>
       <tr><th class="right">유료(매)</th><th class="right">무료(매)</th><th class="right">금액</th><th class="right">현금</th><th class="right">카드</th>
-        <th class="right">판매 객실</th><th class="right">입실 인원</th><th class="right">금액</th><th class="right">건수</th><th class="right">금액</th></tr>
+        <th class="right">판매 객실</th><th class="right">입실 인원</th><th class="right">금액</th><th class="right">건수</th><th class="right">금액</th><th class="right">인원</th><th class="right">금액</th></tr>
     </thead>
     <tbody>
-    <?php foreach ($data as $k => $r): $empty = $r['total'] === 0 && $r['free'] === 0 && $r['rooms'] === 0 && $r['rent_qty'] === 0; ?>
+    <?php foreach ($data as $k => $r): $empty = $r['total'] === 0 && $r['free'] === 0 && $r['rooms'] === 0 && $r['rent_qty'] === 0 && $r['prog_qty'] === 0; ?>
       <tr class="<?= $empty ? 'zero' : '' ?>">
         <td class="nowrap"><?= e($labels[$k]) ?></td>
         <?php foreach ($order as $m): ?><td class="right <?= $m === 'total' ? 'strong' : '' ?>"><?= $r[$m] ? number_format($r[$m]) : '-' ?></td><?php endforeach ?>

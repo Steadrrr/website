@@ -278,3 +278,49 @@ function program_snapshot(array $journal): array
     }
     return ['회차' => $lines, '활동사진' => count(photos_for('program', (int) $journal['id'])) . '장'];
 }
+
+/* ───────────── 매출보고 '프로그램 판매' 연동 ───────────── */
+
+/**
+ * 그 날 프로그램 운영보고의 분야별 합계 (반려·삭제 제외, 임시저장 포함)
+ * @return array<string,array{journal_id:int, sessions:int, people:int, amount:int}>
+ */
+function program_day_summary(string $date): array
+{
+    $types = array_keys(PROGRAM_TYPES);
+    $st = db()->prepare('SELECT j.type, MIN(j.id) AS journal_id, COUNT(p.id) AS sessions, COALESCE(SUM(p.total), 0) AS people, COALESCE(SUM(p.amount), 0) AS amount
+                           FROM journals j LEFT JOIN program_sessions p ON p.journal_id = j.id
+                          WHERE j.type IN (' . implode(',', array_fill(0, count($types), '?')) . ") AND j.work_date = ? AND j.status <> 'rejected'
+                          GROUP BY j.type");
+    $st->execute([...$types, $date]);
+    $out = [];
+    foreach ($st as $r) $out[$r['type']] = ['journal_id' => (int) $r['journal_id'], 'sessions' => (int) $r['sessions'], 'people' => (int) $r['people'], 'amount' => (int) $r['amount']];
+    return $out;
+}
+
+/** 매출보고 판매 줄 하나 (프로그램 판매) */
+function program_sale_line(string $type, int $sessions, int $people, int $amount, bool $auto): array
+{
+    return ['product_id' => null, 'grp' => 'program', 'name' => PROGRAM_TYPES[$type], 'is_free' => 0, 'rate' => null, 'season' => null, 'discounted' => 0,
+        'unit_price' => 0, 'qty' => $people, 'guests' => 0, 'amount' => $amount, 'prog_type' => $type, 'sessions' => $sessions, 'auto' => (int) $auto];
+}
+
+/**
+ * 프로그램 운영보고가 저장·삭제되면 그 날 매출보고(있을 때)의 프로그램 판매를 운영보고 값으로 맞춘다.
+ * 운영보고가 있는 분야는 자동 값으로 바꾸고, 운영보고가 없어진 분야의 자동 줄은 지운다 (직접 입력한 줄은 그대로).
+ */
+function sales_sync_programs(string $date): void
+{
+    $pdo = db();
+    $st = $pdo->prepare("SELECT id FROM journals WHERE type = 'sales' AND work_date = ?");
+    $st->execute([$date]);
+    $jid = (int) $st->fetchColumn();
+    if (!$jid) return;
+    $sum = program_day_summary($date);
+    $pdo->prepare("DELETE FROM sales_lines WHERE journal_id = ? AND grp = 'program' AND auto = 1")->execute([$jid]);
+    foreach ($sum as $type => $s) {
+        $pdo->prepare("DELETE FROM sales_lines WHERE journal_id = ? AND grp = 'program' AND prog_type = ?")->execute([$jid, $type]);
+        $pdo->prepare("INSERT INTO sales_lines (journal_id, product_id, grp, name, is_free, unit_price, qty, amount, prog_type, sessions, auto) VALUES (?, NULL, 'program', ?, 0, 0, ?, ?, ?, ?, 1)")
+            ->execute([$jid, PROGRAM_TYPES[$type], $s['people'], $s['amount'], $type, $s['sessions']]);
+    }
+}

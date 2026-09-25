@@ -100,6 +100,17 @@
         setText($(sum, '[data-left-amt-total]'), fmt(leftA) + '원');
       }
     });
+    // 프로그램 판매: 운영보고 자동 줄(data-amount) + 직접 입력 금액
+    $$(document, 'table[data-program-table]').forEach((t) => {
+      let amount = 0;
+      $$(t, 'tbody tr').forEach((tr) => {
+        const inp = $(tr, '[data-prog-amount]');
+        amount += inp ? num(inp.value) : num(tr.dataset.amount);
+      });
+      setText($(t, '[data-program-amount]'), fmt(amount) + '원');
+      grand += amount;
+    });
+
     // 시설대관 + 대관 숙박시설: 한 덩어리로 합계를 내고 통합 할인 적용
     //   시설대관 = (대관 시간 요금 + 야간 추가요금) × 건수(비우면 1), 대관 숙박시설 = 정액 요금 × 실 수
     //   할인: 대관 숙박시설 5실 이상 10%, 9실 이상 20% (자동 선택), 초등·청소년 20명 이상 30% (직접 선택)

@@ -6,7 +6,7 @@ defined('APP_ROOT') || exit;
  * 새 버전 파일을 FTP로 덮어쓰기만 하면, 첫 접속 때 부족한 테이블/컬럼을 만든다.
  * (기존 자료는 그대로 유지)
  */
-const DB_VERSION = 29;
+const DB_VERSION = 30;
 
 function db_version(): int
 {
@@ -289,6 +289,15 @@ function db_migrate(): void
     // 29) v28 → v29: 프로그램 분야 '숲해설(용문산)' (type guide2)
     if (!enum_has('journals', 'type', 'guide2')) {
         $pdo->exec("ALTER TABLE journals MODIFY type ENUM('daily','sales','facility','voucher','attendance','healing','kidsforest','guide','kidsdirect','vcheck','rooms','guide2') NOT NULL");
+    }
+
+    // 30) v29 → v30: 매출보고 '프로그램 판매' (sales_lines grp program — 그 날 프로그램 운영보고에서 자동, 없으면 직접 입력)
+    if (!enum_has('sales_lines', 'grp', 'program')) {
+        $pdo->exec("ALTER TABLE sales_lines MODIFY grp ENUM('ticket','room','rental','lodge','program') NOT NULL");
+    }
+    if (!column_exists('sales_lines', 'prog_type')) {
+        $pdo->exec("ALTER TABLE sales_lines ADD prog_type VARCHAR(20) NULL AFTER dc_pct, ADD sessions SMALLINT UNSIGNED NOT NULL DEFAULT 0 AFTER prog_type,
+                    ADD auto TINYINT(1) NOT NULL DEFAULT 0 AFTER sessions");
     }
 
     $pdo->prepare("INSERT INTO settings (name, value) VALUES ('db_version', ?) ON DUPLICATE KEY UPDATE value = VALUES(value)")

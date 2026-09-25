@@ -70,6 +70,8 @@ if (is_post()) {
                 $id = (int) $pdo->lastInsertId();
             }
             items_save($id, $type, $payload);
+            // 운영보고 날짜를 바꿨으면 원래 날짜의 매출보고 프로그램 판매도 다시 맞춘다
+            if ($journal && is_program_type($type) && $journal['work_date'] !== $workDate) sales_sync_programs($journal['work_date']);
             $pdo->commit();
         } catch (Throwable $e) {
             $pdo->rollBack();

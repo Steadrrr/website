@@ -224,6 +224,19 @@ function items_parse(string $type, string $workDate, int $journalId): array
         $payload['rent_dc_rule'] = $rule;
         $payload['rent_dc_pct'] = $pct;
         $payload['rent_youth'] = (int) ($rule === 'youth20'); // 체크 여부
+        // 프로그램 판매: 그 날 프로그램 운영보고가 있으면 그 합계(자동), 없으면 직접 입력한 값
+        $progAuto = valid_date($workDate) ? program_day_summary($workDate) : [];
+        foreach (PROGRAM_TYPES as $pt => $plabel) {
+            if (isset($progAuto[$pt])) {
+                $a = $progAuto[$pt];
+                $lines[] = program_sale_line($pt, $a['sessions'], $a['people'], $a['amount'], true);
+                continue;
+            }
+            $row = (array) ($_POST['prog'][$pt] ?? []);
+            [$ses, $ppl, $amt] = [to_int($row['sessions'] ?? 0), to_int($row['people'] ?? 0), to_int($row['amount'] ?? 0)];
+            if ($ses || $ppl || $amt) $lines[] = program_sale_line($pt, $ses, $ppl, $amt, false);
+        }
+
         // 쉬자파크숙박 입실 = 그 날 일일객실판매의 입실인원 합계, 퇴실 = 전날 입실인원 합계 (수정 불가, 무료 입장권으로 집계)
         $roomGuests = valid_date($workDate) ? stay_guests($workDate) : 0;
         $stayLines = [];
@@ -286,6 +299,10 @@ function items_save(int $id, string $type, array $payload): void
     $pdo = db();
     if (is_program_type($type)) {
         program_save($id, $payload);
+        // 그 날 매출보고의 '프로그램 판매'를 이 운영보고 값으로 맞춘다
+        $st = $pdo->prepare('SELECT work_date FROM journals WHERE id = ?');
+        $st->execute([$id]);
+        sales_sync_programs((string) $st->fetchColumn());
         return;
     }
     if ($type === 'daily') {
@@ -318,13 +335,13 @@ function items_save(int $id, string $type, array $payload): void
     if (in_array($type, SALE_DOC_TYPES, true)) {
         $pdo->prepare('DELETE FROM sales_lines WHERE journal_id = ?')->execute([$id]);
         $ins = $pdo->prepare(
-            'INSERT INTO sales_lines (journal_id, product_id, grp, name, is_free, rate, season, discounted, unit_price, qty, guests, refund_expected, rent_time, night, dc_pct, amount)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+            'INSERT INTO sales_lines (journal_id, product_id, grp, name, is_free, rate, season, discounted, unit_price, qty, guests, refund_expected, rent_time, night, dc_pct, prog_type, sessions, auto, amount)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
         );
         foreach ($payload['lines'] as $l) {
             $ins->execute([$id, $l['product_id'], $l['grp'], $l['name'], $l['is_free'], $l['rate'], $l['season'] ?? null,
                 $l['discounted'], $l['unit_price'], $l['qty'], $l['guests'], $l['refund_expected'] ?? null,
-                $l['rent_time'] ?? null, (int) ($l['night'] ?? 0), (int) ($l['dc_pct'] ?? 0), $l['amount']]);
+                $l['rent_time'] ?? null, (int) ($l['night'] ?? 0), (int) ($l['dc_pct'] ?? 0), $l['prog_type'] ?? null, (int) ($l['sessions'] ?? 0), (int) ($l['auto'] ?? 0), $l['amount']]);
             $lineId = (int) $pdo->lastInsertId();
             foreach ($l['vouchers'] ?? [] as $denom => $qty) {
                 if ($qty > 0) $moveIns->execute([$id, $lineId, 'out', $denom, $qty]);
@@ -575,6 +592,40 @@ function items_form(string $type, array $payload, string $workDate, ?array $jour
   </div>
   <?php endif ?>
 
+  <?php if (!$isRooms):
+      $progAuto = program_day_summary($workDate);
+      $progLines = [];
+      foreach ($payload['lines'] as $l) if ($l['grp'] === 'program') $progLines[$l['prog_type']] = $l; ?>
+  <h3>프로그램 판매</h3>
+  <p class="muted small">그 날 <b>프로그램 운영보고</b>가 있는 분야는 운영보고의 회차·인원·금액이 <b>자동</b>으로 들어갑니다 (운영보고를 고치면 여기도 바뀝니다).
+    운영보고가 없는 분야는 직접 입력하세요. 일자를 바꾸면 저장할 때 그 날짜의 운영보고로 다시 채워집니다.</p>
+  <div class="table-scroll">
+  <table class="table program-sale-table" data-program-table>
+    <thead><tr><th>분야</th><th>회차</th><th>인원</th><th class="right">금액</th><th>입력</th></tr></thead>
+    <tbody>
+    <?php foreach (PROGRAM_TYPES as $pt => $plabel): $a = $progAuto[$pt] ?? null; $l = $progLines[$pt] ?? null; ?>
+      <?php if ($a): ?>
+      <tr class="auto" data-amount="<?= $a['amount'] ?>">
+        <td><?= e($plabel) ?></td><td class="num-cell"><?= number_format($a['sessions']) ?>회</td><td class="num-cell"><?= number_format($a['people']) ?>명</td>
+        <td class="right" data-line-amount><?= number_format($a['amount']) ?></td>
+        <td><span class="badge auto-badge">자동</span> <a class="small" href="<?= e(url('view.php?id=' . $a['journal_id'])) ?>" target="_blank">운영보고 ›</a></td>
+      </tr>
+      <?php else: ?>
+      <tr>
+        <td><?= e($plabel) ?></td>
+        <td><input name="prog[<?= $pt ?>][sessions]" value="<?= e(($l && !$l['auto'] ? (int) $l['sessions'] : 0) ?: '') ?>" inputmode="numeric" class="num tiny" data-money placeholder="0"></td>
+        <td><input name="prog[<?= $pt ?>][people]" value="<?= e(($l && !$l['auto'] ? (int) $l['qty'] : 0) ?: '') ?>" inputmode="numeric" class="num tiny" data-money placeholder="0"></td>
+        <td><input name="prog[<?= $pt ?>][amount]" value="<?= e(($l && !$l['auto'] ? number_format((int) $l['amount']) : '') ?: '') ?>" inputmode="numeric" class="num" data-money data-prog-amount placeholder="0"></td>
+        <td class="small muted">직접 입력 <a href="<?= e(url('write.php?type=' . $pt . '&date=' . $workDate)) ?>" target="_blank">운영보고 쓰기 ›</a></td>
+      </tr>
+      <?php endif ?>
+    <?php endforeach ?>
+    </tbody>
+    <tfoot><tr><th colspan="3">프로그램 합계</th><th class="right" data-program-amount>0원</th><th></th></tr></tfoot>
+  </table>
+  </div>
+  <?php endif ?>
+
   <div class="grand"><?= $isRooms ? '객실 매출 합계' : '매출 합계' ?> <b data-grand>0원</b></div>
 </div>
     <?php
@@ -793,6 +844,23 @@ function items_view(array $journal): void
     </tfoot>
   </table>
   </div>
+  </div>
+    <?php endif;
+
+    $programs = array_filter($payload['lines'], fn($l) => $l['grp'] === 'program');
+    if ($programs): ?>
+  <h3>프로그램 판매</h3>
+  <div class="table-scroll">
+  <table class="table">
+    <thead><tr><th>분야</th><th class="right">회차</th><th class="right">인원</th><th class="right">금액</th><th>입력</th></tr></thead>
+    <tbody>
+    <?php foreach ($programs as $l): ?>
+      <tr><td><?= e($l['name']) ?></td><td class="right"><?= number_format($l['sessions']) ?>회</td><td class="right"><?= number_format($l['qty']) ?>명</td>
+        <td class="right"><?= number_format($l['amount']) ?></td><td class="small muted"><?= $l['auto'] ? '운영보고 자동' : '직접 입력' ?></td></tr>
+    <?php endforeach ?>
+    </tbody>
+    <tfoot><tr><th>합계</th><th class="right"><?= number_format($sum($programs, 'sessions')) ?>회</th><th class="right"><?= number_format($sum($programs, 'qty')) ?>명</th><th class="right"><?= e(won($sum($programs, 'amount'))) ?></th><th></th></tr></tfoot>
+  </table>
   </div>
     <?php endif;
 
