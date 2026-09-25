@@ -760,3 +760,8 @@ input[data-stay] { background: #f1f5f2; color: var(--green-d); font-weight: 700;
 .sun-text { color: #d93025; } .sat-text { color: #1a73e8; }
 @media print { .occ-bar, .occ-bar i { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
 .rs-room { min-width: 7.5rem; }
+.room-type-table { max-width: 560px; }
+.rs-type { margin: 0; } .rs-type select { width: auto; }
+.rs-types td:first-child a { font-weight: 700; }
+.product-table select[name="room_type_id"] { min-width: 6.5rem; }
+.rs-types td:first-child, .rs-types th:first-child { min-width: 5rem; white-space: nowrap; }

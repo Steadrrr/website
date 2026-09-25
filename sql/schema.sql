@@ -119,6 +119,7 @@ CREATE TABLE IF NOT EXISTS products (
   dc_weekday    INT UNSIGNED NOT NULL DEFAULT 0,
   dc_weekend    INT UNSIGNED NOT NULL DEFAULT 0,
   max_people    SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+  room_type_id  INT UNSIGNED NULL COMMENT '객실 분류 (room_types)',
   sys_key       VARCHAR(20)  NULL COMMENT '시스템 상품 (stay_in / stay_out: 쉬자파크숙박 입실·퇴실, 수정·삭제 불가, 수량 자동)',
   sort_order    INT          NOT NULL DEFAULT 0,
   is_active     TINYINT(1)   NOT NULL DEFAULT 1,
@@ -389,4 +390,11 @@ CREATE TABLE IF NOT EXISTS program_sessions (
   activity    TEXT NULL COMMENT '활동내용',
   INDEX idx_journal (journal_id, session_no),
   CONSTRAINT fk_prog_journal FOREIGN KEY (journal_id) REFERENCES journals(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 객실 분류 (예: 2인실·4인실·독채) — 상품관리에서 추가·수정, 객실 상품마다 하나 지정 (products.room_type_id)
+CREATE TABLE IF NOT EXISTS room_types (
+  id         INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  name       VARCHAR(50) NOT NULL,
+  sort_order INT NOT NULL DEFAULT 0
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

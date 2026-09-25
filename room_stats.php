@@ -1,7 +1,7 @@
 <?php
 /**
  * 객실이용통계 (운영관리 › 객실이용통계)
- *   room_stats.php?unit=day|week|month|year&from=&to=[&cmp=prev|lastyear|custom&cfrom=&cto=][&approved=1][&export=xlsx]
+ *   room_stats.php?unit=day|week|month|year&from=&to=[&type=객실분류][&cmp=prev|lastyear|custom&cfrom=&cto=][&approved=1][&export=xlsx]
  * 매출보고의 객실 판매(대관 숙박시설 제외)로 판매 객실·입실인원·매출·가동률·평균 객실단가·RevPAR 를
  * 일간·주간·월간·연간으로 집계하고, 두 기간을 비교한다.
  *   가동률 = 판매 객실(실·박) ÷ (객실 수 × 일수). 객실 수는 상품관리의 '판매 중' 객실 기준
@@ -45,8 +45,12 @@ $approvedOnly = !empty($_GET['approved']);
 $statuses = $approvedOnly ? ['approved'] : config('chart_statuses', ['pending', 'approved']);
 $statusLabel = $approvedOnly ? '결재완료' : '결재중·결재완료';
 
-// 객실 (대관 숙박시설 제외): 판매 중인 객실 수가 가동률의 분모
-$roomProducts = array_filter(products_all(), fn($p) => $p['grp'] === 'room');
+// 객실 (대관 숙박시설 제외): 판매 중인 객실 수가 가동률의 분모. 분류(2인실·4인실·독채 등)를 고르면 그 분류 객실만
+$types = room_types_all();
+$typeId = (int) ($_GET['type'] ?? 0);
+if (!isset($types[$typeId])) $typeId = 0;
+$allRooms = array_filter(products_all(), fn($p) => $p['grp'] === 'room');
+$roomProducts = $typeId ? array_filter($allRooms, fn($p) => (int) $p['room_type_id'] === $typeId) : $allRooms;
 $activeRooms = array_filter($roomProducts, fn($p) => $p['is_active']);
 $roomCount = max(1, count($activeRooms));
 
@@ -75,7 +79,7 @@ function rs_label(string $key, string $unit, string $from, string $to): string
  * 한 기간의 집계
  * @return array{buckets: array, total: array, rooms: array, weekdays: array, days: int}
  */
-function rs_period(string $from, string $to, string $unit, array $statuses, int $roomCount, array $roomProducts): array
+function rs_period(string $from, string $to, string $unit, array $statuses, int $roomCount, array $roomProducts, bool $onlyThese = false): array
 {
     $blank = ['days' => 0, 'sold' => 0, 'guests' => 0, 'amount' => 0, 'weekday' => 0, 'weekend' => 0, 'peak' => 0, 'dc' => 0];
     $buckets = [];
@@ -91,6 +95,7 @@ function rs_period(string $from, string $to, string $unit, array $statuses, int 
            FROM journals j JOIN sales_lines l ON l.journal_id = j.id
           WHERE j.type = 'sales' AND l.grp = 'room' AND j.work_date BETWEEN ? AND ?
             AND j.status IN (" . implode(',', array_fill(0, count($statuses), '?')) . ')'
+            . ($onlyThese ? ' AND l.product_id IN (' . (implode(',', array_map('intval', array_keys($roomProducts))) ?: '0') . ')' : '')
     );
     $st->execute([$from, $to, ...$statuses]);
     $rooms = [];
@@ -137,8 +142,40 @@ function rs_ratios(array $b, int $roomCount): array
     ];
 }
 
-$A = rs_period($from, $to, $unit, $statuses, $roomCount, $roomProducts);
-$B = $cmp ? rs_period($cfrom, $cto, $unit, $statuses, $roomCount, $roomProducts) : null;
+$A = rs_period($from, $to, $unit, $statuses, $roomCount, $roomProducts, (bool) $typeId);
+$B = $cmp ? rs_period($cfrom, $cto, $unit, $statuses, $roomCount, $roomProducts, (bool) $typeId) : null;
+
+/** 객실 분류별 합계: 분류 id(0 = 미분류) => [name, rooms(판매 중 객실 수), sold, guests, amount, occ, adr] + 'total' */
+function rs_by_type(array $P, array $allRooms, array $types): array
+{
+    $out = [];
+    foreach ($types as $id => $t) $out[$id] = ['name' => $t['name'], 'rooms' => 0, 'sold' => 0, 'guests' => 0, 'amount' => 0];
+    foreach ($allRooms as $p) {
+        $tid = isset($types[(int) $p['room_type_id']]) ? (int) $p['room_type_id'] : 0;
+        $out[$tid] ??= ['name' => '미분류', 'rooms' => 0, 'sold' => 0, 'guests' => 0, 'amount' => 0];
+        if ($p['is_active']) $out[$tid]['rooms']++;
+    }
+    foreach ($P['rooms'] as $pid => $r) {
+        $tid = (int) (products_all()[$pid]['room_type_id'] ?? 0);
+        if (!isset($types[$tid])) $tid = 0;
+        $out[$tid] ??= ['name' => '미분류', 'rooms' => 0, 'sold' => 0, 'guests' => 0, 'amount' => 0];
+        foreach (['sold', 'guests', 'amount'] as $m) $out[$tid][$m] += $r[$m];
+    }
+    $out = array_filter($out, fn($r) => $r['rooms'] || $r['sold']);
+    $total = ['name' => '합계', 'rooms' => 0, 'sold' => 0, 'guests' => 0, 'amount' => 0];
+    foreach ($out as $r) foreach (['rooms', 'sold', 'guests', 'amount'] as $m) $total[$m] += $r[$m];
+    $out['total'] = $total;
+    foreach ($out as &$r) {
+        $r['occ'] = $r['rooms'] && $P['days'] ? $r['sold'] / ($r['rooms'] * $P['days']) * 100 : 0;
+        $r['adr'] = $r['sold'] ? $r['amount'] / $r['sold'] : 0;
+        $r['gpr'] = $r['sold'] ? $r['guests'] / $r['sold'] : 0;
+    }
+    unset($r);
+    return $out;
+}
+$typeRooms = $typeId ? $roomProducts : $allRooms;
+$TA = rs_by_type($A, $typeRooms, $typeId ? [$typeId => $types[$typeId]] : $types);
+$TB = $B ? rs_by_type($B, $typeRooms, $typeId ? [$typeId => $types[$typeId]] : $types) : null;
 
 $pct = fn(float $v) => number_format($v, 1) . '%';
 $diffTxt = function (float $a, float $b, bool $isPct = false): string {
@@ -164,7 +201,7 @@ $metrics = [
 ];
 $fmtM = fn($v, string $f) => match ($f) { 'p' => number_format($v, 1) . '%', 'f' => number_format($v, 2), default => number_format(round($v)) };
 $periodLabel = fn(string $f, string $t) => date('Y.n.j', strtotime($f)) . ' ~ ' . date('Y.n.j', strtotime($t));
-$title = '객실이용통계 ' . RS_UNITS[$unit] . ' (' . $periodLabel($from, $to) . ')';
+$title = '객실이용통계 ' . ($typeId ? $types[$typeId]['name'] . ' ' : '') . RS_UNITS[$unit] . ' (' . $periodLabel($from, $to) . ')';
 
 /* ───────────── 엑셀 ───────────── */
 if (($_GET['export'] ?? '') === 'xlsx') {
@@ -184,6 +221,11 @@ if (($_GET['export'] ?? '') === 'xlsx') {
             'rows' => array_map(fn($k) => [$metrics[$k][0], round($A['total'][$k], 2), round($B['total'][$k], 2), $diffTxt($A['total'][$k], $B['total'][$k], $metrics[$k][1] === 'p')], array_keys($metrics)),
             'widths' => [26, 14, 14, 20]];
     }
+    $sheets[] = ['name' => '분류별', 'title' => '객실 분류별 (' . $periodLabel($from, $to) . ')', 'subtitle' => $sub,
+        'header' => ['분류', '객실 수', '판매(박)', '가동률(%)', '입실 인원', '1실 평균 인원', '매출', '평균 객실단가', ...($TB ? ['비교 판매', '비교 가동률(%)', '비교 매출'] : [])],
+        'rows' => array_map(fn($k, $r) => [$r['name'], $r['rooms'], $r['sold'], round($r['occ'], 1), $r['guests'], round($r['gpr'], 2), $r['amount'], (int) round($r['adr']),
+            ...($TB ? [$TB[$k]['sold'] ?? 0, round($TB[$k]['occ'] ?? 0, 1), $TB[$k]['amount'] ?? 0] : [])], array_keys($TA), $TA),
+        'widths' => [14, 8, 9, 10, 10, 11, 13, 12, 10, 12, 13]];
     $sheets[] = ['name' => '객실별', 'title' => '객실별 이용 (' . $periodLabel($from, $to) . ')', 'subtitle' => $sub,
         'header' => ['객실', '판매(박)', '가동률(%)', '입실 인원', '매출', ...($B ? ['비교 판매', '비교 가동률(%)', '비교 매출'] : [])],
         'rows' => array_map(fn($id, $r) => [$r['name'] . ($r['active'] ? '' : ' (판매중지)'), $r['sold'], round($r['occ'], 1), $r['guests'], $r['amount'],
@@ -199,7 +241,7 @@ if (($_GET['export'] ?? '') === 'xlsx') {
 }
 
 $q = fn(array $o) => 'room_stats.php?' . http_build_query(array_filter(array_merge(
-    ['unit' => $unit, 'from' => $from, 'to' => $to, 'cmp' => $cmp, 'cfrom' => $cmp === 'custom' ? $cfrom : null, 'cto' => $cmp === 'custom' ? $cto : null, 'approved' => $approvedOnly ? 1 : null], $o),
+    ['unit' => $unit, 'from' => $from, 'to' => $to, 'type' => $typeId ?: null, 'cmp' => $cmp, 'cfrom' => $cmp === 'custom' ? $cfrom : null, 'cto' => $cmp === 'custom' ? $cto : null, 'approved' => $approvedOnly ? 1 : null], $o),
     fn($v) => $v !== null && $v !== ''));
 $occBar = fn(float $v) => '<span class="occ-bar"><i style="width:' . min(100, round($v, 1)) . '%"></i></span>';
 
@@ -207,7 +249,7 @@ layout_header('객실이용통계', 'room_stats');
 ?>
 <section class="card no-print">
   <div class="card-head">
-    <h1>객실이용통계 <small class="muted">객실 <?= $roomCount ?>실 기준 · 대관 숙박시설 제외</small></h1>
+    <h1>객실이용통계 <small class="muted"><?= $typeId ? e($types[$typeId]['name']) . ' ' : '' ?>객실 <?= $roomCount ?>실 기준 · 대관 숙박시설 제외</small></h1>
     <div class="actions no-margin">
       <a class="btn" href="<?= e(url($q(['export' => 'xlsx']))) ?>">엑셀 다운로드</a>
       <button class="btn" type="button" onclick="window.print()">인쇄 · PDF</button>
@@ -216,10 +258,16 @@ layout_header('객실이용통계', 'room_stats');
   <form method="get" class="rs-form">
     <div class="stat-units">
       <?php foreach (RS_UNITS as $u => $label): ?>
-        <a href="<?= e(url('room_stats.php?' . http_build_query(array_filter(['unit' => $u, 'cmp' => $cmp === 'custom' ? 'lastyear' : $cmp, 'approved' => $approvedOnly ? 1 : null])))) ?>" class="<?= $unit === $u ? 'on' : '' ?>"><?= $label ?></a>
+        <a href="<?= e(url('room_stats.php?' . http_build_query(array_filter(['unit' => $u, 'type' => $typeId ?: null, 'cmp' => $cmp === 'custom' ? 'lastyear' : $cmp, 'approved' => $approvedOnly ? 1 : null])))) ?>" class="<?= $unit === $u ? 'on' : '' ?>"><?= $label ?></a>
       <?php endforeach ?>
     </div>
     <input type="hidden" name="unit" value="<?= e($unit) ?>">
+    <label class="rs-type">객실 분류
+      <select name="type">
+        <option value="">전체 객실</option>
+        <?php foreach ($types as $t): ?><option value="<?= (int) $t['id'] ?>" <?= $typeId === (int) $t['id'] ? 'selected' : '' ?>><?= e($t['name']) ?></option><?php endforeach ?>
+      </select>
+    </label>
     <div class="rs-periods">
       <fieldset><legend>기간 A</legend>
         <input type="date" name="from" value="<?= e($from) ?>"> ~ <input type="date" name="to" value="<?= e($to) ?>">
@@ -267,6 +315,30 @@ layout_header('객실이용통계', 'room_stats');
   </table>
   </div>
   <?php endif ?>
+
+  <h3>객실 분류별 <small class="muted"><?= $typeId ? '' : '분류마다와 전체 합계' ?></small></h3>
+  <div class="table-scroll">
+  <table class="table rs-types">
+    <thead><tr><th>분류</th><th class="right">객실 수</th><th class="right">판매(박)</th><th>가동률</th><th class="right">입실 인원</th><th class="right">1실 평균</th><th class="right">매출</th><th class="right">평균 객실단가</th>
+      <?php if ($TB): ?><th class="right rs-b">B 판매</th><th class="right rs-b">B 가동률</th><th class="right rs-b">B 매출</th><th class="right">가동률 증감</th><th class="right">매출 증감</th><?php endif ?></tr></thead>
+    <tbody>
+    <?php foreach ($TA as $k => $r): $isTotal = $k === 'total'; $rb = $TB[$k] ?? null;
+        if ($isTotal): ?></tbody><tfoot><?php endif ?>
+      <tr>
+        <<?= $isTotal ? 'th' : 'td' ?>><?php if (!$isTotal && $k && !$typeId): ?><a href="<?= e(url($q(['type' => $k]))) ?>"><?= e($r['name']) ?></a><?php else: ?><?= e($r['name']) ?><?php endif ?></<?= $isTotal ? 'th' : 'td' ?>>
+        <td class="right"><?= $r['rooms'] ?>실</td><td class="right"><?= number_format($r['sold']) ?></td>
+        <td class="nowrap"><?= $occBar($r['occ']) ?> <?= $pct($r['occ']) ?></td><td class="right"><?= number_format($r['guests']) ?></td>
+        <td class="right"><?= number_format($r['gpr'], 2) ?></td><td class="right"><?= number_format($r['amount']) ?></td><td class="right"><?= number_format(round($r['adr'])) ?></td>
+        <?php if ($TB): ?>
+          <td class="right rs-b"><?= number_format($rb['sold'] ?? 0) ?></td><td class="right rs-b"><?= $pct($rb['occ'] ?? 0) ?></td><td class="right rs-b"><?= number_format($rb['amount'] ?? 0) ?></td>
+          <td class="right rs-diff <?= $r['occ'] > ($rb['occ'] ?? 0) ? 'up' : ($r['occ'] < ($rb['occ'] ?? 0) ? 'down' : '') ?>"><?= e($diffTxt($r['occ'], $rb['occ'] ?? 0, true)) ?></td>
+          <td class="right rs-diff <?= $r['amount'] > ($rb['amount'] ?? 0) ? 'up' : ($r['amount'] < ($rb['amount'] ?? 0) ? 'down' : '') ?>"><?= e($diffTxt($r['amount'], $rb['amount'] ?? 0)) ?></td>
+        <?php endif ?>
+      </tr>
+      <?php if ($isTotal): ?></tfoot><?php endif ?>
+    <?php endforeach ?>
+  </table>
+  </div>
 
   <h3><?= e(RS_UNITS[$unit]) ?> 추이<?= $B ? ' <small class="muted">(A와 B를 같은 순서의 구간끼리 나란히 비교)</small>' : '' ?></h3>
   <div class="table-scroll">

@@ -14,6 +14,26 @@ function products_all(): array
     return $cache;
 }
 
+/** 객실 분류: id => ['id', 'name', 'sort_order'] */
+function room_types_all(): array
+{
+    static $cache = null;
+    if ($cache === null) {
+        $cache = [];
+        try {
+            foreach (db()->query('SELECT * FROM room_types ORDER BY sort_order, id') as $t) $cache[(int) $t['id']] = $t;
+        } catch (PDOException) {
+            $cache = []; // 업그레이드 전
+        }
+    }
+    return $cache;
+}
+
+function room_type_name(?int $id): string
+{
+    return $id && isset(room_types_all()[$id]) ? room_types_all()[$id]['name'] : '미분류';
+}
+
 /** 그룹별 판매중 상품 + (수정 중인 보고서에 이미 들어있는) 미사용 상품 */
 function products_for_form(string $grp, array $includeIds = []): array
 {

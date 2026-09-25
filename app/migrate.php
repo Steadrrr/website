@@ -6,7 +6,7 @@ defined('APP_ROOT') || exit;
  * 새 버전 파일을 FTP로 덮어쓰기만 하면, 첫 접속 때 부족한 테이블/컬럼을 만든다.
  * (기존 자료는 그대로 유지)
  */
-const DB_VERSION = 20;
+const DB_VERSION = 21;
 
 function db_version(): int
 {
@@ -213,6 +213,14 @@ function db_migrate(): void
     foreach ($seq as $y => $n) {
         $pdo->prepare("INSERT INTO settings (name, value) VALUES (?, ?) ON DUPLICATE KEY UPDATE value = GREATEST(CAST(value AS UNSIGNED), VALUES(value))")
             ->execute(["lost_seq_$y", (string) $n]);
+    }
+
+    // 21) v20 → v21: 객실 분류 (room_types 는 1) 단계에서 생성) — 처음에는 2인실·4인실·독채
+    if (!column_exists('products', 'room_type_id')) {
+        $pdo->exec("ALTER TABLE products ADD room_type_id INT UNSIGNED NULL AFTER max_people");
+    }
+    if ((int) $pdo->query('SELECT COUNT(*) FROM room_types')->fetchColumn() === 0) {
+        $pdo->exec("INSERT INTO room_types (name, sort_order) VALUES ('2인실', 10), ('4인실', 20), ('독채', 30)");
     }
 
     $pdo->prepare("INSERT INTO settings (name, value) VALUES ('db_version', ?) ON DUPLICATE KEY UPDATE value = VALUES(value)")
