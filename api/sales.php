@@ -9,7 +9,7 @@ if (!current_user()) {
     exit;
 }
 
-$period = $_GET['period'] ?? 'day';
-if (!in_array($period, ['day', 'week', 'month'], true)) $period = 'day';
+$period = $_GET['period'] ?? 'week';
+if (!in_array($period, ['week', 'month'], true)) $period = 'week'; // 대시보드는 주별·월별만
 
 echo json_encode(dashboard_series($period), JSON_UNESCAPED_UNICODE);

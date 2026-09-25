@@ -4,7 +4,7 @@ require __DIR__ . '/app/bootstrap.php';
 $user = require_login();
 
 $today = date('Y-m-d');
-$initial = dashboard_series('day'); // 첫 화면 숫자 (그래프는 JS가 API로 다시 불러옴)
+$initial = dashboard_series('week'); // 첫 화면 숫자 (그래프는 JS가 API로 다시 불러옴)
 
 // 오늘 작성된 일지 현황
 $st = db()->prepare("SELECT type, COUNT(*) AS n FROM journals WHERE work_date = ? AND status <> 'draft' GROUP BY type");
@@ -20,12 +20,15 @@ $notices = db()->query(
       ORDER BY n.is_pinned DESC, n.created_at DESC LIMIT 6"
 )->fetchAll();
 
-$recent = db()->query(
+// 최근 일지: 본인이 작성한 것만
+$st = db()->prepare(
     "SELECT j.*, u.name AS author_name
        FROM journals j JOIN users u ON u.id = j.author_id
-      WHERE j.status <> 'draft' AND j.type <> 'attendance'
+      WHERE j.author_id = ? AND j.status <> 'draft' AND j.type <> 'attendance'
       ORDER BY j.updated_at DESC LIMIT 10"
-)->fetchAll();
+);
+$st->execute([(int) $user['id']]);
+$recent = $st->fetchAll();
 
 // 왼쪽 프로필: 오늘 내가 쓴 일지 수, 결재 대기
 $st = db()->prepare("SELECT COUNT(*) FROM journals WHERE author_id = ? AND work_date = ? AND status <> 'draft' AND type <> 'attendance'");
@@ -140,8 +143,7 @@ layout_header('대시보드', 'home');
 <div class="card-head">
   <h1>판매 현황</h1>
   <div class="tabs" id="periodTabs">
-    <button data-period="day" class="on">일별</button>
-    <button data-period="week">주별</button>
+    <button data-period="week" class="on">주별</button>
     <button data-period="month">월별</button>
   </div>
 </div>
@@ -167,7 +169,7 @@ layout_header('대시보드', 'home');
   </section>
 </div>
 <p class="muted small">
-  일별 최근 30일 · 주별 최근 12주(월요일 시작) · 월별 최근 12개월.
+  주별 최근 12주(월요일 시작) · 월별 최근 12개월.
   <?= config('chart_statuses') === ['approved'] ? '결재완료된 매출보고만 집계합니다.' : '결재중·결재완료 매출보고를 집계합니다.' ?>
 </p>
 
@@ -204,7 +206,7 @@ layout_header('대시보드', 'home');
 </div>
 
 <section class="card">
-  <h2>최근 일지</h2>
+  <h2>최근 일지 <small class="muted">내가 작성한 일지</small></h2>
   <table class="table">
     <thead><tr><th>일자</th><th>구분</th><th>작성자</th><th>상태</th><th></th></tr></thead>
     <tbody>
@@ -217,7 +219,7 @@ layout_header('대시보드', 'home');
         <td class="right"><?= can_edit_journal($j, $user) ? edit_button($j, 'btn small') : '' ?></td>
       </tr>
     <?php endforeach ?>
-    <?php if (!$recent): ?><tr><td colspan="5" class="muted center">아직 작성된 일지가 없습니다.</td></tr><?php endif ?>
+    <?php if (!$recent): ?><tr><td colspan="5" class="muted center">아직 작성한 일지가 없습니다.</td></tr><?php endif ?>
     </tbody>
   </table>
 </section>

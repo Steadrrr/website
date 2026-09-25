@@ -48,5 +48,5 @@
       load(btn.dataset.period);
     });
   });
-  load('day');
+  load('week'); // 주별 · 월별
 })();
