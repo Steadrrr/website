@@ -302,7 +302,7 @@ function items_save(int $id, string $type, array $payload): void
         // 그 날 매출보고의 '프로그램 판매'를 이 운영보고 값으로 맞춘다
         $st = $pdo->prepare('SELECT work_date FROM journals WHERE id = ?');
         $st->execute([$id]);
-        sales_sync_programs((string) $st->fetchColumn());
+        sales_sync_programs((string) $st->fetchColumn(), PROGRAM_TYPES[$type] . " 운영보고 저장 (문서 $id)");
         return;
     }
     if ($type === 'daily') {

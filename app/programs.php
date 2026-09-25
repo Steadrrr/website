@@ -306,21 +306,39 @@ function program_sale_line(string $type, int $sessions, int $people, int $amount
 }
 
 /**
- * 프로그램 운영보고가 저장·삭제되면 그 날 매출보고(있을 때)의 프로그램 판매를 운영보고 값으로 맞춘다.
- * 운영보고가 있는 분야는 자동 값으로 바꾸고, 운영보고가 없어진 분야의 자동 줄은 지운다 (직접 입력한 줄은 그대로).
+ * 프로그램 운영보고가 저장·삭제·날짜 변경되면 그 날 매출보고(있을 때)의 프로그램 판매를 운영보고 값으로 맞춘다.
+ * 기준은 항상 운영보고: 운영보고가 있는 분야는 (직접 입력한 값이 있어도) 운영보고 값으로 바꾸고,
+ * 운영보고가 없어진 분야의 자동 줄은 지운다. 바뀐 내용은 매출보고의 작성·수정 기록에 남긴다.
+ * $reason: 기록에 남길 이유 (예: '산림치유센터 운영보고 저장 (문서 12)')
  */
-function sales_sync_programs(string $date): void
+function sales_sync_programs(string $date, string $reason = ''): void
 {
     $pdo = db();
     $st = $pdo->prepare("SELECT id FROM journals WHERE type = 'sales' AND work_date = ?");
     $st->execute([$date]);
     $jid = (int) $st->fetchColumn();
     if (!$jid) return;
+    $fmt = fn(array $l) => (int) $l['sessions'] . '회·' . number_format((int) $l['qty']) . '명·' . number_format((int) $l['amount']) . '원';
+    $st = $pdo->prepare("SELECT * FROM sales_lines WHERE journal_id = ? AND grp = 'program'");
+    $st->execute([$jid]);
+    $before = [];
+    foreach ($st as $l) $before[$l['prog_type']] = $l;
     $sum = program_day_summary($date);
-    $pdo->prepare("DELETE FROM sales_lines WHERE journal_id = ? AND grp = 'program' AND auto = 1")->execute([$jid]);
-    foreach ($sum as $type => $s) {
+    $notes = [];
+    foreach ($before as $type => $l) {
+        if ($l['auto'] && !isset($sum[$type])) { // 운영보고가 없어짐 → 자동 줄 제거
+            $pdo->prepare('DELETE FROM sales_lines WHERE id = ?')->execute([$l['id']]);
+            $notes[] = (PROGRAM_TYPES[$type] ?? $type) . ' 자동 ' . $fmt($l) . ' → 제거 (운영보고 없음)';
+        }
+    }
+    foreach ($sum as $type => $a) {
+        $new = ['sessions' => $a['sessions'], 'qty' => $a['people'], 'amount' => $a['amount']];
+        $old = $before[$type] ?? null;
+        if ($old && $old['auto'] && $fmt($old) === $fmt($new)) continue; // 그대로
         $pdo->prepare("DELETE FROM sales_lines WHERE journal_id = ? AND grp = 'program' AND prog_type = ?")->execute([$jid, $type]);
         $pdo->prepare("INSERT INTO sales_lines (journal_id, product_id, grp, name, is_free, unit_price, qty, amount, prog_type, sessions, auto) VALUES (?, NULL, 'program', ?, 0, 0, ?, ?, ?, ?, 1)")
-            ->execute([$jid, PROGRAM_TYPES[$type], $s['people'], $s['amount'], $type, $s['sessions']]);
+            ->execute([$jid, PROGRAM_TYPES[$type], $a['people'], $a['amount'], $type, $a['sessions']]);
+        $notes[] = PROGRAM_TYPES[$type] . ' ' . ($old ? ($old['auto'] ? '자동 ' : '직접 입력 ') . $fmt($old) : '없음') . ' → 운영보고 ' . $fmt($new);
     }
+    if ($notes) journal_log($jid, current_user(), '프로그램 판매 자동 갱신', ($reason !== '' ? "[$reason] " : '') . implode(' / ', $notes));
 }

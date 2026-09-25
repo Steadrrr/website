@@ -71,7 +71,7 @@ if (is_post()) {
             }
             items_save($id, $type, $payload);
             // 운영보고 날짜를 바꿨으면 원래 날짜의 매출보고 프로그램 판매도 다시 맞춘다
-            if ($journal && is_program_type($type) && $journal['work_date'] !== $workDate) sales_sync_programs($journal['work_date']);
+            if ($journal && is_program_type($type) && $journal['work_date'] !== $workDate) sales_sync_programs($journal['work_date'], PROGRAM_TYPES[$type] . " 운영보고 날짜 변경 {$journal['work_date']} → $workDate (문서 $id)");
             $pdo->commit();
         } catch (Throwable $e) {
             $pdo->rollBack();

@@ -115,7 +115,7 @@ function journal_delete(array $journal): void
     $att = $journal['type'] === 'attendance' ? att_find($id) : null;
     db()->prepare('DELETE FROM journals WHERE id = ?')->execute([$id]);
     if ($att && $att['attachment'] && is_file(APP_ROOT . '/' . $att['attachment'])) @unlink(APP_ROOT . '/' . $att['attachment']);
-    if (is_program_type($journal['type'])) { photos_delete_all('program', $id); sales_sync_programs($journal['work_date']); } // 매출보고 프로그램 판매도 다시 맞춤
+    if (is_program_type($journal['type'])) { photos_delete_all('program', $id); sales_sync_programs($journal['work_date'], PROGRAM_TYPES[$journal['type']] . ' 운영보고 삭제 (문서 ' . $id . ')'); } // 매출보고 프로그램 판매도 다시 맞춤
     if ($journal['type'] === 'rooms') stay_sync_rooms($journal['work_date']); // 그 날 입실·다음 날 퇴실 인원 다시 계산
 }
 
