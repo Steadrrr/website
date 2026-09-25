@@ -43,7 +43,7 @@ function layout_header(string $title, string $active = '', array $opt = []): voi
   <button class="nav-toggle" type="button" aria-label="메뉴" onclick="document.body.classList.toggle('nav-open')">☰</button>
   <nav class="nav">
     <?php foreach ($groups as $gkey => $g):
-        $badge = $gkey === 'docs' && $waiting > 0 ? ' <span class="count">' . $waiting . '</span>' : '';
+        $badge = $gkey === 'personal' && $waiting > 0 ? ' <span class="count">' . $waiting . '</span>' : '';
         if (empty($g['items'])): ?>
       <a href="<?= e(url($g['href'])) ?>" class="nav-main <?= $current === $gkey ? 'on' : '' ?>"><?= e($g['label']) ?></a>
     <?php else: ?>
@@ -93,9 +93,11 @@ function nav_groups(?array $user): array
     $groups = [
         'home'     => ['label' => '대시보드', 'href' => 'index.php'],
         'schedule' => ['label' => '일정표', 'href' => 'schedule.php'],
-        'att'      => ['label' => '근태관리', 'items' => [
+        'personal' => ['label' => '개인업무', 'items' => [
             'attendance' => ['attendance.php', '근태 달력'],
             'att_sheet'  => ['attendance.php?view=sheet', '개인 월간 근태표'],
+            'approval'   => ['approvals.php', '결재함'],
+            'docs'       => ['docs.php', '문서조회및수정'],
         ]],
         'ops'      => ['label' => '운영관리', 'items' => [
             'daily'   => ['journal.php?type=daily', '업무일지'],
@@ -129,10 +131,6 @@ function nav_groups(?array $user): array
             'equipment'  => ['equipment.php', '장비'],
             'purchase'   => ['purchase.php', '물품구매'],
         ]],
-        'docs'     => ['label' => '문서관리', 'items' => [
-            'approval' => ['approvals.php', '결재함'],
-            'docs'     => ['docs.php', '문서조회및수정'],
-        ]],
         'etc'      => ['label' => '기타', 'items' => [
             'notices'  => ['notices.php', '공지사항'],
             'org'      => ['org.php', '조직도'],
@@ -148,7 +146,8 @@ function nav_groups(?array $user): array
     } elseif ($user && can_manage_users($user)) {
         $groups['etc']['items']['admin'] = ['admin/users.php', '회원관리'];
     }
-    if (!$user || !can_manage_docs($user)) unset($groups['docs']['items']['docs']); // 문서조회및수정은 공무직 이상
+    if (!can_menu($user, 'att')) unset($groups['personal']['items']['attendance'], $groups['personal']['items']['att_sheet']); // 근태는 메뉴 권한
+    if (!$user || !can_manage_docs($user)) unset($groups['personal']['items']['docs']); // 문서조회및수정은 공무직 이상
     if (!$user || !can_ar($user)) unset($groups['room']['items']['ar']); // AR사용관리는 공무직 이상
     if (!$user || !can_purchase($user)) unset($groups['fac']['items']['purchase']); // 물품구매는 공무직 이상
     // 기타는 항상 맨 마지막
