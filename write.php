@@ -86,11 +86,16 @@ if (is_post()) {
             journal_submit($fresh, (int) $user['rank_level']); // 결재선은 수정한 사람 기준으로 처음부터
             flash('수정했습니다. 결재 상태가 초기화되어 처음부터 다시 결재가 진행됩니다.', 'success');
         } elseif ($submit) {
-            journal_submit(journal_find($id));
+            journal_submit(journal_find($id), (int) $user['rank_level']); // 결재선은 결재를 올린 사람 기준
             flash('결재를 올렸습니다.', 'success');
         } else {
             flash('임시저장했습니다. 결재 올리기를 눌러야 결재가 진행됩니다.', 'info');
         }
+        // 작성·수정 기록 (결재와 별개)
+        $cplCount = count($payload['complaints'] ?? []);
+        $notes = array_filter([$revision && $reason !== '' ? "사유: $reason" : '', $type === 'daily' && $cplCount ? "민원 {$cplCount}건" : '']);
+        journal_log($id, $user, $revision ? '수정 (결재 다시 올림)' : ($journal ? ($submit ? '수정 후 결재 올리기' : '임시저장 수정') : ($submit ? '작성 · 결재 올리기' : '작성 (임시저장)')),
+            implode(' · ', $notes));
         redirect('view.php?id=' . $id);
     }
 }
@@ -138,7 +143,8 @@ layout_header(JOURNAL_TYPES[$type] . ($journal ? ' 수정' : ' 작성'), $type =
 
   <?php if ($type === 'daily'): ?>
     <label>업무내용<textarea name="content" rows="10" required placeholder="- 09:00 입장객 안내&#10;- 10:30 산책로 순찰"><?= $v('content') ?></textarea></label>
-    <label>특이사항<textarea name="remarks" rows="4" placeholder="민원, 사고, 인수인계 사항 등"><?= $v('remarks') ?></textarea></label>
+    <label>특이사항<textarea name="remarks" rows="4" placeholder="사고, 인수인계 사항 등"><?= $v('remarks') ?></textarea></label>
+    <?php cpl_form($payload['complaints'] ?? [], $workDate) ?>
   <?php else: ?>
     <?php items_form($type, $payload, $workDate, $journal) ?>
     <?php if ($type === 'sales'): ?>
@@ -162,4 +168,5 @@ layout_header(JOURNAL_TYPES[$type] . ($journal ? ' 수정' : ' 작성'), $type =
     <?php endif ?>
   </div>
 </form>
+<?php if ($journal) render_journal_logs((int) $journal['id']); ?>
 <?php layout_footer();

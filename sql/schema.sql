@@ -398,3 +398,42 @@ CREATE TABLE IF NOT EXISTS room_types (
   name       VARCHAR(50) NOT NULL,
   sort_order INT NOT NULL DEFAULT 0
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 민원 (일일업무일지에 입력, 운영관리 › 민원관리에서 조회·처리). 분류 코드는 app/complaints.php 의 CPL_TREE
+CREATE TABLE IF NOT EXISTS complaints (
+  id          INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  journal_id  INT UNSIGNED NOT NULL,
+  work_date   DATE NOT NULL COMMENT '접수일 (업무일지 일자)',
+  cat1        VARCHAR(10) NOT NULL COMMENT '대분류 (1 단순문의 / 2 요청 / 3 불편·불만 / 4 긴급·안전)',
+  cat2        VARCHAR(10) NOT NULL COMMENT '중분류',
+  cat3        VARCHAR(12) NOT NULL COMMENT '소분류',
+  etc_text    VARCHAR(100) NULL COMMENT '소분류 기타 직접 입력',
+  channel     ENUM('phone','visit','online') NOT NULL COMMENT '접수경로',
+  place_type  ENUM('room','facility') NULL,
+  place_id    INT UNSIGNED NULL COMMENT '객실 상품 id / 시설 구역 id',
+  place_name  VARCHAR(100) NULL,
+  content     TEXT NOT NULL,
+  qty         SMALLINT UNSIGNED NOT NULL DEFAULT 1 COMMENT '건수',
+  status      ENUM('open','progress','done') NOT NULL DEFAULT 'open' COMMENT '미조치 / 처리중 / 완료',
+  done_date   DATE NULL,
+  action      TEXT NULL COMMENT '조치내용·비고',
+  receiver_id INT UNSIGNED NULL COMMENT '접수자',
+  updated_by  INT UNSIGNED NULL,
+  created_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at  DATETIME NULL,
+  INDEX idx_date (work_date),
+  INDEX idx_status (status, work_date),
+  CONSTRAINT fk_cpl_journal FOREIGN KEY (journal_id) REFERENCES journals(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 일지 작성·수정 기록 (결재와 별개로 누가 언제 작성·임시저장·수정·결재 올리기를 했는지)
+CREATE TABLE IF NOT EXISTS journal_logs (
+  id         INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  journal_id INT UNSIGNED NOT NULL,
+  user_id    INT UNSIGNED NULL,
+  action     VARCHAR(30) NOT NULL,
+  note       VARCHAR(500) NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_journal (journal_id, id),
+  CONSTRAINT fk_log_journal FOREIGN KEY (journal_id) REFERENCES journals(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

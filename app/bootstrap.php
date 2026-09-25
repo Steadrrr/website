@@ -40,6 +40,7 @@ require __DIR__ . '/revisions.php';
 require __DIR__ . '/events.php';
 require __DIR__ . '/attendance.php';
 require __DIR__ . '/programs.php';
+require __DIR__ . '/complaints.php';
 require __DIR__ . '/sales.php';
 require __DIR__ . '/layout.php';
 

@@ -765,3 +765,44 @@ input[data-stay] { background: #f1f5f2; color: var(--green-d); font-weight: 700;
 .rs-types td:first-child a { font-weight: 700; }
 .product-table select[name="room_type_id"] { min-width: 6.5rem; }
 .rs-types td:first-child, .rs-types th:first-child { min-width: 5rem; white-space: nowrap; }
+
+/* ── 민원 */
+.cpl-section { margin-top: 1.2rem; border-top: 2px solid #e4ebe6; padding-top: .6rem; }
+.cpl-row { border: 1px solid #dfe7e1; border-left: 4px solid #8aa894; border-radius: 8px; padding: .6rem .8rem; margin-bottom: .8rem; background: #fbfdfb; }
+.cpl-row.urgent, .cpl-table tr.urgent td { background: #fdecea; }
+.cpl-row.urgent { border-color: #e7a39b; border-left-color: #c0392b; }
+.cpl-head { display: flex; align-items: center; gap: .6rem; margin-bottom: .4rem; }
+.cpl-head b { color: var(--green-d); }
+.cpl-row.urgent .cpl-head b { color: #c0392b; }
+.cpl-head button { margin-left: auto; }
+.cpl-cats { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: .4rem; margin-bottom: .5rem; }
+.cpl-fields { display: flex; flex-wrap: wrap; gap: .4rem 1rem; align-items: end; margin-bottom: .4rem; }
+.cpl-field { margin: 0; display: flex; flex-direction: column; font-size: .88rem; }
+.cpl-field select, .cpl-field input { width: auto; }
+.cpl-field .label-text { font-weight: 600; }
+.cpl-radios { display: flex; gap: .6rem; padding: .35rem 0; }
+.cpl-radios input { width: auto; }
+.cpl-place { display: flex; gap: .3rem; }
+.cpl-texts { display: grid; grid-template-columns: 1fr 1fr; gap: .6rem; }
+.cpl-texts label { margin: 0; }
+.cpl-summary { display: flex; flex-wrap: wrap; align-items: center; gap: .4rem .8rem; background: #f3f7f4; border-radius: 8px; padding: .5rem .7rem; margin: .6rem 0; font-size: .88rem; }
+.cpl-sum-group { display: inline-flex; flex-wrap: wrap; gap: .3rem; }
+.cpl-chip { border: 1px solid #d3ddd6; border-radius: 12px; padding: .1rem .55rem; background: #fff; color: var(--c, var(--text)); }
+.cpl-chip.urgent { border-color: #e7a39b; color: #c0392b; }
+.cpl-badge { background: var(--c); color: #fff; font-weight: 600; }
+.cpl-table td { vertical-align: top; }
+.cpl-table tr.done td { color: #6b7a70; }
+.pre-wrap { white-space: pre-wrap; }
+.cpl-nav { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; margin: .4rem 0 .7rem; }
+.cpl-nav form.inline { display: inline; margin: 0; }
+.cpl-nav input[type=month] { width: auto; }
+.cpl-edit details { margin-top: .3rem; }
+.cpl-edit-form { display: flex; flex-direction: column; gap: .3rem; margin-top: .3rem; min-width: 12rem; }
+.hidden-form { display: none; }
+.cpl-stat .cpl-cat1 th { background: #eef3ef; }
+.cpl-stat .cpl-cat1.urgent th { background: #fbe3e0; color: #a3261a; }
+.cpl-stat thead th { white-space: nowrap; }
+.cpl-stat td.indent { padding-left: 1.2rem; }
+tr.recur td { background: #fff4e0; }
+.journal-logs table { font-size: .9rem; }
+@media (max-width: 700px) { .cpl-texts { grid-template-columns: 1fr; } }

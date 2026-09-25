@@ -29,6 +29,9 @@ const PROGRAM_TYPES = ['healing' => '산림치유센터', 'kidsforest' => '유�
 // 참여 인원 연령대 (program_sessions 의 m_* / f_* 컬럼)
 const PROGRAM_AGES = ['infant' => '유아', 'elem' => '초등', 'teen' => '중고등', 'adult' => '성인', 'senior' => '65세이상'];
 
+// 임시저장을 여러 직원이 함께 보고 이어서 고치는 문서 (업무일지·매출보고)
+const SHARED_DRAFT_TYPES = ['daily', 'sales'];
+
 // 날씨 입력란이 없는 문서 (상품권입고, 일일매출보고)
 const NO_WEATHER_TYPES = ['voucher', 'sales'];
 
@@ -228,6 +231,7 @@ function journal_badges(array $j): string
 function can_edit_journal(array $journal, array $user): bool
 {
     if ($journal['type'] === 'attendance') return false; // 근태는 수정 대신 취소 후 다시 입력
+    if ($journal['status'] === 'draft' && in_array($journal['type'], SHARED_DRAFT_TYPES, true)) return true; // 공유 임시저장
     return $journal['status'] !== 'draft' || (int) $journal['author_id'] === (int) $user['id'];
 }
 

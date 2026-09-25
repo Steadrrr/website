@@ -17,6 +17,7 @@ function items_default(string $type, ?int $teamId = null): array
         'facility' => ['team_id' => $teamId, 'facility' => []], // 등록 시설은 폼에서 채움
         'sales'    => ['lines' => [], 'ticket_cash' => 0, 'rent_dc_rule' => null, 'rent_dc_pct' => 0, 'rent_youth' => 0, 'vouchers' => array_fill_keys(voucher_denoms(), 0), 'legacy' => []],
         'voucher'  => ['vouchers' => array_fill_keys(voucher_denoms(), 0)],
+        'daily'    => ['complaints' => []],
         default    => is_program_type($type) ? ['sessions' => [program_empty_session()]] : [],
     };
 }
@@ -38,6 +39,7 @@ function items_load(array $journal): array
     };
 
     if (is_program_type($journal['type'])) return program_load($id);
+    if ($journal['type'] === 'daily') return ['complaints' => cpl_load($id)];
 
     if ($journal['type'] === 'sales') {
         $lines = $q('SELECT * FROM sales_lines WHERE journal_id = ? ORDER BY grp DESC, id');
@@ -73,6 +75,10 @@ function items_load(array $journal): array
 function items_parse(string $type, string $workDate, int $journalId): array
 {
     if (is_program_type($type)) return program_parse($type, $workDate, $journalId);
+    if ($type === 'daily') {
+        [$rows, $errors] = cpl_parse($workDate);
+        return [['complaints' => $rows], $errors];
+    }
 
     $errors = [];
     $teamId = (int) ($_POST['team_id'] ?? 0);
@@ -249,6 +255,12 @@ function items_save(int $id, string $type, array $payload): void
     $pdo = db();
     if (is_program_type($type)) {
         program_save($id, $payload);
+        return;
+    }
+    if ($type === 'daily') {
+        $st = $pdo->prepare('SELECT work_date FROM journals WHERE id = ?');
+        $st->execute([$id]);
+        cpl_save($id, (string) $st->fetchColumn(), $payload['complaints'] ?? []);
         return;
     }
 
@@ -596,6 +608,10 @@ function items_view(array $journal): void
 {
     if (is_program_type($journal['type'])) {
         program_view($journal);
+        return;
+    }
+    if ($journal['type'] === 'daily') {
+        cpl_view(cpl_load((int) $journal['id']));
         return;
     }
     $payload = items_load($journal);

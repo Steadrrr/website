@@ -7,6 +7,42 @@ defined('APP_ROOT') || exit;
  * 고치기 전·후 내용을 사람이 읽을 수 있는 형태로 비교해 journal_revisions 에 남긴다.
  */
 
+/** 작성·수정 기록 남기기 (결재와 별개) */
+function journal_log(int $journalId, ?array $user, string $action, string $note = ''): void
+{
+    db()->prepare('INSERT INTO journal_logs (journal_id, user_id, action, note) VALUES (?, ?, ?, ?)')
+        ->execute([$journalId, $user['id'] ?? null, $action, $note !== '' ? mb_substr($note, 0, 500) : null]);
+}
+
+function journal_logs(int $journalId): array
+{
+    $st = db()->prepare('SELECT l.*, u.name AS user_name, u.rank_level FROM journal_logs l LEFT JOIN users u ON u.id = l.user_id WHERE l.journal_id = ? ORDER BY l.id');
+    $st->execute([$journalId]);
+    return $st->fetchAll();
+}
+
+/** 작성·수정 기록 표 */
+function render_journal_logs(int $journalId): void
+{
+    $logs = journal_logs($journalId);
+    if (!$logs) return;
+    ?>
+<section class="card journal-logs">
+  <h2>작성·수정 기록 <small class="muted">결재와 별개로 누가 언제 작성·저장했는지 남습니다</small></h2>
+  <table class="table">
+    <thead><tr><th>일시</th><th>직원</th><th>내용</th></tr></thead>
+    <tbody>
+    <?php foreach ($logs as $l): ?>
+      <tr><td class="nowrap"><?= e(date('Y-m-d H:i:s', strtotime($l['created_at']))) ?></td>
+        <td class="nowrap"><?= e($l['user_name'] ?? '-') ?> <small class="muted"><?= $l['rank_level'] ? e(rank_name($l['rank_level'])) : '' ?></small></td>
+        <td><b><?= e($l['action']) ?></b><?= $l['note'] ? ' <span class="muted">· ' . e($l['note']) . '</span>' : '' ?></td></tr>
+    <?php endforeach ?>
+    </tbody>
+  </table>
+</section>
+    <?php
+}
+
 /** 일지 내용을 비교하기 쉬운 형태로: [항목 => 문자열 | 문자열 목록] */
 function journal_snapshot(array $journal): array
 {
@@ -21,6 +57,9 @@ function journal_snapshot(array $journal): array
         fn($d, $q) => $q ? denom_label((int) $d) . '×' . $q : null, array_keys($v), $v
     )));
 
+    if ($journal['type'] === 'daily') {
+        $snap['민원'] = cpl_snapshot((int) $journal['id']);
+    }
     if (is_program_type($journal['type'])) {
         $snap += program_snapshot($journal);
     } elseif ($journal['type'] === 'sales') {

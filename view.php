@@ -7,8 +7,10 @@ $id = (int) ($_GET['id'] ?? 0);
 $journal = journal_find($id) ?? abort(404, '일지를 찾을 수 없습니다.');
 
 $isAuthor = (int) $journal['author_id'] === (int) $user['id'];
-if ($journal['status'] === 'draft' && !$isAuthor) abort(403, '임시저장 문서는 작성자만 볼 수 있습니다.');
-$editable = $isAuthor && in_array($journal['status'], ['draft', 'rejected'], true);
+$sharedDraft = $journal['status'] === 'draft' && in_array($journal['type'], SHARED_DRAFT_TYPES, true); // 업무일지·매출보고 임시저장은 모두 공유
+if ($journal['status'] === 'draft' && !$isAuthor && !$sharedDraft) abort(403, '임시저장 문서는 작성자만 볼 수 있습니다.');
+$editable = ($isAuthor || $sharedDraft) && in_array($journal['status'], ['draft', 'rejected'], true);
+$deletable = ($isAuthor && in_array($journal['status'], ['draft', 'rejected'], true)) || $user['is_admin'];
 // 근태: 수정·재상신 없이 취소(삭제) 후 다시 입력
 $att = $journal['type'] === 'attendance' ? att_find($id) : null;
 if ($att) {
@@ -40,7 +42,8 @@ if (is_post()) {
                 redirect('approvals.php');
             case 'submit':
                 if (!$editable) abort(403, '결재를 올릴 수 없는 상태입니다.');
-                journal_submit($journal);
+                journal_submit($journal, (int) $user['rank_level']); // 결재선은 결재를 올린 사람 기준
+                journal_log($id, $user, $journal['status'] === 'rejected' ? '재상신' : '결재 올리기');
                 flash('결재를 올렸습니다.', 'success');
                 redirect('view.php?id=' . $id);
             case 'attach':
@@ -55,7 +58,7 @@ if (is_post()) {
                 }
                 redirect('view.php?id=' . $id);
             case 'delete':
-                if ($att ? !$canCancel : (!$editable && !$user['is_admin'])) abort(403, '삭제 권한이 없습니다.');
+                if ($att ? !$canCancel : !$deletable) abort(403, '삭제 권한이 없습니다.');
                 db()->prepare('DELETE FROM journals WHERE id = ?')->execute([$id]);
                 if ($att && $att['attachment'] && is_file(APP_ROOT . '/' . $att['attachment'])) @unlink(APP_ROOT . '/' . $att['attachment']);
                 if (is_program_type($journal['type'])) photos_delete_all('program', $id);
@@ -160,6 +163,7 @@ $docTitle = $att ? '근태 신청 · ' . $att['user_name'] . ' ' . att_kind_name
 <?php endif ?>
 
 <div id="revisions"><?php render_revisions($revisions) ?></div>
+<?php render_journal_logs($id) ?>
 
 <div class="actions no-print">
   <a class="btn ghost" href="<?= e(url($listUrl)) ?>">목록</a>
@@ -167,7 +171,7 @@ $docTitle = $att ? '근태 신청 · ' . $att['user_name'] . ' ' . att_kind_name
   <?php if (can_edit_journal($journal, $user)): ?>
     <?= edit_button($journal) ?>
   <?php endif ?>
-  <?php if ($att ? $canCancel : ($editable || $user['is_admin'])): ?>
+  <?php if ($att ? $canCancel : $deletable): ?>
     <form method="post" onsubmit="return confirm('<?= $att ? '이 근태를 취소(삭제)할까요?' : '삭제하시겠습니까?' ?>')">
       <?= csrf_field() ?><button class="btn danger" name="action" value="delete"><?= $att ? '근태 취소' : '삭제' ?></button>
     </form>

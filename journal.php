@@ -33,7 +33,7 @@ $st = db()->prepare(
             (SELECT COALESCE(SUM(p.total), 0) FROM program_sessions p WHERE p.journal_id = j.id) AS prog_people
        FROM journals j JOIN users u ON u.id = j.author_id
       WHERE j.type = ? AND j.work_date BETWEEN ? AND ?
-        AND (j.status <> 'draft' OR j.author_id = ?)" . ($teamId ? ' AND j.team_id = ?' : '') . "
+        AND (j.status <> 'draft' OR j.author_id = ? OR j.type IN ('" . implode("','", SHARED_DRAFT_TYPES) . "'))" . ($teamId ? ' AND j.team_id = ?' : '') . "
       ORDER BY j.work_date, j.id"
 );
 $st->execute([$type, $first->format('Y-m-d'), $last->format('Y-m-d'), $user['id'], ...($teamId ? [$teamId] : [])]);
