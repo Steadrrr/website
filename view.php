@@ -85,7 +85,7 @@ $docTitle = $att ? '근태 신청 · ' . $att['user_name'] . ' ' . att_kind_name
     <div>
       <h1><?= e($docTitle) ?></h1>
       <p class="muted">
-        <?= e($journal['work_date']) ?> (<?= weekday_ko($journal['work_date']) ?>)
+        <?= $journal['type'] === 'arwork' ? e(ar_month_label($journal['work_date'])) : e($journal['work_date']) . ' (' . weekday_ko($journal['work_date']) . ')' ?>
         <?php if ($journal['weather'] && !in_array($journal['type'], NO_WEATHER_TYPES, true)): ?> · <?= e($journal['weather']) ?><?php endif ?>
         · 문서번호 <?= (int) $journal['id'] ?> · <?= journal_badges($journal) ?>
       </p>

@@ -505,6 +505,7 @@ function att_calendar_items(array $recs): array
 /** 결재함 등에 쓰는 문서 이름 ("근태 · 홍길동 연차 9/23(수)") */
 function journal_type_label(array $j): string
 {
+    if ($j['type'] === 'arwork' && !empty($j['work_date'])) return 'AR 월간 사용보고 · ' . ar_month_label($j['work_date']);
     if ($j['type'] !== 'attendance') return JOURNAL_TYPES[$j['type']] ?? $j['type'];
     $a = att_find((int) $j['id']);
     return $a ? '근태 · ' . $a['user_name'] . ' ' . att_kind_name($a['kind']) . ' ' . att_when($a, false) : '근태';

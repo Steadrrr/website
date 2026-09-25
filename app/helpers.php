@@ -26,7 +26,7 @@ const JOURNAL_TYPES = [
     'guide2'     => '숲해설(용문산) 운영보고',
     'vcheck'     => '상품권 금고점검',
     'rooms'      => '일일객실판매',
-    'arwork'     => 'AR 사용보고',
+    'arwork'     => 'AR 월간 사용보고',
 ];
 // 프로그램 운영보고 분야 (journals.type)
 const PROGRAM_TYPES = ['healing' => '산림치유센터', 'kidsforest' => '유아숲체험원', 'kidsdirect' => '유아숲(직영)', 'guide' => '숲해설', 'guide2' => '숲해설(용문산)'];
@@ -260,7 +260,7 @@ function journal_list_url(string $type, ?string $date = null): string
 {
     return match ($type) {
         'voucher', 'vcheck' => 'voucher.php',
-        'arwork' => 'ar.php' . ($date ? "?date=$date" : ''),
+        'arwork' => 'ar.php' . ($date ? '?ym=' . substr($date, 0, 7) : ''),
         default => "journal.php?type=$type" . ($date ? "&date=$date" : ''),
     };
 }

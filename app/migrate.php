@@ -6,7 +6,7 @@ defined('APP_ROOT') || exit;
  * 새 버전 파일을 FTP로 덮어쓰기만 하면, 첫 접속 때 부족한 테이블/컬럼을 만든다.
  * (기존 자료는 그대로 유지)
  */
-const DB_VERSION = 33;
+const DB_VERSION = 34;
 
 function db_version(): int
 {
@@ -343,6 +343,12 @@ function db_migrate(): void
         $pdo->exec("UPDATE users SET menu_access = CONCAT(menu_access, ',room')
                      WHERE menu_access IS NOT NULL AND FIND_IN_SET('ops', menu_access) AND NOT FIND_IN_SET('room', menu_access)");
     }
+
+    // 34) v33 → v34: AR 사용보고를 월 단위로 (줄마다 사용일 ar_workers.work_date). 지난 일별 보고서의 줄은 그 보고서 날짜를 사용일로
+    if (!column_exists('ar_workers', 'work_date')) {
+        $pdo->exec("ALTER TABLE ar_workers ADD work_date DATE NULL AFTER journal_id, ADD INDEX idx_work_date (work_date)");
+    }
+    $pdo->exec("UPDATE ar_workers w JOIN journals j ON j.id = w.journal_id SET w.work_date = j.work_date WHERE w.work_date IS NULL");
 
     $pdo->prepare("INSERT INTO settings (name, value) VALUES ('db_version', ?) ON DUPLICATE KEY UPDATE value = VALUES(value)")
         ->execute([(string) DB_VERSION]);

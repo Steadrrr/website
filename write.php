@@ -29,6 +29,7 @@ if ($id) {
         $teamId = (int) ($_GET['team'] ?? 0);
         if (!isset(teams_all()[$teamId])) $teamId = (int) array_key_first(teams_all());
     }
+    if ($type === 'arwork') $workDate = substr($workDate, 0, 7) . '-01'; // AR 사용보고는 월 단위 (그 달 1일)
     $payload = items_default($type, $teamId ?: null);
 }
 
@@ -43,7 +44,7 @@ $errors = [];
 
 if (is_post()) {
     csrf_verify();
-    $workDate = post('work_date');
+    $workDate = $type === 'arwork' ? (preg_match('/^\d{4}-\d{2}$/', post('ar_month')) ? post('ar_month') . '-01' : '') : post('work_date');
     $weather  = in_array($type, NO_WEATHER_TYPES, true) ? '' : mb_substr(post('weather'), 0, 30);
     $content  = post('content');
     $remarks  = post('remarks');
@@ -141,7 +142,12 @@ layout_header(JOURNAL_TYPES[$type] . ($journal ? ' 수정' : ' 작성'), journal
         <?php endif ?>
       </label>
     <?php endif ?>
+    <?php if ($type === 'arwork'): ?>
+      <label>사용 월<input type="month" name="ar_month" value="<?= e(substr($workDate, 0, 7)) ?>" required
+        <?= $journal ? '' : "onchange=\"if (this.value) location.href='?type=arwork&date=' + this.value + '-01'\"" ?>></label>
+    <?php else: ?>
     <label>일자<input type="date" name="work_date" value="<?= e($workDate) ?>" required></label>
+    <?php endif ?>
     <?php if (!in_array($type, NO_WEATHER_TYPES, true)): ?>
     <label>날씨<input name="weather" value="<?= $v('weather') ?>" placeholder="맑음 / 18℃" list="weathers"></label>
     <datalist id="weathers"><option>맑음</option><option>구름많음</option><option>흐림</option><option>비</option><option>눈</option></datalist>

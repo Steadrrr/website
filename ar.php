@@ -3,8 +3,9 @@
  * 객실관리 › AR사용관리 (공무직 이상)
  *   ar.php?ym=2026-10[&date=2026-10-05]
  *   - 상단: 그 해 사용가능횟수(한도) · 계획횟수 · 사용횟수 · 잔여  (1명 하루 = 1회)
- *   - 달력: 날짜마다 계획 인원 입력(한꺼번에 저장), 사용보고(결재) 상태
- *   - 날짜를 고르면 계획 메모와 그 날 AR 사용보고 작성·보기
+ *   - 달력: 날짜마다 계획 인원 입력(위쪽 '사용계획 저장'으로 한꺼번에 저장), 날짜별 사용 인원(월간 사용보고에서)
+ *   - AR 사용보고는 월 1건 (줄마다 사용일·성명·사용시간) — 이 달 보고서 작성·보기
+ *   - 날짜를 고르면 그 날 계획 메모와 사용 내역
  */
 require __DIR__ . '/app/bootstrap.php';
 
@@ -65,20 +66,22 @@ if (is_post()) {
 }
 
 $sum = ar_year_summary($year);
-$plans = ar_plans($first->format('Y-m-d'), $last->format('Y-m-d'));
-// 이 달의 AR 사용보고 (남의 임시저장 제외)
-$st = $pdo->prepare("SELECT j.id, j.work_date, j.status, j.revision, j.author_id, u.name AS author_name,
-                            COUNT(w.id) AS people, COALESCE(SUM(w.minutes), 0) AS minutes, GROUP_CONCAT(w.name ORDER BY w.sort_no SEPARATOR ', ') AS names
+$from = $first->format('Y-m-d');
+$to = $last->format('Y-m-d');
+$plans = ar_plans($from, $to);
+$used = ar_used_by_day($from, $to, (int) $user['id']);
+// 이 달의 월간 사용보고 (남의 임시저장 제외)
+$st = $pdo->prepare("SELECT j.id, j.type, j.work_date, j.status, j.revision, j.author_id, j.submitted_at, u.name AS author_name,
+                            COUNT(w.id) AS people, COUNT(DISTINCT w.work_date) AS days, COUNT(DISTINCT w.name) AS names, COALESCE(SUM(w.minutes), 0) AS minutes
                        FROM journals j JOIN users u ON u.id = j.author_id LEFT JOIN ar_workers w ON w.journal_id = j.id
                       WHERE j.type = 'arwork' AND j.work_date BETWEEN ? AND ? AND (j.status <> 'draft' OR j.author_id = ?)
-                      GROUP BY j.id ORDER BY j.work_date, j.id");
-$st->execute([$first->format('Y-m-d'), $last->format('Y-m-d'), $user['id']]);
-$reports = [];
-foreach ($st as $r) $reports[$r['work_date']] = $r;
-$counted = fn($r) => in_array($r['status'], ['pending', 'approved'], true);
+                      GROUP BY j.id ORDER BY j.id");
+$st->execute([$from, $to, $user['id']]);
+$reports = $st->fetchAll();
 $monthPlan = array_sum(array_map(fn($p) => (int) $p['people'], $plans));
-$monthUsed = array_sum(array_map(fn($r) => $counted($r) ? (int) $r['people'] : 0, $reports));
+$monthUsed = array_sum(array_map(fn($u) => in_array($u['status'], ['pending', 'approved'], true) ? $u['people'] : 0, $used));
 $remain = $sum['quota'] - $sum['used'];
+$mLabel = (int) $first->format('n') . '월';
 
 layout_header('AR사용관리', 'ar');
 ?>
@@ -87,7 +90,8 @@ layout_header('AR사용관리', 'ar');
     <h1>AR사용관리 <small class="muted"><?= $year ?>년 · 아르바이트 1명 하루 사용 = 1회</small></h1>
     <div class="actions no-margin no-print">
       <button class="btn ghost" onclick="window.print()">인쇄</button>
-      <a class="btn primary" href="<?= e(url('write.php?type=arwork&date=' . ($selected ?: date('Y-m-d')))) ?>">+ AR 사용보고</a>
+      <?php if ($reports): ?><a class="btn" href="<?= e(url('view.php?id=' . $reports[0]['id'])) ?>"><?= $mLabel ?> 사용보고 보기</a>
+      <?php else: ?><a class="btn primary" href="<?= e(url('write.php?type=arwork&date=' . $from)) ?>">+ <?= $mLabel ?> 사용보고 작성</a><?php endif ?>
     </div>
   </div>
   <div class="kpis k4 ar-kpis">
@@ -103,17 +107,18 @@ layout_header('AR사용관리', 'ar');
       <?php if ($sum['quota']): ?><div class="ar-bar" title="사용 <?= $sum['used'] ?> / 계획 <?= $sum['planned'] ?> / 가능 <?= $sum['quota'] ?>">
         <i class="plan" style="width: <?= min(100, round($sum['planned'] / $sum['quota'] * 100)) ?>%"></i><i class="used" style="width: <?= min(100, round($sum['used'] / $sum['quota'] * 100)) ?>%"></i></div><?php endif ?></div>
   </div>
-  <p class="muted small">사용횟수는 결재중·결재완료된 AR 사용보고의 인원 합계입니다 (임시저장·반려 제외). 사용가능횟수는 해마다 공무직 이상이 입력합니다.</p>
+  <p class="muted small">사용보고는 <b>월 1건</b>입니다. 사용횟수는 결재중·결재완료된 월간 사용보고의 줄 수(1명 하루 = 1회)입니다 (임시저장·반려 제외). 사용가능횟수는 해마다 공무직 이상이 입력합니다.</p>
 </div>
 
 <form method="post" class="card">
   <?= csrf_field() ?><input type="hidden" name="target" value="plans">
-  <div class="cal-nav">
+  <div class="cal-nav ar-cal-nav">
     <a class="btn" href="<?= e(url('ar.php?ym=' . $first->modify('-1 month')->format('Y-m'))) ?>">‹ 이전달</a>
     <strong><?= e($first->format('Y년 n월')) ?></strong>
     <a class="btn" href="<?= e(url('ar.php?ym=' . $first->modify('+1 month')->format('Y-m'))) ?>">다음달 ›</a>
     <a class="btn ghost" href="<?= e(url('ar.php')) ?>">오늘</a>
     <span class="muted small">이 달 계획 <b><?= $monthPlan ?></b>회 · 사용 <b><?= $monthUsed ?></b>회</span>
+    <button class="btn primary no-print ar-plan-save">이 달 사용계획 저장</button>
   </div>
   <div class="calendar ar-calendar">
     <?php foreach (['일', '월', '화', '수', '목', '금', '토'] as $i => $w): ?>
@@ -124,7 +129,7 @@ layout_header('AR사용관리', 'ar');
         $date = $d->format('Y-m-d');
         $w = (int) $d->format('w');
         $p = $plans[$date] ?? null;
-        $r = $reports[$date] ?? null;
+        $u = $used[$date] ?? null;
         $cls = ['cal-d'];
         if ($w === 0) $cls[] = 'sun';
         if ($w === 6) $cls[] = 'sat';
@@ -136,64 +141,52 @@ layout_header('AR사용관리', 'ar');
         <label class="ar-plan-in" title="계획 인원<?= $p && $p['memo'] ? ' · ' . e($p['memo']) : '' ?>">계획
           <input name="plans[<?= $date ?>]" value="<?= $p && $p['people'] ? (int) $p['people'] : '' ?>" inputmode="numeric" class="num" placeholder="-">명</label>
         <?php if ($p && $p['memo']): ?><span class="ar-memo" title="<?= e($p['memo']) ?>">📝</span><?php endif ?>
-        <?php if ($r): ?><a class="chip st-<?= e($r['status']) ?>" href="<?= e(url('view.php?id=' . $r['id'])) ?>">사용 <?= (int) $r['people'] ?>명</a><?php endif ?>
+        <?php if ($u): ?><a class="chip st-<?= e($u['status']) ?>" href="<?= e(url("ar.php?ym=$ym&date=$date")) ?>">사용 <?= $u['people'] ?>명</a><?php endif ?>
       </div>
     <?php endfor ?>
   </div>
   <div class="legend">
     <?php foreach (JOURNAL_STATUS as $k => $v): ?><span class="chip st-<?= $k ?>"><?= e($v) ?></span><?php endforeach ?>
-    <span class="muted small">날짜(숫자)를 누르면 그 날의 계획 메모와 사용보고를 봅니다.</span>
+    <span class="muted small">계획 인원을 고친 뒤 위의 '이 달 사용계획 저장'을 누르세요. 날짜(숫자)를 누르면 그 날의 계획 메모와 사용 내역을 봅니다.</span>
   </div>
-  <div class="actions no-print"><button class="btn primary">이 달 사용계획 저장</button></div>
 </form>
 
-<?php if ($selected): $p = ar_plans($selected, $selected)[$selected] ?? null; $r = $reports[$selected] ?? (function () use ($pdo, $selected, $user) {
-    $st = $pdo->prepare("SELECT j.id, j.status, j.revision, j.author_id, u.name AS author_name FROM journals j JOIN users u ON u.id = j.author_id
-                          WHERE j.type = 'arwork' AND j.work_date = ? AND (j.status <> 'draft' OR j.author_id = ?)");
-    $st->execute([$selected, $user['id']]);
-    return $st->fetch() ?: null;
-})(); ?>
 <div class="grid2">
+  <section class="card">
+    <h2><?= $mLabel ?> AR 사용보고 <small class="muted">월 1건</small></h2>
+    <?php if ($reports): foreach ($reports as $r): ?>
+      <p><?= journal_badges($r) ?> · 작성 <?= e($r['author_name']) ?> · 문서번호 <?= (int) $r['id'] ?></p>
+      <p><b><?= (int) $r['people'] ?>회</b> (<?= (int) $r['days'] ?>일 · <?= (int) $r['names'] ?>명) · <?= e(ar_hm((int) $r['minutes'])) ?>
+        <?php if ($monthPlan): ?><small class="muted">/ 계획 <?= $monthPlan ?>회</small><?php endif ?></p>
+      <div class="actions"><a class="btn" href="<?= e(url('view.php?id=' . $r['id'])) ?>">보기 · 결재</a>
+        <?php if (can_edit_journal($r, $user)): ?><a class="btn ghost" href="<?= e(url('write.php?id=' . $r['id'])) ?>">수정 (사용 내역 추가)</a><?php endif ?></div>
+    <?php endforeach; else: ?>
+      <p class="muted"><?= $mLabel ?> 사용보고가 아직 없습니다.<?= $monthPlan ? " 작성 화면에 계획 {$monthPlan}회만큼 줄이 미리 만들어집니다." : '' ?></p>
+      <div class="actions"><a class="btn primary" href="<?= e(url('write.php?type=arwork&date=' . $from)) ?>"><?= $mLabel ?> 사용보고 작성</a></div>
+    <?php endif ?>
+  </section>
+
+  <?php if ($selected): $p = ar_plans($selected, $selected)[$selected] ?? null;
+      $st = $pdo->prepare("SELECT w.* FROM ar_workers w JOIN journals j ON j.id = w.journal_id
+                            WHERE j.type = 'arwork' AND w.work_date = ? AND j.status <> 'rejected' AND (j.status <> 'draft' OR j.author_id = ?) ORDER BY w.sort_no");
+      $st->execute([$selected, $user['id']]);
+      $dayRows = $st->fetchAll(); ?>
   <form method="post" class="card">
     <?= csrf_field() ?><input type="hidden" name="target" value="plan"><input type="hidden" name="work_date" value="<?= e($selected) ?>">
-    <h2><?= e(date('n월 j일', strtotime($selected))) ?> (<?= weekday_ko($selected) ?>) 사용계획</h2>
+    <h2><?= e(date('n월 j일', strtotime($selected))) ?> (<?= weekday_ko($selected) ?>)</h2>
     <div class="row">
       <label>계획 인원<input name="people" value="<?= (int) ($p['people'] ?? 0) ?: '' ?>" inputmode="numeric" class="num" placeholder="0"></label>
       <label>메모<input name="memo" value="<?= e($p['memo'] ?? '') ?>" maxlength="200" placeholder="예: 주말 만실 대비 객실 청소"></label>
+      <button class="btn primary">계획 저장</button>
     </div>
     <?php if ($p): ?><p class="muted small">마지막 입력: <?= e($p['user_name'] ?? '') ?> · <?= e(substr($p['updated_at'], 0, 16)) ?></p><?php endif ?>
-    <div class="actions"><button class="btn primary">계획 저장</button></div>
+    <h3>사용 내역 <small class="muted"><?= count($dayRows) ?>명</small></h3>
+    <?php if ($dayRows): ?>
+      <table class="table ar-list"><tbody>
+        <?php foreach ($dayRows as $w): ?><tr><td><b><?= e($w['name']) ?></b></td><td><?= e(substr((string) $w['start_time'], 0, 5)) ?>~<?= e(substr((string) $w['end_time'], 0, 5)) ?></td><td class="right"><?= e(ar_hm((int) $w['minutes'])) ?></td><td><?= e($w['task'] ?? '') ?></td></tr><?php endforeach ?>
+      </tbody></table>
+    <?php else: ?><p class="muted small">이 날 사용 내역이 없습니다. <?= $mLabel ?> 사용보고에 이 날짜 줄을 추가하세요.</p><?php endif ?>
   </form>
-  <section class="card">
-    <h2>AR 사용보고</h2>
-    <?php if ($r): ?>
-      <p><?= journal_badges($r) ?> · 작성 <?= e($r['author_name']) ?><?php if (isset($r['people'])): ?> · <b><?= (int) $r['people'] ?>명</b> · <?= e(ar_hm((int) $r['minutes'])) ?><?php endif ?></p>
-      <?php if (!empty($r['names'])): ?><p class="small"><?= e($r['names']) ?></p><?php endif ?>
-      <div class="actions"><a class="btn" href="<?= e(url('view.php?id=' . $r['id'])) ?>">보기 · 결재</a>
-        <?php if (can_edit_journal($r + ['type' => 'arwork'], $user)): ?><a class="btn ghost" href="<?= e(url('write.php?id=' . $r['id'])) ?>">수정</a><?php endif ?></div>
-    <?php else: ?>
-      <p class="muted">이 날 작성된 AR 사용보고가 없습니다.<?= $p && $p['people'] ? " (계획 {$p['people']}명)" : '' ?></p>
-      <div class="actions"><a class="btn primary" href="<?= e(url('write.php?type=arwork&date=' . $selected)) ?>">이 날짜로 사용보고 작성</a></div>
-    <?php endif ?>
-  </section>
+  <?php endif ?>
 </div>
-<?php endif ?>
-
-<?php if ($reports): ?>
-<section class="card">
-  <h2><?= e($first->format('n월')) ?> AR 사용보고</h2>
-  <div class="table-scroll">
-  <table class="table ar-list">
-    <thead><tr><th>일자</th><th class="right">계획</th><th class="right">사용</th><th>아르바이트</th><th class="right">근무시간</th><th>작성</th><th>상태</th></tr></thead>
-    <tbody>
-    <?php foreach ($reports as $date => $r): ?>
-      <tr class="clickable" onclick="location.href='<?= e(url('view.php?id=' . $r['id'])) ?>'">
-        <td class="nowrap"><?= e($date) ?> (<?= weekday_ko($date) ?>)</td><td class="right"><?= (int) ($plans[$date]['people'] ?? 0) ?>명</td><td class="right"><b><?= (int) $r['people'] ?>명</b></td>
-        <td><?= e($r['names'] ?? '') ?></td><td class="right nowrap"><?= e(ar_hm((int) $r['minutes'])) ?></td><td><?= e($r['author_name']) ?></td><td><?= journal_badges($r) ?></td></tr>
-    <?php endforeach ?>
-    </tbody>
-  </table>
-  </div>
-</section>
-<?php endif ?>
 <?php layout_footer();

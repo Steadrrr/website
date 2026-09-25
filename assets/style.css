@@ -929,7 +929,7 @@ tr.recur td { background: #fff4e0; }
 .ar-plan-in { display: flex; align-items: center; gap: .2rem; margin: 0; font-size: .75rem; font-weight: 400; color: var(--muted); }
 .ar-plan-in input { width: 3.2rem; padding: .1rem .3rem; margin: 0; font-size: .85rem; min-height: 0; height: 1.7rem; }
 .ar-memo { font-size: .75rem; cursor: help; }
-.ar-table td { white-space: nowrap; }
+.ar-table td, .ar-table th { white-space: nowrap; }
 .ar-table input { margin: 0; display: inline-block; vertical-align: middle; }
 .ar-table .ar-name { width: 8rem; }
 .ar-table input[type=time] { width: 7.6rem; }
@@ -952,3 +952,4 @@ tr.recur td { background: #fff4e0; }
 .date-jump { width: auto; margin: 0; }
 @media print { .supply-thumb { width: 40px; height: 40px; } }
 .supply-card-head { flex-wrap: wrap; gap: .5rem; }
+.ar-cal-nav .ar-plan-save { margin-left: auto; }

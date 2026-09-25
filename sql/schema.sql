@@ -575,10 +575,11 @@ CREATE TABLE IF NOT EXISTS ar_plans (
   updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- AR 사용보고(journals type arwork)의 아르바이트별 사용시간
+-- AR 월간 사용보고(journals type arwork, work_date = 그 달 1일)의 사용일·아르바이트별 사용시간
 CREATE TABLE IF NOT EXISTS ar_workers (
   id         INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   journal_id INT UNSIGNED NOT NULL,
+  work_date  DATE NULL COMMENT '사용일 (보고서는 월 단위, 줄마다 사용일)',
   sort_no    SMALLINT UNSIGNED NOT NULL DEFAULT 1,
   name       VARCHAR(50) NOT NULL COMMENT '아르바이트 성명',
   start_time TIME NOT NULL,
@@ -587,5 +588,6 @@ CREATE TABLE IF NOT EXISTS ar_workers (
   minutes    INT UNSIGNED NOT NULL DEFAULT 0 COMMENT '근무시간(분) = 종료 − 시작 − 휴게',
   task       VARCHAR(200) NULL COMMENT '업무내용',
   INDEX idx_journal (journal_id, sort_no),
+  INDEX idx_work_date (work_date),
   CONSTRAINT fk_ar_journal FOREIGN KEY (journal_id) REFERENCES journals(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
