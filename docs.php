@@ -88,6 +88,7 @@ $rows = $st->fetchAll();
 /** 문서 한 줄 요약 */
 $summary = function (array $j): string {
     if ($j['type'] === 'attendance') return trim(($j['att_user'] ?? '') . ' ' . ($j['att_kind'] ? att_kind_name($j['att_kind']) : '') . ' ' . ($j['att_start'] ?? '') . ($j['att_end'] && $j['att_end'] !== $j['att_start'] ? ' ~ ' . $j['att_end'] : ''));
+    if ($j['type'] === 'rooms') return '객실 매출 ' . number_format((int) $j['sales_amount']) . '원' . ($j['content'] ? ' · ' . mb_strimwidth(preg_replace('/\s+/', ' ', $j['content']), 0, 40, '…') : '');
     if ($j['type'] === 'sales') return '매출 ' . number_format((int) $j['sales_amount']) . '원' . ($j['content'] ? ' · ' . mb_strimwidth(preg_replace('/\s+/', ' ', $j['content']), 0, 40, '…') : '');
     if ($j['type'] === 'facility' && $j['team_id']) return team_name((int) $j['team_id']) . ($j['content'] ? ' · ' . mb_strimwidth(preg_replace('/\s+/', ' ', $j['content']), 0, 40, '…') : '');
     return mb_strimwidth(preg_replace('/\s+/', ' ', (string) $j['content']), 0, 60, '…');

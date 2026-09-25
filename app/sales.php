@@ -59,7 +59,7 @@ function dashboard_series(string $period): array
                 SUM(IF(l.grp = 'room', l.qty, 0))    AS rooms,
                 SUM(IF(l.grp = 'room', l.guests, 0)) AS guests
            FROM journals j JOIN sales_lines l ON l.journal_id = j.id
-          WHERE j.type = 'sales' AND $cond AND j.work_date BETWEEN ? AND ?
+          WHERE " . SALE_DOC_SQL . " AND $cond AND j.work_date BETWEEN ? AND ?
           GROUP BY k"
     );
     $st->execute([...$params, $start->format('Y-m-d'), $end->format('Y-m-d')]);

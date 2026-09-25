@@ -116,7 +116,7 @@ function journal_delete(array $journal): void
     db()->prepare('DELETE FROM journals WHERE id = ?')->execute([$id]);
     if ($att && $att['attachment'] && is_file(APP_ROOT . '/' . $att['attachment'])) @unlink(APP_ROOT . '/' . $att['attachment']);
     if (is_program_type($journal['type'])) photos_delete_all('program', $id);
-    if ($journal['type'] === 'sales') stay_sync_next($journal['work_date']); // 다음 날 퇴실 인원 다시 계산
+    if ($journal['type'] === 'rooms') stay_sync_rooms($journal['work_date']); // 그 날 입실·다음 날 퇴실 인원 다시 계산
 }
 
 /** 전결 권한 설정과 관계없이 주무관이면 전결할 수 있는 문서 (상품권 금고점검) */

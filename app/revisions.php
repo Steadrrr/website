@@ -49,7 +49,7 @@ function journal_snapshot(array $journal): array
     $p = items_load($journal);
     $snap = ['일자' => $journal['work_date']];
     if (!in_array($journal['type'], NO_WEATHER_TYPES, true)) $snap['날씨'] = (string) $journal['weather'];
-    $contentLabel = ['daily' => '업무내용', 'sales' => '메모', 'voucher' => '적요'][$journal['type']] ?? '내용';
+    $contentLabel = ['daily' => '업무내용', 'sales' => '메모', 'rooms' => '메모', 'voucher' => '적요'][$journal['type']] ?? '내용';
     $snap[$contentLabel] = (string) $journal['content'];
     $snap['특이사항'] = (string) $journal['remarks'];
 
@@ -62,7 +62,7 @@ function journal_snapshot(array $journal): array
     }
     if (is_program_type($journal['type'])) {
         $snap += program_snapshot($journal);
-    } elseif ($journal['type'] === 'sales') {
+    } elseif (in_array($journal['type'], SALE_DOC_TYPES, true)) {
         $lines = [];
         foreach ($p['lines'] as $l) {
             if ($l['grp'] === 'rental') {
@@ -78,10 +78,12 @@ function journal_snapshot(array $journal): array
             }
         }
         $snap['판매 내역'] = $lines;
-        $snap['입장권 현금'] = number_format($p['ticket_cash']) . '원';
-        $rule = $p['rent_dc_rule'] ?? null;
-        $snap['대관 통합 할인'] = $rule ? (RENT_DC_RULES[$rule][0] ?? $rule) . ' ' . (int) $p['rent_dc_pct'] . '%' : '없음';
-        $snap['매출 합계'] = number_format(array_sum(array_column($p['lines'], 'amount'))) . '원';
+        if ($journal['type'] === 'sales') {
+            $snap['입장권 현금'] = number_format($p['ticket_cash']) . '원';
+            $rule = $p['rent_dc_rule'] ?? null;
+            $snap['대관 통합 할인'] = $rule ? (RENT_DC_RULES[$rule][0] ?? $rule) . ' ' . (int) $p['rent_dc_pct'] . '%' : '없음';
+        }
+        $snap[$journal['type'] === 'rooms' ? '객실 매출 합계' : '매출 합계'] = number_format(array_sum(array_column($p['lines'], 'amount'))) . '원';
         if (array_sum($p['vouchers']) > 0) $snap['객실 미지정 환급'] = $vouchersText($p['vouchers']);
     } elseif ($journal['type'] === 'facility') {
         $snap['관리팀'] = team_name($p['team_id']);

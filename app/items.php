@@ -17,6 +17,7 @@ function items_default(string $type, ?int $teamId = null): array
     return match ($type) {
         'facility' => ['team_id' => $teamId, 'facility' => []], // 등록 시설은 폼에서 채움
         'sales'    => ['lines' => [], 'ticket_cash' => 0, 'rent_dc_rule' => null, 'rent_dc_pct' => 0, 'rent_youth' => 0, 'vouchers' => array_fill_keys(voucher_denoms(), 0), 'legacy' => []],
+        'rooms'    => ['lines' => [], 'vouchers' => array_fill_keys(voucher_denoms(), 0)],
         'voucher'  => ['vouchers' => array_fill_keys(voucher_denoms(), 0)],
         'daily'    => ['complaints' => []],
         'vcheck'   => ['checks' => []], // 장부 매수는 폼에서 그 날짜 기준으로 계산
@@ -43,7 +44,7 @@ function items_load(array $journal): array
     if (is_program_type($journal['type'])) return program_load($id);
     if ($journal['type'] === 'daily') return ['complaints' => cpl_load($id)];
 
-    if ($journal['type'] === 'sales') {
+    if (in_array($journal['type'], SALE_DOC_TYPES, true)) {
         $lines = $q('SELECT * FROM sales_lines WHERE journal_id = ? ORDER BY grp DESC, id');
         $unassigned = array_fill_keys(voucher_denoms(), 0);
         $byLine = [];
@@ -107,21 +108,10 @@ function items_parse(string $type, string $workDate, int $journalId): array
         $payload['facility'] = $rows;
     }
 
-    if ($type === 'sales') {
+    if ($type === 'rooms') {
+        // 일일객실판매: 객실 판매와 지역상품권 환급 (매출보고와 따로 결재)
         $products = products_at($workDate); // 기간별 가격표가 있으면 그 날짜의 가격
         $lines = [];
-
-        foreach ((array) ($_POST['ticket'] ?? []) as $pid => $row) {
-            $p = $products[(int) $pid] ?? null;
-            $qty = to_int($row['qty'] ?? 0);
-            if (!$p || $p['grp'] !== 'ticket' || !empty($p['sys_key']) || $qty === 0) continue; // 쉬자파크숙박은 아래에서 자동
-            [$unit, $season] = ticket_price($p, $workDate);
-            $lines[] = [
-                'product_id' => (int) $p['id'], 'grp' => 'ticket', 'name' => $p['name'], 'is_free' => (int) $p['is_free'],
-                'rate' => null, 'season' => $season, 'discounted' => 0, 'unit_price' => $unit, 'qty' => $qty, 'guests' => 0, 'amount' => $unit * $qty,
-            ];
-        }
-
         // 객실: 객실명마다 한 실이므로 입실인원을 입력하면 판매로 본다
         $payload['warnings'] = [];
         foreach ((array) ($_POST['room'] ?? []) as $pid => $row) {
@@ -154,6 +144,34 @@ function items_parse(string $type, string $workDate, int $journalId): array
                 'refund_expected' => $expected, 'vouchers' => $vouchers,
             ];
         }
+        $payload['lines'] = $lines;
+        // 이전 버전 자료의 객실 미지정 환급분 (있을 때만 화면에 나옴)
+        foreach (voucher_denoms() as $d) $payload['vouchers'][$d] = to_int($_POST['voucher_out'][$d] ?? 0);
+        // 일일객실판매는 하루 1건
+        if (valid_date($workDate)) {
+            $st = db()->prepare("SELECT id FROM journals WHERE type = 'rooms' AND work_date = ? AND id <> ?");
+            $st->execute([$workDate, $journalId]);
+            if ($dup = $st->fetchColumn()) $errors[] = "해당 날짜의 일일객실판매가 이미 있습니다. (문서번호 $dup)";
+        }
+        if (!$lines && !array_sum($payload['vouchers'])) $errors[] = '판매한 객실의 입실인원을 1개 이상 입력하세요.';
+    }
+
+    if ($type === 'sales') {
+        $products = products_at($workDate); // 기간별 가격표가 있으면 그 날짜의 가격
+        $lines = [];
+
+        foreach ((array) ($_POST['ticket'] ?? []) as $pid => $row) {
+            $p = $products[(int) $pid] ?? null;
+            $qty = to_int($row['qty'] ?? 0);
+            if (!$p || $p['grp'] !== 'ticket' || !empty($p['sys_key']) || $qty === 0) continue; // 쉬자파크숙박은 아래에서 자동
+            [$unit, $season] = ticket_price($p, $workDate);
+            $lines[] = [
+                'product_id' => (int) $p['id'], 'grp' => 'ticket', 'name' => $p['name'], 'is_free' => (int) $p['is_free'],
+                'rate' => null, 'season' => $season, 'discounted' => 0, 'unit_price' => $unit, 'qty' => $qty, 'guests' => 0, 'amount' => $unit * $qty,
+            ];
+        }
+
+        $payload['warnings'] = [];
         // 시설대관: 대관 시간(2시간/4시간/4시간 이상) + 야간 추가, 건수
         foreach ((array) ($_POST['rental'] ?? []) as $pid => $row) {
             $p = $products[(int) $pid] ?? null;
@@ -206,8 +224,8 @@ function items_parse(string $type, string $workDate, int $journalId): array
         $payload['rent_dc_rule'] = $rule;
         $payload['rent_dc_pct'] = $pct;
         $payload['rent_youth'] = (int) ($rule === 'youth20'); // 체크 여부
-        // 쉬자파크숙박 입실 = 이 보고서 객실 입실인원 합계, 퇴실 = 전날 입실인원 합계 (수정 불가, 무료 입장권으로 집계)
-        $roomGuests = array_sum(array_map(fn($l) => $l['grp'] === 'room' ? $l['guests'] : 0, $lines));
+        // 쉬자파크숙박 입실 = 그 날 일일객실판매의 입실인원 합계, 퇴실 = 전날 입실인원 합계 (수정 불가, 무료 입장권으로 집계)
+        $roomGuests = valid_date($workDate) ? stay_guests($workDate) : 0;
         $stayLines = [];
         foreach (stay_products() as $key => $p) {
             $qty = $key === 'stay_in' ? $roomGuests : (valid_date($workDate) ? stay_out_guests($workDate) : 0);
@@ -226,10 +244,8 @@ function items_parse(string $type, string $workDate, int $journalId): array
             $errors[] = '입장권 현금 금액이 입장권 판매금액(' . number_format($ticketAmount) . '원)보다 큽니다.';
         }
 
-        // 이전 버전 자료의 객실 미지정 환급분 (있을 때만 화면에 나옴)
-        foreach (voucher_denoms() as $d) {
-            $payload['vouchers'][$d] = to_int($_POST['voucher_out'][$d] ?? 0);
-        }
+        // 지역상품권 환급은 일일객실판매에서 입력한다
+        $payload['vouchers'] = array_fill_keys(voucher_denoms(), 0);
 
         // 매출보고는 하루 1건 (중복 집계 방지)
         if (valid_date($workDate)) {
@@ -294,12 +310,12 @@ function items_save(int $id, string $type, array $payload): void
         }
     }
 
-    if ($type === 'sales' || $type === 'voucher') {
+    if (in_array($type, ['sales', 'rooms', 'voucher'], true)) {
         $pdo->prepare('DELETE FROM voucher_moves WHERE journal_id = ?')->execute([$id]);
     }
     $moveIns = $pdo->prepare('INSERT INTO voucher_moves (journal_id, line_id, direction, denom, qty) VALUES (?, ?, ?, ?, ?)');
 
-    if ($type === 'sales') {
+    if (in_array($type, SALE_DOC_TYPES, true)) {
         $pdo->prepare('DELETE FROM sales_lines WHERE journal_id = ?')->execute([$id]);
         $ins = $pdo->prepare(
             'INSERT INTO sales_lines (journal_id, product_id, grp, name, is_free, rate, season, discounted, unit_price, qty, guests, refund_expected, rent_time, night, dc_pct, amount)
@@ -314,18 +330,21 @@ function items_save(int $id, string $type, array $payload): void
                 if ($qty > 0) $moveIns->execute([$id, $lineId, 'out', $denom, $qty]);
             }
         }
-        $pdo->prepare('INSERT INTO sales_meta (journal_id, ticket_cash, rent_dc_rule, rent_dc_pct, rent_youth) VALUES (?, ?, ?, ?, ?)
-                       ON DUPLICATE KEY UPDATE ticket_cash = VALUES(ticket_cash), rent_dc_rule = VALUES(rent_dc_rule), rent_dc_pct = VALUES(rent_dc_pct), rent_youth = VALUES(rent_youth)')
-            ->execute([$id, (int) $payload['ticket_cash'], $payload['rent_dc_rule'] ?? null, (int) ($payload['rent_dc_pct'] ?? 0), (int) ($payload['rent_youth'] ?? 0)]);
-        // 오늘 입실인원이 바뀌면 다음 날 보고서의 '쉬자파크숙박(퇴실)'도 맞춘다
-        $st = $pdo->prepare('SELECT work_date FROM journals WHERE id = ?');
-        $st->execute([$id]);
-        stay_sync_next((string) $st->fetchColumn());
+        if ($type === 'sales') {
+            $pdo->prepare('INSERT INTO sales_meta (journal_id, ticket_cash, rent_dc_rule, rent_dc_pct, rent_youth) VALUES (?, ?, ?, ?, ?)
+                           ON DUPLICATE KEY UPDATE ticket_cash = VALUES(ticket_cash), rent_dc_rule = VALUES(rent_dc_rule), rent_dc_pct = VALUES(rent_dc_pct), rent_youth = VALUES(rent_youth)')
+                ->execute([$id, (int) $payload['ticket_cash'], $payload['rent_dc_rule'] ?? null, (int) ($payload['rent_dc_pct'] ?? 0), (int) ($payload['rent_youth'] ?? 0)]);
+        } else {
+            // 객실 입실인원이 바뀌면 그 날 매출보고의 '쉬자파크숙박(입실)'과 다음 날의 '(퇴실)'을 맞춘다
+            $st = $pdo->prepare('SELECT work_date FROM journals WHERE id = ?');
+            $st->execute([$id]);
+            stay_sync_rooms((string) $st->fetchColumn());
+        }
     }
 
-    if ($type === 'sales' || $type === 'voucher') {
-        foreach ($payload['vouchers'] as $denom => $qty) {
-            if ($qty > 0) $moveIns->execute([$id, null, $type === 'sales' ? 'out' : 'in', $denom, $qty]);
+    if (in_array($type, ['sales', 'rooms', 'voucher'], true)) {
+        foreach ($payload['vouchers'] ?? [] as $denom => $qty) {
+            if ($qty > 0) $moveIns->execute([$id, null, $type === 'voucher' ? 'in' : 'out', $denom, $qty]);
         }
     }
 }
@@ -354,20 +373,23 @@ function items_form(string $type, array $payload, string $workDate, ?array $jour
         return;
     }
 
-    if ($type !== 'sales') return;
+    if (!in_array($type, SALE_DOC_TYPES, true)) return;
 
+    // 매출보고 = 입장권·시설대관, 일일객실판매 = 객실·지역상품권 환급
     $byProduct = [];
     foreach ($payload['lines'] as $l) $byProduct[(int) $l['product_id']] = $l;
     $ids = array_keys($byProduct);
-    $tickets = products_for_form('ticket', $ids, $workDate);
-    $rooms = products_for_form('room', $ids, $workDate);
-    $rentals = products_for_form('rental', $ids, $workDate);
-    $lodges = products_for_form('lodge', $ids, $workDate);
+    $isRooms = $type === 'rooms';
+    $tickets = $isRooms ? [] : products_for_form('ticket', $ids, $workDate);
+    $rooms = $isRooms ? products_for_form('room', $ids, $workDate) : [];
+    $rentals = $isRooms ? [] : products_for_form('rental', $ids, $workDate);
+    $lodges = $isRooms ? [] : products_for_form('lodge', $ids, $workDate);
     $defaultRate = rate_for_date($workDate);
 
     if (!$tickets && !$rooms && !$rentals && !$lodges): ?>
-  <div class="flash flash-error">등록된 판매 상품이 없습니다. 관리자에게 <b>상품관리</b>에서 입장권·객실·시설대관을 등록해 달라고 요청하세요.</div>
+  <div class="flash flash-error">등록된 판매 상품이 없습니다. 관리자에게 <b>상품관리</b>에서 <?= $isRooms ? '객실' : '입장권·시설대관' ?>을 등록해 달라고 요청하세요.</div>
     <?php endif ?>
+    <?php if (!$isRooms): ?><p class="muted small">객실 판매와 지역상품권 환급은 <a href="<?= e(url('journal.php?type=rooms&date=' . $workDate)) ?>">운영관리 › 객실판매관리</a>에서 따로 입력·결재합니다.</p><?php endif ?>
 
 <script>window.STAY_API = <?= json_encode(url('api/stay.php')) ?>;</script>
 <script>window.SEASONS = <?= json_encode(array_values(array_map(
@@ -377,7 +399,7 @@ function items_form(string $type, array $payload, string $workDate, ?array $jour
 <?php $pp = price_period_for($workDate); ?>
 <script>window.PRICE_PERIODS = <?= json_encode(array_values(array_map(
     fn($x) => ['id' => (int) $x['id'], 'label' => price_period_label($x), 'from' => $x['date_from'], 'to' => $x['date_to']], price_periods_all()
-)), JSON_UNESCAPED_UNICODE) ?>; window.PRICE_PERIOD_NOW = <?= (int) ($pp['id'] ?? 0) ?>; window.SALES_RELOAD = <?= json_encode($journal ? null : url('write.php?type=sales&date=')) ?>;</script>
+)), JSON_UNESCAPED_UNICODE) ?>; window.PRICE_PERIOD_NOW = <?= (int) ($pp['id'] ?? 0) ?>; window.SALES_RELOAD = <?= json_encode($journal ? null : url('write.php?type=' . $type . '&date=')) ?>;</script>
 <div class="flash price-period-note" data-price-period<?= $pp ? '' : ' hidden' ?>>📅 이 날짜는 <b>기간별 가격표 '<?= e($pp ? price_period_label($pp) : '') ?>'</b>의 가격으로 계산됩니다. (가격표에 없는 상품은 현재 가격)</div>
 <div class="flash flash-warn" data-price-period-changed hidden></div>
 <div data-sales-form>
@@ -395,11 +417,11 @@ function items_form(string $type, array $payload, string $workDate, ?array $jour
       <tr data-base="<?= $p['is_free'] ? 0 : (int) $p['price'] ?>" data-price="<?= ticket_price($p, $workDate)[0] ?>" data-free="<?= (int) $p['is_free'] ?>"
           data-seasons="<?= e(json_encode($sp ?: new stdClass())) ?>">
         <?php if (!empty($p['sys_key'])): // 쉬자파크숙박 입실·퇴실: 수량 자동, 수정 불가 ?>
-        <td><?= e($p['name']) ?> <span class="badge auto-badge" title="<?= $p['sys_key'] === 'stay_in' ? '아래 객실 판매의 입실인원 합계' : '전날 매출보고의 입실인원 합계' ?>">자동</span>
-          <br><small class="muted"><?= $p['sys_key'] === 'stay_in' ? '객실 입실인원 합계' : '전날 입실인원 합계' ?></small></td>
+        <td><?= e($p['name']) ?> <span class="badge auto-badge" title="<?= $p['sys_key'] === 'stay_in' ? '그 날 일일객실판매의 입실인원 합계' : '전날 일일객실판매의 입실인원 합계' ?>">자동</span>
+          <br><small class="muted"><?= $p['sys_key'] === 'stay_in' ? '객실판매 입실인원 합계' : '전날 입실인원 합계' ?></small></td>
         <td><span class="badge">무료</span></td>
         <td class="right" data-unit>0</td>
-        <td><input value="<?= e($p['sys_key'] === 'stay_in' ? ($l['qty'] ?? 0) : stay_out_guests($workDate)) ?>" class="num short" data-qty data-stay="<?= $p['sys_key'] === 'stay_in' ? 'in' : 'out' ?>" readonly tabindex="-1" title="자동 계산 (수정 불가)"></td>
+        <td><input value="<?= e($p['sys_key'] === 'stay_in' ? stay_guests($workDate) : stay_out_guests($workDate)) ?>" class="num short" data-qty data-stay="<?= $p['sys_key'] === 'stay_in' ? 'in' : 'out' ?>" readonly tabindex="-1" title="자동 계산 (수정 불가)"></td>
         <?php else: ?>
         <td><?= e($p['name']) ?><?= $p['is_active'] ? '' : ' <small class="muted">(판매중지)</small>' ?></td>
         <td><?= $p['is_free'] ? '<span class="badge">무료</span>' : '유료' ?></td>
@@ -553,7 +575,7 @@ function items_form(string $type, array $payload, string $workDate, ?array $jour
   </div>
   <?php endif ?>
 
-  <div class="grand">매출 합계 <b data-grand>0원</b></div>
+  <div class="grand"><?= $isRooms ? '객실 매출 합계' : '매출 합계' ?> <b data-grand>0원</b></div>
 </div>
     <?php
 }
@@ -685,7 +707,7 @@ function items_view(array $journal): void
         return;
     }
 
-    if ($journal['type'] !== 'sales') return;
+    if (!in_array($journal['type'], SALE_DOC_TYPES, true)) return;
 
     $tickets = array_filter($payload['lines'], fn($l) => $l['grp'] === 'ticket');
     $rooms = array_filter($payload['lines'], fn($l) => $l['grp'] === 'room');
@@ -795,7 +817,7 @@ function items_view(array $journal): void
   </table>
   </div>
     <?php endif ?>
-  <div class="grand">매출 합계 <b><?= e(won($grand)) ?></b></div>
+  <div class="grand"><?= $journal['type'] === 'rooms' ? '객실 매출 합계' : '매출 합계' ?> <b><?= e(won($grand)) ?></b></div>
     <?php
 }
 

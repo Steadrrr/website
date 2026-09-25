@@ -61,7 +61,7 @@ function require_menu(array $u, string $group): void
 function journal_menu(string $type): ?string
 {
     return match (true) {
-        in_array($type, ['daily', 'sales', 'voucher', 'vcheck'], true) => 'ops',
+        in_array($type, ['daily', 'sales', 'rooms', 'voucher', 'vcheck'], true) => 'ops',
         isset(PROGRAM_TYPES[$type]) => 'prog',
         $type === 'attendance' => 'att',
         default => null,

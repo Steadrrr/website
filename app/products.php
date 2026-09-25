@@ -258,11 +258,11 @@ function rental_desc(?string $time, bool $night): string
 /* ───────────── 쉬자파크숙박 입실·퇴실 (자동 입장권) ───────────── */
 const STAY_PRODUCTS = ['stay_in' => '쉬자파크숙박(입실)', 'stay_out' => '쉬자파크숙박(퇴실)'];
 
-/** 그 날짜 매출보고의 객실 입실인원 합계 (없으면 0) */
+/** 그 날짜 일일객실판매의 객실 입실인원 합계 (없으면 0) */
 function stay_guests(string $date): int
 {
     $st = db()->prepare("SELECT COALESCE(SUM(l.guests), 0) FROM journals j JOIN sales_lines l ON l.journal_id = j.id
-                          WHERE j.type = 'sales' AND j.work_date = ? AND l.grp = 'room'");
+                          WHERE " . SALE_DOC_SQL . " AND j.work_date = ? AND l.grp = 'room'");
     $st->execute([$date]);
     return (int) $st->fetchColumn();
 }
@@ -287,19 +287,30 @@ function stay_products(): array
  */
 function stay_sync_next(string $date): void
 {
-    $out = stay_products()['stay_out'] ?? null;
-    if (!$out) return;
+    stay_set_line(date('Y-m-d', strtotime("$date +1 day")), 'stay_out', stay_guests($date));
+}
+
+/** 일일객실판매가 저장·삭제되면: 그 날 매출보고의 '쉬자파크숙박(입실)', 다음 날의 '(퇴실)'을 맞춘다 */
+function stay_sync_rooms(string $date): void
+{
+    stay_set_line($date, 'stay_in', stay_guests($date));
+    stay_sync_next($date);
+}
+
+/** 그 날 매출보고(있을 때만)의 쉬자파크숙박 입장권 수량을 바꾼다 */
+function stay_set_line(string $salesDate, string $key, int $qty): void
+{
+    $p = stay_products()[$key] ?? null;
+    if (!$p) return;
     $pdo = db();
-    $next = date('Y-m-d', strtotime("$date +1 day"));
     $st = $pdo->prepare("SELECT id FROM journals WHERE type = 'sales' AND work_date = ?");
-    $st->execute([$next]);
+    $st->execute([$salesDate]);
     $jid = (int) $st->fetchColumn();
     if (!$jid) return;
-    $qty = stay_guests($date);
-    $pdo->prepare('DELETE FROM sales_lines WHERE journal_id = ? AND product_id = ?')->execute([$jid, $out['id']]);
+    $pdo->prepare('DELETE FROM sales_lines WHERE journal_id = ? AND product_id = ?')->execute([$jid, $p['id']]);
     if ($qty > 0) {
         $pdo->prepare("INSERT INTO sales_lines (journal_id, product_id, grp, name, is_free, unit_price, qty, amount) VALUES (?, ?, 'ticket', ?, 1, 0, ?, 0)")
-            ->execute([$jid, $out['id'], $out['name'], $qty]);
+            ->execute([$jid, $p['id'], $p['name'], $qty]);
     }
 }
 

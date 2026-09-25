@@ -78,7 +78,7 @@ layout_header('결재함', 'approval');
         <td class="check-col"><input type="checkbox" name="ids[]" value="<?= (int) $j['id'] ?>" data-row-check></td>
         <td><?= e($j['work_date']) ?></td>
         <td><?= e(journal_type_label($j)) ?><?= $j['revision'] ? ' <span class="badge st-edited">수정됨</span>' : '' ?>
-          <?= $j['type'] === 'sales' && vault_day_issue($j['work_date'], (int) $j['id']) ? ' <span class="badge st-rejected" title="불출 − 지급 − 반납 차이가 있습니다">⚠ 상품권 대조</span>' : '' ?></td>
+          <?= $j['type'] === 'rooms' && vault_day_issue($j['work_date'], (int) $j['id']) ? ' <span class="badge st-rejected" title="불출 − 지급 − 반납 차이가 있습니다">⚠ 상품권 대조</span>' : '' ?></td>
         <td><?= e($j['author_name']) ?> <small class="muted"><?= e(rank_name($j['author_rank'])) ?></small></td>
         <td><?= e($j['submitted_at']) ?></td>
         <?php if ($delegatable): ?><td class="small"><?= isset($delegatable[(int) $j['id']]) ? '가능' : '<span class="muted">-</span>' ?></td><?php endif ?>

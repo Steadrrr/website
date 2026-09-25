@@ -123,7 +123,7 @@ $docTitle = $att ? '근태 신청 · ' . $att['user_name'] . ' ' . att_kind_name
       </form>
     <?php endif ?>
   <?php else: items_view($journal); endif ?>
-  <?php if ($journal['type'] === 'sales') vault_day_html($journal['work_date'], $id) ?>
+  <?php if ($journal['type'] === 'rooms') vault_day_html($journal['work_date'], $id) ?>
 
   <?php if ($journal['content']): ?>
     <h3><?= ['daily' => '업무내용', 'voucher' => '적요', 'attendance' => '사유', 'vcheck' => '점검 메모'][$journal['type']] ?? '메모' ?></h3>

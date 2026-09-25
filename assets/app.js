@@ -11,7 +11,7 @@
 
     // 쉬자파크숙박(입실) = 객실 판매 입실인원 합계 (자동, 수정 불가)
     const stayIn = $(document, 'input[data-stay="in"]');
-    if (stayIn) stayIn.value = $$(document, 'table[data-room-table] [data-guests]').reduce((s, i) => s + num(i.value), 0);
+    if (stayIn && $(document, 'table[data-room-table]')) stayIn.value = $$(document, 'table[data-room-table] [data-guests]').reduce((s, i) => s + num(i.value), 0);
 
     // 입장권: 단가 × 수량
     $$(document, 'table[data-ticket-table]').forEach((t) => {
@@ -207,7 +207,12 @@
       const stayOut = document.querySelector('input[data-stay="out"]');
       if (stayOut && window.STAY_API) {
         fetch(window.STAY_API + '?date=' + dateInput.value, { credentials: 'same-origin' })
-          .then((r) => r.json()).then((j) => { stayOut.value = j.out || 0; recalc(); }).catch(() => {});
+          .then((r) => r.json()).then((j) => {
+            stayOut.value = j.out || 0;
+            const stayIn = document.querySelector('input[data-stay="in"]');
+            if (stayIn) stayIn.value = j.in || 0;
+            recalc();
+          }).catch(() => {});
       }
       recalc();
     });

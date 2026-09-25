@@ -110,7 +110,7 @@ $records = vault_records($date, $date);
 $editRow = $canVault && !empty($_GET['edit']) ? vault_record((int) $_GET['edit']) : null;
 $users = $pdo->query("SELECT id, name, rank_level FROM users WHERE status = 'active' AND hide_in_org = 0 ORDER BY rank_level, name")->fetchAll();
 // 반납 객실 후보: 그 날 매출보고의 객실 + 판매중 객실
-$st = $pdo->prepare("SELECT DISTINCT l.name FROM sales_lines l JOIN journals j ON j.id = l.journal_id WHERE j.type = 'sales' AND j.work_date = ? AND l.grp = 'room' ORDER BY l.name");
+$st = $pdo->prepare("SELECT DISTINCT l.name FROM sales_lines l JOIN journals j ON j.id = l.journal_id WHERE " . SALE_DOC_SQL . " AND j.work_date = ? AND l.grp = 'room' ORDER BY l.name");
 $st->execute([$date]);
 $dayRooms = $st->fetchAll(PDO::FETCH_COLUMN);
 $allRooms = array_values(array_map(fn($p) => $p['name'], array_filter(products_all(), fn($p) => $p['grp'] === 'room' && $p['is_active'])));

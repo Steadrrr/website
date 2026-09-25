@@ -58,7 +58,7 @@ function vault_paid(?string $before = null, ?string $from = null, int $includeId
 {
     $out = array_fill_keys(voucher_denoms(), 0);
     $sql = "SELECT m.denom, SUM(m.qty) AS n FROM voucher_moves m JOIN journals j ON j.id = m.journal_id
-             WHERE j.type = 'sales' AND m.direction = 'out' AND (j.status <> 'draft' OR j.id = ?)";
+             WHERE " . SALE_DOC_SQL . " AND m.direction = 'out' AND (j.status <> 'draft' OR j.id = ?)";
     $args = [$includeId];
     if ($before) { $sql .= ' AND j.work_date < ?'; $args[] = $before; }
     if ($from) { $sql .= ' AND j.work_date >= ?'; $args[] = $from; }
@@ -113,7 +113,7 @@ function vault_day(string $date, int $includeJournalId = 0): array
     $st = db()->prepare("SELECT l.id, l.name, l.refund_expected, COALESCE(SUM(m.denom * m.qty), 0) AS refund
                            FROM sales_lines l JOIN journals j ON j.id = l.journal_id
                            LEFT JOIN voucher_moves m ON m.line_id = l.id AND m.direction = 'out'
-                          WHERE j.type = 'sales' AND j.work_date = ? AND l.grp = 'room' AND l.refund_expected IS NOT NULL AND (j.status <> 'draft' OR j.id = ?)
+                          WHERE " . SALE_DOC_SQL . " AND j.work_date = ? AND l.grp = 'room' AND l.refund_expected IS NOT NULL AND (j.status <> 'draft' OR j.id = ?)
                           GROUP BY l.id HAVING refund <> l.refund_expected");
     $st->execute([$date, $includeJournalId]);
     $r['mismatch'] = $st->fetchAll();

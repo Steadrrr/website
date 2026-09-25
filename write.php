@@ -150,7 +150,9 @@ layout_header(JOURNAL_TYPES[$type] . ($journal ? ' 수정' : ' 작성'), in_arra
   <?php else: ?>
     <?php items_form($type, $payload, $workDate, $journal) ?>
     <?php if ($type === 'sales'): ?>
-      <label>메모<textarea name="content" rows="3" placeholder="환불, 정산 차이, 상품권 환급 객실 등"><?= $v('content') ?></textarea></label>
+      <label>메모<textarea name="content" rows="3" placeholder="환불, 정산 차이 등"><?= $v('content') ?></textarea></label>
+    <?php elseif ($type === 'rooms'): ?>
+      <label>메모<textarea name="content" rows="3" placeholder="입실 취소, 상품권 미지급 객실, 정산 차이 등"><?= $v('content') ?></textarea></label>
     <?php elseif ($type === 'voucher'): ?>
       <label>적요<textarea name="content" rows="3" placeholder="구입처, 구입일, 기초재고 등록 등"><?= $v('content') ?></textarea></label>
     <?php elseif ($type === 'vcheck'): ?>

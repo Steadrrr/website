@@ -6,7 +6,7 @@ defined('APP_ROOT') || exit;
  * 새 버전 파일을 FTP로 덮어쓰기만 하면, 첫 접속 때 부족한 테이블/컬럼을 만든다.
  * (기존 자료는 그대로 유지)
  */
-const DB_VERSION = 27;
+const DB_VERSION = 28;
 
 function db_version(): int
 {
@@ -264,6 +264,26 @@ function db_migrate(): void
     }
     if (!column_exists('events', 'series_id')) {
         $pdo->exec("ALTER TABLE events ADD series_id VARCHAR(20) NULL AFTER author_id, ADD INDEX idx_series (series_id)");
+    }
+
+    // 28) v27 → v28: 객실 판매·지역상품권 환급을 매출보고에서 분리 → 일일객실판매 문서(type rooms), 따로 결재.
+    //     기존 매출보고의 객실 줄과 그 환급분을 날짜마다 새 일일객실판매 문서로 옮긴다 (작성자·결재 상태·결재 기록 그대로)
+    if (!enum_has('journals', 'type', 'rooms')) {
+        $pdo->exec("ALTER TABLE journals MODIFY type ENUM('daily','sales','facility','voucher','attendance','healing','kidsforest','guide','kidsdirect','vcheck','rooms') NOT NULL");
+    }
+    $olds = $pdo->query("SELECT j.* FROM journals j WHERE j.type = 'sales' AND (
+                             EXISTS (SELECT 1 FROM sales_lines l WHERE l.journal_id = j.id AND l.grp = 'room')
+                          OR EXISTS (SELECT 1 FROM voucher_moves m WHERE m.journal_id = j.id AND m.direction = 'out'))")->fetchAll();
+    foreach ($olds as $j) {
+        $pdo->prepare("INSERT INTO journals (type, work_date, author_id, content, status, revision, submitted_at, completed_at, created_at)
+                       VALUES ('rooms', ?, ?, ?, ?, 0, ?, ?, ?)")
+            ->execute([$j['work_date'], $j['author_id'], '매출보고(문서번호 ' . $j['id'] . ')에서 옮김', $j['status'], $j['submitted_at'], $j['completed_at'], $j['created_at']]);
+        $rid = (int) $pdo->lastInsertId();
+        $pdo->prepare('INSERT INTO approvals (journal_id, step_order, required_rank, approver_id, status, comment, acted_at)
+                       SELECT ?, step_order, required_rank, approver_id, status, comment, acted_at FROM approvals WHERE journal_id = ?')->execute([$rid, $j['id']]);
+        $pdo->prepare("UPDATE voucher_moves m JOIN sales_lines l ON l.id = m.line_id SET m.journal_id = ? WHERE l.journal_id = ? AND l.grp = 'room'")->execute([$rid, $j['id']]);
+        $pdo->prepare("UPDATE sales_lines SET journal_id = ? WHERE journal_id = ? AND grp = 'room'")->execute([$rid, $j['id']]);
+        $pdo->prepare("UPDATE voucher_moves SET journal_id = ? WHERE journal_id = ? AND direction = 'out'")->execute([$rid, $j['id']]); // 객실 미지정 환급(이전 자료)
     }
 
     $pdo->prepare("INSERT INTO settings (name, value) VALUES ('db_version', ?) ON DUPLICATE KEY UPDATE value = VALUES(value)")

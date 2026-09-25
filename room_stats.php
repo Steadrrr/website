@@ -93,7 +93,7 @@ function rs_period(string $from, string $to, string $unit, array $statuses, int 
     $st = db()->prepare(
         "SELECT j.work_date, l.product_id, l.name, l.rate, l.discounted, l.qty, l.guests, l.amount
            FROM journals j JOIN sales_lines l ON l.journal_id = j.id
-          WHERE j.type = 'sales' AND l.grp = 'room' AND j.work_date BETWEEN ? AND ?
+          WHERE " . SALE_DOC_SQL . " AND l.grp = 'room' AND j.work_date BETWEEN ? AND ?
             AND j.status IN (" . implode(',', array_fill(0, count($statuses), '?')) . ')'
             . ($onlyThese ? ' AND l.product_id IN (' . (implode(',', array_map('intval', array_keys($roomProducts))) ?: '0') . ')' : '')
     );

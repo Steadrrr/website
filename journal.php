@@ -90,7 +90,7 @@ $canWrite = !in_array($type, ['vcheck', 'voucher'], true) || can_vault($user); /
     ?>
       <a class="<?= implode(' ', $cls) ?>" href="<?= e(url("journal.php?type=$type$tq&ym=$ym&date=$date")) ?>">
         <span class="num"><?= $d->format('j') ?></span>
-        <?php if ($type === 'sales' && $items): ?>
+        <?php if (in_array($type, SALE_DOC_TYPES, true) && $items): ?>
           <span class="amt"><?= e(number_format(array_sum(array_column($items, 'sales_amount')))) ?></span>
         <?php elseif (is_program_type($type) && $items): ?>
           <span class="amt"><?= (int) array_sum(array_column($items, 'prog_sessions')) ?>회 · <?= number_format(array_sum(array_column($items, 'prog_people'))) ?>명</span>
@@ -118,13 +118,13 @@ $canWrite = !in_array($type, ['vcheck', 'voucher'], true) || can_vault($user); /
     <p class="muted">작성된 일지가 없습니다.</p>
   <?php else: ?>
     <table class="table">
-      <thead><tr><th>작성자</th><?php if ($type === 'facility'): ?><th>관리팀</th><?php endif ?><?php if ($type === 'sales'): ?><th class="right">매출합계</th><?php endif ?><?php if (is_program_type($type)): ?><th class="right">회차</th><th class="right">인원</th><?php endif ?><th>상태</th><th class="no-print"></th></tr></thead>
+      <thead><tr><th>작성자</th><?php if ($type === 'facility'): ?><th>관리팀</th><?php endif ?><?php if (in_array($type, SALE_DOC_TYPES, true)): ?><th class="right"><?= $type === 'rooms' ? '객실 매출' : '매출합계' ?></th><?php endif ?><?php if (is_program_type($type)): ?><th class="right">회차</th><th class="right">인원</th><?php endif ?><th>상태</th><th class="no-print"></th></tr></thead>
       <tbody>
       <?php foreach ($items as $it): ?>
         <tr class="clickable" onclick="location.href='<?= e(url('view.php?id=' . $it['id'])) ?>'">
           <td><?= e($it['author_name']) ?></td>
           <?php if ($type === 'facility'): ?><td><?= e(team_name($it['team_id'] ? (int) $it['team_id'] : null)) ?></td><?php endif ?>
-          <?php if ($type === 'sales'): ?><td class="right"><?= e(won($it['sales_amount'])) ?></td><?php endif ?>
+          <?php if (in_array($type, SALE_DOC_TYPES, true)): ?><td class="right"><?= e(won($it['sales_amount'])) ?></td><?php endif ?>
           <?php if (is_program_type($type)): ?><td class="right"><?= (int) $it['prog_sessions'] ?>회</td><td class="right"><?= number_format($it['prog_people']) ?>명</td><?php endif ?>
           <td><?= journal_badges($it) ?></td>
           <td class="right no-print"><?= can_edit_journal($it, $user) ? edit_button($it, 'btn small') : '' ?></td>

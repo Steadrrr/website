@@ -23,7 +23,7 @@ function period_overlap(string $from, string $to, int $exceptId): ?array
 /** 이 기간에 이미 작성된 매출보고 수 */
 function period_sales_count(array $pp): int
 {
-    $st = db()->prepare("SELECT COUNT(*) FROM journals WHERE type = 'sales' AND work_date BETWEEN ? AND ?");
+    $st = db()->prepare("SELECT COUNT(*) FROM journals WHERE type IN ('sales', 'rooms') AND work_date BETWEEN ? AND ?");
     $st->execute([$pp['date_from'], $pp['date_to']]);
     return (int) $st->fetchColumn();
 }

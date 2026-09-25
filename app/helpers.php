@@ -24,6 +24,7 @@ const JOURNAL_TYPES = [
     'guide'      => '숲해설 운영보고',
     'kidsdirect' => '유아숲(직영) 운영보고',
     'vcheck'     => '상품권 금고점검',
+    'rooms'      => '일일객실판매',
 ];
 // 프로그램 운영보고 분야 (journals.type)
 const PROGRAM_TYPES = ['healing' => '산림치유센터', 'kidsforest' => '유아숲체험원', 'kidsdirect' => '유아숲(직영)', 'guide' => '숲해설'];
@@ -31,13 +32,17 @@ const PROGRAM_TYPES = ['healing' => '산림치유센터', 'kidsforest' => '유�
 const PROGRAM_AGES = ['infant' => '유아', 'elem' => '초등', 'teen' => '중고등', 'adult' => '성인', 'senior' => '65세이상'];
 
 // 임시저장을 여러 직원이 함께 보고 이어서 고치는 문서 (업무일지·매출보고)
-const SHARED_DRAFT_TYPES = ['daily', 'sales'];
+const SHARED_DRAFT_TYPES = ['daily', 'sales', 'rooms'];
 
 // 날씨 입력란이 없는 문서 (상품권입고, 일일매출보고)
-const NO_WEATHER_TYPES = ['voucher', 'sales', 'vcheck'];
+const NO_WEATHER_TYPES = ['voucher', 'sales', 'vcheck', 'rooms'];
 
 // 대시보드 '오늘 일지 현황'에 표시하는 매일 쓰는 일지
-const DAILY_TYPES = ['daily', 'sales', 'facility'];
+const DAILY_TYPES = ['daily', 'sales', 'rooms', 'facility'];
+
+// 판매 내역(sales_lines)을 가진 문서: 매출보고(입장권·시설대관) + 일일객실판매(객실·상품권 환급)
+const SALE_DOC_TYPES = ['sales', 'rooms'];
+const SALE_DOC_SQL = "j.type IN ('sales', 'rooms')";
 
 const PRODUCT_GROUPS = ['ticket' => '입장권', 'room' => '객실', 'rental' => '시설대관', 'lodge' => '대관 숙박시설'];
 // 유실물 상태 => [이름, 색]

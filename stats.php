@@ -41,7 +41,7 @@ if ($tab === 'sales') {
         $title = "매출 통계 (기간별) {$from} ~ {$to}";
         $keyHead = '일자';
     } elseif ($mode === 'year') {
-        $minYear = (int) ($pdo->query("SELECT MIN(YEAR(work_date)) FROM journals WHERE type = 'sales'")->fetchColumn() ?: date('Y'));
+        $minYear = (int) ($pdo->query("SELECT MIN(YEAR(work_date)) FROM journals WHERE type IN ('sales', 'rooms')")->fetchColumn() ?: date('Y'));
         $keySql = "DATE_FORMAT(j.work_date, '%Y')";
         $rangeFrom = "$minYear-01-01"; $rangeTo = date('Y') . '-12-31';
         $labels = [];
@@ -75,16 +75,16 @@ if ($tab === 'sales') {
                 SUM(IF(l.grp IN ('rental', 'lodge'), l.qty, 0)) AS rent_qty,
                 SUM(IF(l.grp IN ('rental', 'lodge'), l.amount, 0)) AS rent_amt
            FROM journals j JOIN sales_lines l ON l.journal_id = j.id
-          WHERE j.type = 'sales' AND $statusSql AND j.work_date BETWEEN ? AND ? GROUP BY k") as $r) {
+          WHERE " . SALE_DOC_SQL . " AND $statusSql AND j.work_date BETWEEN ? AND ? GROUP BY k") as $r) {
         if (!isset($data[$r['k']])) continue;
         foreach (['paid', 'free', 'ticket_amt', 'rooms', 'guests', 'room_amt', 'rent_qty', 'rent_amt'] as $m) $data[$r['k']][$m] = (int) $r[$m];
     }
     foreach ($run("SELECT $keySql AS k, SUM(m.ticket_cash) AS cash FROM journals j JOIN sales_meta m ON m.journal_id = j.id
-          WHERE j.type = 'sales' AND $statusSql AND j.work_date BETWEEN ? AND ? GROUP BY k") as $r) {
+          WHERE " . SALE_DOC_SQL . " AND $statusSql AND j.work_date BETWEEN ? AND ? GROUP BY k") as $r) {
         if (isset($data[$r['k']])) $data[$r['k']]['cash'] = (int) $r['cash'];
     }
     foreach ($run("SELECT $keySql AS k, SUM(m.denom * m.qty) AS v FROM journals j JOIN voucher_moves m ON m.journal_id = j.id
-          WHERE j.type = 'sales' AND m.direction = 'out' AND $statusSql AND j.work_date BETWEEN ? AND ? GROUP BY k") as $r) {
+          WHERE " . SALE_DOC_SQL . " AND m.direction = 'out' AND $statusSql AND j.work_date BETWEEN ? AND ? GROUP BY k") as $r) {
         if (isset($data[$r['k']])) $data[$r['k']]['voucher'] = (int) $r['v'];
     }
     $sum = $metrics;
@@ -98,19 +98,19 @@ if ($tab === 'sales') {
     // 상품별 합계
     $tickets = $run("SELECT l.name, l.is_free, SUM(l.qty) AS qty, SUM(l.amount) AS amount
           FROM journals j JOIN sales_lines l ON l.journal_id = j.id
-         WHERE j.type = 'sales' AND l.grp = 'ticket' AND $statusSql AND j.work_date BETWEEN ? AND ?
+         WHERE " . SALE_DOC_SQL . " AND l.grp = 'ticket' AND $statusSql AND j.work_date BETWEEN ? AND ?
          GROUP BY l.name, l.is_free ORDER BY MIN(l.product_id), l.name");
     $rooms = $run("SELECT l.name, SUM(l.qty) AS qty, SUM(l.guests) AS guests, SUM(l.amount) AS amount,
                 SUM(IF(l.rate = 'weekday', l.qty, 0)) AS weekday, SUM(IF(l.rate = 'weekend', l.qty, 0)) AS weekend,
                 SUM(IF(l.rate = 'peak', l.qty, 0)) AS peak, SUM(IF(l.discounted = 1, l.qty, 0)) AS dc
           FROM journals j JOIN sales_lines l ON l.journal_id = j.id
-         WHERE j.type = 'sales' AND l.grp = 'room' AND $statusSql AND j.work_date BETWEEN ? AND ?
+         WHERE " . SALE_DOC_SQL . " AND l.grp = 'room' AND $statusSql AND j.work_date BETWEEN ? AND ?
          GROUP BY l.name ORDER BY MIN(l.product_id), l.name");
     // 시설대관·대관 숙박시설별 (건수, 야간, 할인, 금액)
     $rentals = $run("SELECT l.grp, l.name, SUM(l.qty) AS qty, SUM(IF(l.rent_time = '2h', l.qty, 0)) AS t2h, SUM(IF(l.rent_time = '4h', l.qty, 0)) AS t4h,
                 SUM(IF(l.rent_time = 'day', l.qty, 0)) AS tday, SUM(IF(l.night = 1, l.qty, 0)) AS night, SUM(IF(l.dc_pct > 0, l.qty, 0)) AS dc, SUM(l.amount) AS amount
           FROM journals j JOIN sales_lines l ON l.journal_id = j.id
-         WHERE j.type = 'sales' AND l.grp IN ('rental', 'lodge') AND $statusSql AND j.work_date BETWEEN ? AND ?
+         WHERE " . SALE_DOC_SQL . " AND l.grp IN ('rental', 'lodge') AND $statusSql AND j.work_date BETWEEN ? AND ?
          GROUP BY l.grp, l.name ORDER BY l.grp, MIN(l.product_id), l.name");
 
     $head = [$keyHead, '입장권 유료(매)', '입장권 무료(매)', '입장권 금액', '└ 현금', '└ 카드', '판매 객실', '입실 인원', '객실 금액', '시설대관(건)', '시설대관 금액', '상품권 환급', '매출 합계'];
