@@ -67,11 +67,11 @@ if ($me['is_admin']) settings_nav('users');
     <b>전결권한</b>: 체크한 주무관은 팀장 부재 시 '전결' 버튼으로 팀장 결재 없이 문서를 최종 완료할 수 있습니다. (주무관 직급만 가능)</p>
   <div class="table-scroll">
   <table class="table users-table">
-    <thead><tr><th>이름</th><th>아이디</th><th>연락처</th><th>직급</th><th>팀</th><th>반</th><th title="체크하면 조직도에서 반 맨 위에 표시">반장</th><th>보직</th><th>상태</th><th></th></tr></thead>
+    <thead><tr><th class="center">이름</th><th>아이디</th><th>연락처</th><th>직급</th><th>팀</th><th>반</th><th title="체크하면 조직도에서 반 맨 위에 표시">반장</th><th>보직</th><th>상태</th><th></th></tr></thead>
     <?php foreach ($users as $u): $locked = $u['is_admin'] && !$me['is_admin']; $fid = 'u' . (int) $u['id']; ?>
     <tbody class="user-block <?= $u['status'] === 'pending' ? 'highlight' : '' ?>">
       <tr>
-        <td rowspan="2"><a href="<?= e(url('member_photo.php?id=' . (int) $u['id'])) ?>" title="사진 올리기/바꾸기" class="user-cell"><?= avatar($u, 'avatar avatar-sm') ?> <?= e($u['name']) ?></a></td>
+        <td rowspan="2" class="user-photo-cell"><a href="<?= e(url('member_photo.php?id=' . (int) $u['id'])) ?>" title="사진 올리기/바꾸기" class="user-cell user-cell-stack"><?= avatar($u, 'avatar avatar-lg') ?><span><?= e($u['name']) ?></span></a></td>
         <td><?= e($u['username']) ?><br><small class="muted">가입 <?= e(substr($u['created_at'], 0, 10)) ?></small></td>
         <td><?= e($u['phone']) ?></td>
         <td><select name="rank_level" form="<?= $fid ?>" <?= $locked ? 'disabled' : '' ?>>

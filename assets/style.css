@@ -323,6 +323,9 @@ tr.pinned td { background: #fffaf8; }
 .avatar-xl { width: 112px; height: 112px; font-size: 2.4rem; }
 .avatar-empty { border: 1px solid #c9d8cd; }
 .user-cell { display: inline-flex; align-items: center; gap: .4rem; color: var(--text); }
+/* 회원관리: 사진을 크게, 이름은 사진 밑 */
+.user-cell-stack { flex-direction: column; gap: .25rem; font-weight: 600; text-align: center; }
+.users-table td.user-photo-cell { text-align: center; vertical-align: middle; padding: .5rem .6rem; }
 .center-card { text-align: center; }
 .center-card input[type=file] { margin: .75rem auto; max-width: 22rem; }
 .photo-preview { margin: .5rem 0 .75rem; }
