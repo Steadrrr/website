@@ -229,12 +229,12 @@ function items_parse(string $type, string $workDate, int $journalId): array
         foreach (PROGRAM_TYPES as $pt => $plabel) {
             if (isset($progAuto[$pt])) {
                 $a = $progAuto[$pt];
-                $lines[] = program_sale_line($pt, $a['sessions'], $a['people'], $a['amount'], true);
+                $lines[] = program_sale_line($pt, $a['sessions'], $a['paid'], $a['free'], $a['amount'], true);
                 continue;
             }
             $row = (array) ($_POST['prog'][$pt] ?? []);
-            [$ses, $ppl, $amt] = [to_int($row['sessions'] ?? 0), to_int($row['people'] ?? 0), to_int($row['amount'] ?? 0)];
-            if ($ses || $ppl || $amt) $lines[] = program_sale_line($pt, $ses, $ppl, $amt, false);
+            [$ses, $paid, $free, $amt] = [to_int($row['sessions'] ?? 0), to_int($row['paid'] ?? 0), to_int($row['free'] ?? 0), to_int($row['amount'] ?? 0)];
+            if ($ses || $paid || $free || $amt) $lines[] = program_sale_line($pt, $ses, $paid, $free, $amt, false);
         }
 
         // 쉬자파크숙박 입실 = 그 날 일일객실판매의 입실인원 합계, 퇴실 = 전날 입실인원 합계 (수정 불가, 무료 입장권으로 집계)
@@ -597,16 +597,16 @@ function items_form(string $type, array $payload, string $workDate, ?array $jour
       $progLines = [];
       foreach ($payload['lines'] as $l) if ($l['grp'] === 'program') $progLines[$l['prog_type']] = $l; ?>
   <h3>프로그램 판매</h3>
-  <p class="muted small">그 날 <b>프로그램 운영보고</b>가 있는 분야는 운영보고의 회차·인원·금액이 <b>자동</b>으로 들어갑니다 (운영보고를 고치면 여기도 바뀝니다).
+  <p class="muted small">그 날 <b>프로그램 운영보고</b>가 있는 분야는 운영보고의 회차·인원·금액이 <b>자동</b>으로 들어갑니다 (운영보고를 고치면 여기도 바뀝니다). 유료 인원에는 할인 인원이 포함됩니다.
     운영보고가 없는 분야는 직접 입력하세요. 일자를 바꾸면 저장할 때 그 날짜의 운영보고로 다시 채워집니다.</p>
   <div class="table-scroll">
   <table class="table program-sale-table" data-program-table>
-    <thead><tr><th>분야</th><th>회차</th><th>인원</th><th class="right">금액</th><th>입력</th></tr></thead>
+    <thead><tr><th>분야</th><th>회차</th><th>유료 인원</th><th>무료 인원</th><th class="right">금액</th><th>입력</th></tr></thead>
     <tbody>
     <?php foreach (PROGRAM_TYPES as $pt => $plabel): $a = $progAuto[$pt] ?? null; $l = $progLines[$pt] ?? null; ?>
       <?php if ($a): ?>
       <tr class="auto" data-amount="<?= $a['amount'] ?>">
-        <td><?= e($plabel) ?></td><td class="num-cell"><?= number_format($a['sessions']) ?>회</td><td class="num-cell"><?= number_format($a['people']) ?>명</td>
+        <td><?= e($plabel) ?></td><td class="num-cell"><?= number_format($a['sessions']) ?>회</td><td class="num-cell"><?= number_format($a['paid']) ?>명</td><td class="num-cell"><?= number_format($a['free']) ?>명</td>
         <td class="right" data-line-amount><?= number_format($a['amount']) ?></td>
         <td><span class="badge auto-badge">자동</span> <a class="small" href="<?= e(url('view.php?id=' . $a['journal_id'])) ?>" target="_blank">운영보고 ›</a></td>
       </tr>
@@ -614,14 +614,15 @@ function items_form(string $type, array $payload, string $workDate, ?array $jour
       <tr>
         <td><?= e($plabel) ?></td>
         <td><input name="prog[<?= $pt ?>][sessions]" value="<?= e(($l && !$l['auto'] ? (int) $l['sessions'] : 0) ?: '') ?>" inputmode="numeric" class="num tiny" data-money placeholder="0"></td>
-        <td><input name="prog[<?= $pt ?>][people]" value="<?= e(($l && !$l['auto'] ? (int) $l['qty'] : 0) ?: '') ?>" inputmode="numeric" class="num tiny" data-money placeholder="0"></td>
+        <td><input name="prog[<?= $pt ?>][paid]" value="<?= e(($l && !$l['auto'] ? (int) $l['qty'] : 0) ?: '') ?>" inputmode="numeric" class="num tiny" data-money placeholder="0"></td>
+        <td><input name="prog[<?= $pt ?>][free]" value="<?= e(($l && !$l['auto'] ? (int) $l['guests'] : 0) ?: '') ?>" inputmode="numeric" class="num tiny" data-money placeholder="0"></td>
         <td><input name="prog[<?= $pt ?>][amount]" value="<?= e(($l && !$l['auto'] ? number_format((int) $l['amount']) : '') ?: '') ?>" inputmode="numeric" class="num" data-money data-prog-amount placeholder="0"></td>
-        <td class="small muted">직접 입력 <a href="<?= e(url('write.php?type=' . $pt . '&date=' . $workDate)) ?>" target="_blank">운영보고 쓰기 ›</a></td>
+        <td class="small muted">직접 입력</td>
       </tr>
       <?php endif ?>
     <?php endforeach ?>
     </tbody>
-    <tfoot><tr><th colspan="3">프로그램 합계</th><th class="right" data-program-amount>0원</th><th></th></tr></tfoot>
+    <tfoot><tr><th colspan="4">프로그램 합계</th><th class="right" data-program-amount>0원</th><th></th></tr></tfoot>
   </table>
   </div>
   <?php endif ?>
@@ -852,14 +853,14 @@ function items_view(array $journal): void
   <h3>프로그램 판매</h3>
   <div class="table-scroll">
   <table class="table">
-    <thead><tr><th>분야</th><th class="right">회차</th><th class="right">인원</th><th class="right">금액</th><th>입력</th></tr></thead>
+    <thead><tr><th>분야</th><th class="right">회차</th><th class="right">유료 인원</th><th class="right">무료 인원</th><th class="right">금액</th><th>입력</th></tr></thead>
     <tbody>
     <?php foreach ($programs as $l): ?>
-      <tr><td><?= e($l['name']) ?></td><td class="right"><?= number_format($l['sessions']) ?>회</td><td class="right"><?= number_format($l['qty']) ?>명</td>
+      <tr><td><?= e($l['name']) ?></td><td class="right"><?= number_format($l['sessions']) ?>회</td><td class="right"><?= number_format($l['qty']) ?>명</td><td class="right"><?= number_format($l['guests']) ?>명</td>
         <td class="right"><?= number_format($l['amount']) ?></td><td class="small muted"><?= $l['auto'] ? '운영보고 자동' : '직접 입력' ?></td></tr>
     <?php endforeach ?>
     </tbody>
-    <tfoot><tr><th>합계</th><th class="right"><?= number_format($sum($programs, 'sessions')) ?>회</th><th class="right"><?= number_format($sum($programs, 'qty')) ?>명</th><th class="right"><?= e(won($sum($programs, 'amount'))) ?></th><th></th></tr></tfoot>
+    <tfoot><tr><th>합계</th><th class="right"><?= number_format($sum($programs, 'sessions')) ?>회</th><th class="right"><?= number_format($sum($programs, 'qty')) ?>명</th><th class="right"><?= number_format($sum($programs, 'guests')) ?>명</th><th class="right"><?= e(won($sum($programs, 'amount'))) ?></th><th></th></tr></tfoot>
   </table>
   </div>
     <?php endif;

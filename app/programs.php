@@ -283,26 +283,28 @@ function program_snapshot(array $journal): array
 
 /**
  * 그 날 프로그램 운영보고의 분야별 합계 (반려·삭제 제외, 임시저장 포함)
- * @return array<string,array{journal_id:int, sessions:int, people:int, amount:int}>
+ * @return array<string,array{journal_id:int, sessions:int, people:int, paid:int, free:int, amount:int}>  (유료 = 유료 + 할인)
  */
 function program_day_summary(string $date): array
 {
     $types = array_keys(PROGRAM_TYPES);
-    $st = db()->prepare('SELECT j.type, MIN(j.id) AS journal_id, COUNT(p.id) AS sessions, COALESCE(SUM(p.total), 0) AS people, COALESCE(SUM(p.amount), 0) AS amount
+    $st = db()->prepare('SELECT j.type, MIN(j.id) AS journal_id, COUNT(p.id) AS sessions, COALESCE(SUM(p.total), 0) AS people,
+                                COALESCE(SUM(IF(p.fee_type <> \'free\', p.total, 0)), 0) AS paid, COALESCE(SUM(IF(p.fee_type = \'free\', p.total, 0)), 0) AS free, COALESCE(SUM(p.amount), 0) AS amount
                            FROM journals j LEFT JOIN program_sessions p ON p.journal_id = j.id
                           WHERE j.type IN (' . implode(',', array_fill(0, count($types), '?')) . ") AND j.work_date = ? AND j.status <> 'rejected'
                           GROUP BY j.type");
     $st->execute([...$types, $date]);
     $out = [];
-    foreach ($st as $r) $out[$r['type']] = ['journal_id' => (int) $r['journal_id'], 'sessions' => (int) $r['sessions'], 'people' => (int) $r['people'], 'amount' => (int) $r['amount']];
+    foreach ($st as $r) $out[$r['type']] = ['journal_id' => (int) $r['journal_id'], 'sessions' => (int) $r['sessions'], 'people' => (int) $r['people'],
+        'paid' => (int) $r['paid'], 'free' => (int) $r['free'], 'amount' => (int) $r['amount']];
     return $out;
 }
 
-/** 매출보고 판매 줄 하나 (프로그램 판매) */
-function program_sale_line(string $type, int $sessions, int $people, int $amount, bool $auto): array
+/** 매출보고 판매 줄 하나 (프로그램 판매): qty = 유료 인원(할인 포함), guests = 무료 인원 */
+function program_sale_line(string $type, int $sessions, int $paid, int $free, int $amount, bool $auto): array
 {
     return ['product_id' => null, 'grp' => 'program', 'name' => PROGRAM_TYPES[$type], 'is_free' => 0, 'rate' => null, 'season' => null, 'discounted' => 0,
-        'unit_price' => 0, 'qty' => $people, 'guests' => 0, 'amount' => $amount, 'prog_type' => $type, 'sessions' => $sessions, 'auto' => (int) $auto];
+        'unit_price' => 0, 'qty' => $paid, 'guests' => $free, 'amount' => $amount, 'prog_type' => $type, 'sessions' => $sessions, 'auto' => (int) $auto];
 }
 
 /**
@@ -318,7 +320,7 @@ function sales_sync_programs(string $date, string $reason = ''): void
     $st->execute([$date]);
     $jid = (int) $st->fetchColumn();
     if (!$jid) return;
-    $fmt = fn(array $l) => (int) $l['sessions'] . '회·' . number_format((int) $l['qty']) . '명·' . number_format((int) $l['amount']) . '원';
+    $fmt = fn(array $l) => (int) $l['sessions'] . '회·유료 ' . number_format((int) $l['qty']) . '·무료 ' . number_format((int) $l['guests']) . '명·' . number_format((int) $l['amount']) . '원';
     $st = $pdo->prepare("SELECT * FROM sales_lines WHERE journal_id = ? AND grp = 'program'");
     $st->execute([$jid]);
     $before = [];
@@ -332,12 +334,12 @@ function sales_sync_programs(string $date, string $reason = ''): void
         }
     }
     foreach ($sum as $type => $a) {
-        $new = ['sessions' => $a['sessions'], 'qty' => $a['people'], 'amount' => $a['amount']];
+        $new = ['sessions' => $a['sessions'], 'qty' => $a['paid'], 'guests' => $a['free'], 'amount' => $a['amount']];
         $old = $before[$type] ?? null;
         if ($old && $old['auto'] && $fmt($old) === $fmt($new)) continue; // 그대로
         $pdo->prepare("DELETE FROM sales_lines WHERE journal_id = ? AND grp = 'program' AND prog_type = ?")->execute([$jid, $type]);
-        $pdo->prepare("INSERT INTO sales_lines (journal_id, product_id, grp, name, is_free, unit_price, qty, amount, prog_type, sessions, auto) VALUES (?, NULL, 'program', ?, 0, 0, ?, ?, ?, ?, 1)")
-            ->execute([$jid, PROGRAM_TYPES[$type], $a['people'], $a['amount'], $type, $a['sessions']]);
+        $pdo->prepare("INSERT INTO sales_lines (journal_id, product_id, grp, name, is_free, unit_price, qty, guests, amount, prog_type, sessions, auto) VALUES (?, NULL, 'program', ?, 0, 0, ?, ?, ?, ?, ?, 1)")
+            ->execute([$jid, PROGRAM_TYPES[$type], $a['paid'], $a['free'], $a['amount'], $type, $a['sessions']]);
         $notes[] = PROGRAM_TYPES[$type] . ' ' . ($old ? ($old['auto'] ? '자동 ' : '직접 입력 ') . $fmt($old) : '없음') . ' → 운영보고 ' . $fmt($new);
     }
     if ($notes) journal_log($jid, current_user(), '프로그램 판매 자동 갱신', ($reason !== '' ? "[$reason] " : '') . implode(' / ', $notes));

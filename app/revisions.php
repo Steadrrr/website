@@ -70,7 +70,7 @@ function journal_snapshot(array $journal): array
             } elseif ($l['grp'] === 'lodge') {
                 $lines[] = "{$l['name']} · " . $l['qty'] . '실 × ' . number_format($l['unit_price']) . ' = ' . number_format($l['amount']) . '원';
             } elseif ($l['grp'] === 'program') {
-                $lines[] = "프로그램 {$l['name']} · " . ($l['sessions'] ?? 0) . '회 · ' . $l['qty'] . '명 = ' . number_format($l['amount']) . '원' . (!empty($l['auto']) ? ' (운영보고 자동)' : '');
+                $lines[] = "프로그램 {$l['name']} · " . ($l['sessions'] ?? 0) . '회 · 유료 ' . $l['qty'] . '명 · 무료 ' . ($l['guests'] ?? 0) . '명 = ' . number_format($l['amount']) . '원' . (!empty($l['auto']) ? ' (운영보고 자동)' : '');
             } elseif ($l['grp'] === 'ticket') {
                 $lines[] = "{$l['name']} " . number_format($l['qty']) . '매 × ' . number_format($l['unit_price']) . ' = ' . number_format($l['amount']) . '원';
             } else {

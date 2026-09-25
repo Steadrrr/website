@@ -6,7 +6,7 @@ defined('APP_ROOT') || exit;
  * 새 버전 파일을 FTP로 덮어쓰기만 하면, 첫 접속 때 부족한 테이블/컬럼을 만든다.
  * (기존 자료는 그대로 유지)
  */
-const DB_VERSION = 30;
+const DB_VERSION = 31;
 
 function db_version(): int
 {
@@ -298,6 +298,17 @@ function db_migrate(): void
     if (!column_exists('sales_lines', 'prog_type')) {
         $pdo->exec("ALTER TABLE sales_lines ADD prog_type VARCHAR(20) NULL AFTER dc_pct, ADD sessions SMALLINT UNSIGNED NOT NULL DEFAULT 0 AFTER prog_type,
                     ADD auto TINYINT(1) NOT NULL DEFAULT 0 AFTER sessions");
+    }
+
+    // 31) v30 → v31: 매출보고 프로그램 판매 인원을 유료(qty, 할인 포함)·무료(guests)로 나눔.
+    //     자동 줄은 그 날 운영보고로 다시 나누고, 직접 입력한 줄은 모두 유료로 본다.
+    if ((int) $pdo->query("SELECT COUNT(*) FROM sales_lines WHERE grp = 'program' AND auto = 1 AND guests = 0")->fetchColumn()) {
+        $pdo->exec("UPDATE sales_lines l JOIN journals s ON s.id = l.journal_id
+                       SET l.qty = (SELECT COALESCE(SUM(IF(p.fee_type <> 'free', p.total, 0)), 0) FROM journals j JOIN program_sessions p ON p.journal_id = j.id
+                                     WHERE j.type = l.prog_type AND j.work_date = s.work_date AND j.status <> 'rejected'),
+                           l.guests = (SELECT COALESCE(SUM(IF(p.fee_type = 'free', p.total, 0)), 0) FROM journals j JOIN program_sessions p ON p.journal_id = j.id
+                                     WHERE j.type = l.prog_type AND j.work_date = s.work_date AND j.status <> 'rejected')
+                     WHERE l.grp = 'program' AND l.auto = 1");
     }
 
     $pdo->prepare("INSERT INTO settings (name, value) VALUES ('db_version', ?) ON DUPLICATE KEY UPDATE value = VALUES(value)")

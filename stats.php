@@ -74,7 +74,7 @@ if ($tab === 'sales') {
                 SUM(IF(l.grp = 'room', l.amount, 0)) AS room_amt,
                 SUM(IF(l.grp IN ('rental', 'lodge'), l.qty, 0)) AS rent_qty,
                 SUM(IF(l.grp IN ('rental', 'lodge'), l.amount, 0)) AS rent_amt,
-                SUM(IF(l.grp = 'program', l.qty, 0)) AS prog_qty,
+                SUM(IF(l.grp = 'program', l.qty + l.guests, 0)) AS prog_qty,
                 SUM(IF(l.grp = 'program', l.amount, 0)) AS prog_amt
            FROM journals j JOIN sales_lines l ON l.journal_id = j.id
           WHERE " . SALE_DOC_SQL . " AND $statusSql AND j.work_date BETWEEN ? AND ? GROUP BY k") as $r) {
