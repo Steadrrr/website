@@ -93,6 +93,7 @@ function nav_groups(?array $user): array
         ]],
         'stat'     => ['label' => '통계', 'items' => [
             'stats'      => ['stats.php', '매출통계'],
+            'visit_stats' => ['visitor_stats.php', '입장객통계'],
             'room_stats' => ['room_stats.php', '객실이용통계'],
             'cpl_stats'  => ['complaint_stats.php', '민원통계'],
             'prog_stats' => ['program_stats.php', '프로그램 통계'],

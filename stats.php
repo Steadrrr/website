@@ -213,7 +213,18 @@ layout_header($title, 'stats');
   </form>
 </section>
 
-<?php if ($tab === 'sales'): ?>
+<?php if ($tab === 'sales'):
+    // 그래프: 매출 합계 (기간별은 3개월 이하 일별·그보다 길면 월별, 월별 보기는 월별, 연간은 연도별)
+    if ($mode === 'range' && chart_gran($from, $to) === 'month') {
+        $cLabels = chart_buckets($from, $to, 'month');
+        $cData = array_fill_keys(array_keys($cLabels), 0);
+        foreach ($data as $k => $r) $cData[substr($k, 0, 7)] += $r['total'];
+    } else {
+        $cLabels = $mode === 'range' ? array_map(fn($k) => date('n/j', strtotime($k)), array_combine(array_keys($data), array_keys($data))) : $labels;
+        $cData = array_column($data, 'total');
+    }
+    stat_chart('salesChart', '매출 합계 추이', array_values($cLabels), [['label' => '매출 합계', 'data' => array_values($cData), 'color' => '#2f7d4f']], '원');
+?>
 <section class="card">
   <h2><?= e($title) ?> <small class="muted"><?= e($statusLabel) ?> 집계</small></h2>
   <div class="kpis k4">

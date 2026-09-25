@@ -287,6 +287,14 @@ layout_header('객실이용통계', 'room_stats');
   </form>
 </section>
 
+<?php
+// 그래프: 판매 객실 (3개월 이하 일별, 그보다 길면 월별)
+$cg = chart_gran($from, $to);
+$cLabels = chart_buckets($from, $to, $cg);
+$CP = rs_period($from, $to, $cg, $statuses, $roomCount, $roomProducts, (bool) $typeId);
+stat_chart('roomChart', '판매 객실 추이 (' . ($cg === 'day' ? '일별' : '월별') . ')' . ($typeId ? ' · ' . room_type_name($typeId) : ''), array_values($cLabels),
+    [['label' => '판매 객실', 'data' => array_map(fn($k) => $CP['buckets'][$k]['sold'] ?? 0, array_keys($cLabels)), 'color' => '#4a7fb5']], '실');
+?>
 <section class="card">
   <h2><?= e($title) ?> <small class="muted"><?= e($statusLabel) ?></small></h2>
   <?php $T = $A['total']; ?>

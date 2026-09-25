@@ -124,6 +124,17 @@ layout_header('프로그램 통계', 'prog_stats');
   </form>
 </section>
 
+<?php
+// 그래프: 참여 인원 합계 (3개월 이하 일별, 그보다 길면 월별)
+$cg = chart_gran($from, $to);
+$cB = chart_buckets($from, $to, $cg);
+$cData = array_fill_keys(array_keys($cB), 0);
+$st = $pdo->prepare("SELECT " . ($cg === 'day' ? "DATE_FORMAT(j.work_date, '%Y-%m-%d')" : "DATE_FORMAT(j.work_date, '%Y-%m')") . " AS k, SUM(p.total) AS n
+                       FROM journals j JOIN program_sessions p ON p.journal_id = j.id WHERE $where GROUP BY k");
+$st->execute($args);
+foreach ($st as $r) if (isset($cData[$r['k']])) $cData[$r['k']] = (int) $r['n'];
+stat_chart('progChart', '참여 인원 추이 (' . ($cg === 'day' ? '일별' : '월별') . ')', array_values($cB), [['label' => '참여 인원', 'data' => array_values($cData), 'color' => '#0b8043']], '명');
+?>
 <section class="card">
   <h2><?= e($title) ?> <small class="muted"><?= e($statusLabel) ?> 집계</small></h2>
   <div class="kpis k4">

@@ -894,3 +894,6 @@ tr.recur td { background: #fff4e0; }
 .pager a.btn { border-radius: 4px; }
 .doc-table td.doc-sum { min-width: 11rem; }
 .doc-table th, .doc-table td { padding-left: .4rem; padding-right: .4rem; }
+/* 통계 그래프 */
+.stat-chart { position: relative; height: 260px; }
+@media print { .stat-chart { height: 200px; } .stat-chart-card { break-inside: avoid; } }

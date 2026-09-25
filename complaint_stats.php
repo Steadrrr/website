@@ -120,6 +120,20 @@ $monthUrl = fn($m) => url(sprintf('complaint_stats.php?ym=%04d-%02d', $y, $m));
   <?php cpl_summary_html($rows, $title) ?>
 </section>
 
+<?php
+// 그래프: 민원 건수 (월별 보기는 일별, 연간은 월별)
+if ($unit === 'year') {
+    $cLabels = array_map(fn($m) => "{$m}월", range(1, 12));
+    $cData = array_map(fn($m) => $byM1[$m]['all'] ?? 0, range(1, 12));
+} else {
+    $cB = chart_buckets($from, $to, 'day');
+    $cData = array_fill_keys(array_keys($cB), 0);
+    foreach ($rows as $c) $cData[$c['work_date']] = ($cData[$c['work_date']] ?? 0) + (int) $c['qty'];
+    $cLabels = array_values($cB);
+}
+stat_chart('cplChart', '민원 건수 추이 (' . ($unit === 'year' ? '월별' : '일별') . ')', $cLabels, [['label' => '민원 건수', 'data' => array_values($cData), 'color' => '#c0392b']], '건');
+?>
+
 <?php if ($unit === 'year'): ?>
 <section class="card">
   <h2>월별 추이 <small class="muted">월을 누르면 그 달 통계</small></h2>
