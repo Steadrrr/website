@@ -80,9 +80,6 @@ if ($tab === 'general'): ?>
     <label>상위 부서 (팀장·주무관 소속)<input name="org_top_name" value="<?= e(setting('org_top_name', '')) ?>" placeholder="예: 양평군청 산림과 산림휴양팀"></label>
     <label>사업장 (팀들이 속한 곳)<input name="org_park_name" value="<?= e(setting('org_park_name', '')) ?>" placeholder="예: 양평쉬자파크"></label>
   </div>
-  <p class="muted small">프로그램 1인 참가비(유료·할인)는 <a href="<?= e(url('admin/products.php#program')) ?>">설정 › 상품·요금 › 프로그램</a>에서 프로그램마다 정합니다.</p>
-  <div>
-  </div>
   <p class="muted small">사이트 이름(상단 제목)은 서버의 <code>app/config.php</code> 의 <code>site_name</code> 에서 바꿉니다.</p>
   <div class="actions"><button class="btn primary">저장</button></div>
 </form>

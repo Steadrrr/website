@@ -302,6 +302,18 @@ tr.pinned td { background: #fffaf8; }
 .users-table th, .users-table td { white-space: nowrap; padding: .45rem .35rem; }
 .users-table select { min-width: 5.5rem; width: auto; }
 .users-table .position-input { width: 9rem; }
+/* 회원 1명 = 두 줄 (기본 정보 / 근무 설정·메뉴 권한·기타 권한) */
+.users-table tbody.user-block + tbody.user-block tr:first-child td { border-top: 2px solid var(--line); }
+.users-table tbody.user-block.highlight td { background: #fff8e5; }
+.users-table tr.user-sub td { border-top: 0; padding-top: 0; white-space: normal; }
+.users-table td.user-actions { vertical-align: middle; }
+.users-table td.user-actions form { display: flex; flex-direction: column; gap: .3rem; align-items: stretch; }
+.user-opts { display: flex; flex-wrap: wrap; gap: .35rem 1.4rem; align-items: center; font-size: .88rem; }
+.user-opt { display: inline-flex; flex-wrap: wrap; align-items: center; gap: .2rem .6rem; }
+.user-opt > b { font-size: .8rem; color: var(--muted); font-weight: 600; }
+.user-opt .inline-check { display: inline-flex; align-items: center; gap: .25rem; margin: 0; font-weight: 400; white-space: nowrap; }
+.user-opt .inline-check input { width: auto; margin: 0; }
+.users-table .menu-perms label { display: inline-flex; }
 
 /* ── v7: 개인 사진 · 조직도 · 대시보드 프로필 ── */
 .avatar { width: 40px; height: 40px; border-radius: 50%; object-fit: cover; display: inline-flex; align-items: center; justify-content: center;

@@ -67,61 +67,68 @@ if ($me['is_admin']) settings_nav('users');
     <b>전결권한</b>: 체크한 주무관은 팀장 부재 시 '전결' 버튼으로 팀장 결재 없이 문서를 최종 완료할 수 있습니다. (주무관 직급만 가능)</p>
   <div class="table-scroll">
   <table class="table users-table">
-    <thead><tr><th>이름</th><th>아이디</th><th>연락처</th><th>직급</th><th>팀</th><th>반</th><th title="체크하면 조직도에서 반 맨 위에 표시">반장</th><th>보직</th><th title="사원 근태: 입사일·근무시간·휴무요일">근무 설정</th><th title="체크한 메인메뉴만 보입니다 (최고관리자는 항상 전체)">메뉴 권한</th><th>상태</th><th title="체크하면 조직도에 나오지 않음 (관리자·테스트 계정 등)">조직도<br>숨김</th><th title="팀장 부재 시 주무관이 최종 결재">전결권한</th><?php if ($me['is_admin']): ?><th>관리자</th><?php endif ?><th></th></tr></thead>
-    <tbody>
-    <?php foreach ($users as $u): $locked = $u['is_admin'] && !$me['is_admin']; ?>
-      <tr class="<?= $u['status'] === 'pending' ? 'highlight' : '' ?>">
-        <td><a href="<?= e(url('member_photo.php?id=' . (int) $u['id'])) ?>" title="사진 올리기/바꾸기" class="user-cell"><?= avatar($u, 'avatar avatar-sm') ?> <?= e($u['name']) ?></a></td>
-          <td><?= e($u['username']) ?><br><small class="muted">가입 <?= e(substr($u['created_at'], 0, 10)) ?></small></td>
-          <td><?= e($u['phone']) ?></td>
-          <td><select name="rank_level" form="u<?= (int) $u['id'] ?>" <?= $locked ? 'disabled' : '' ?>>
-            <?php foreach (RANKS as $v => $label): ?><option value="<?= $v ?>" <?= (int) $u['rank_level'] === $v ? 'selected' : '' ?>><?= e($label) ?></option><?php endforeach ?>
-          </select></td>
-          <td><select name="team_id" form="u<?= (int) $u['id'] ?>" <?= $locked ? 'disabled' : '' ?>>
-            <option value="">(미지정)</option>
-            <?php foreach (teams_all() as $t): ?><option value="<?= (int) $t['id'] ?>" <?= (int) $u['team_id'] === (int) $t['id'] ? 'selected' : '' ?>><?= e($t['name']) ?></option><?php endforeach ?>
-          </select></td>
-          <td><select name="squad_id" form="u<?= (int) $u['id'] ?>" <?= $locked ? 'disabled' : '' ?>>
-            <option value="">(반 없음)</option>
-            <?php $tg = null; foreach (squads_all() as $sq):
-                if ($tg !== $sq['team_id']): ?><?= $tg === null ? '' : '</optgroup>' ?><optgroup label="<?= e($sq['team_name']) ?>"><?php $tg = $sq['team_id']; endif ?>
-              <option value="<?= (int) $sq['id'] ?>" <?= (int) $u['squad_id'] === (int) $sq['id'] ? 'selected' : '' ?>><?= e($sq['name']) ?></option>
-            <?php endforeach ?><?= $tg === null ? '' : '</optgroup>' ?>
-          </select></td>
-          <td class="center"><input type="checkbox" name="is_squad_leader" value="1" form="u<?= (int) $u['id'] ?>" <?= $u['is_squad_leader'] ? 'checked' : '' ?> <?= $locked ? 'disabled' : '' ?>></td>
-          <td><input name="position" value="<?= e($u['position']) ?>" form="u<?= (int) $u['id'] ?>" placeholder="예: 매표·안내" maxlength="50" class="position-input" <?= $locked ? 'disabled' : '' ?>></td>
-          <td class="nowrap small"><?php if ((int) $u['rank_level'] === RANK_KEEPER): ?>
-            <a href="<?= e(url('admin/user_work.php?id=' . (int) $u['id'])) ?>" class="btn small <?= att_work_configured($u) ? 'ghost' : '' ?>"><?= att_work_configured($u) ? '설정됨' : '입력' ?></a>
-            <?php if ($u['hire_date']): ?><br><small class="muted"><?= e($u['hire_date']) ?> ~ <?= e($u['contract_end'] ?: '만료일 미입력') ?>
-              <?= att_expired($u) ? '<b class="warn">계약만료</b>' : '' ?><br><?= e(implode('~', att_work_hours($u))) ?> · 휴무 <?= e(att_off_label($u)) ?></small><?php endif ?>
-          <?php else: ?><span class="muted">-</span><?php endif ?></td>
-          <td class="nowrap small menu-perms">
-            <?php foreach (MENU_OPTIONAL as $g => $label): ?>
-              <label class="inline-check"><input type="checkbox" name="menu[]" value="<?= $g ?>" form="u<?= (int) $u['id'] ?>" <?= can_menu($u, $g) ? 'checked' : '' ?> <?= $locked || $u['is_admin'] || (int) $u['rank_level'] >= RANK_WORKER ? 'disabled' : '' ?>> <?= e($label) ?></label>
-            <?php endforeach ?>
-          </td>
-          <td><select name="status" form="u<?= (int) $u['id'] ?>" <?= $locked ? 'disabled' : '' ?>>
-            <?php foreach (['pending' => '승인대기', 'active' => '사용', 'disabled' => '중지'] as $v => $label): ?>
-              <option value="<?= $v ?>" <?= $u['status'] === $v ? 'selected' : '' ?>><?= $label ?></option>
-            <?php endforeach ?>
-          </select></td>
-          <td class="center"><input type="checkbox" name="hide_in_org" value="1" form="u<?= (int) $u['id'] ?>" <?= !empty($u['hide_in_org']) ? 'checked' : '' ?> <?= $locked ? 'disabled' : '' ?>></td>
-          <td class="center"><?php if ((int) $u['rank_level'] === RANK_OFFICER): ?><input type="checkbox" name="can_delegate" value="1" form="u<?= (int) $u['id'] ?>" <?= $u['can_delegate'] ? 'checked' : '' ?> <?= $locked ? 'disabled' : '' ?>><?php else: ?><span class="muted">-</span><?php endif ?></td>
-          <?php if ($me['is_admin']): ?>
-            <td class="center"><input type="checkbox" name="is_admin" value="1" form="u<?= (int) $u['id'] ?>" <?= $u['is_admin'] ? 'checked' : '' ?>></td>
+    <thead><tr><th>이름</th><th>아이디</th><th>연락처</th><th>직급</th><th>팀</th><th>반</th><th title="체크하면 조직도에서 반 맨 위에 표시">반장</th><th>보직</th><th>상태</th><th></th></tr></thead>
+    <?php foreach ($users as $u): $locked = $u['is_admin'] && !$me['is_admin']; $fid = 'u' . (int) $u['id']; ?>
+    <tbody class="user-block <?= $u['status'] === 'pending' ? 'highlight' : '' ?>">
+      <tr>
+        <td rowspan="2"><a href="<?= e(url('member_photo.php?id=' . (int) $u['id'])) ?>" title="사진 올리기/바꾸기" class="user-cell"><?= avatar($u, 'avatar avatar-sm') ?> <?= e($u['name']) ?></a></td>
+        <td><?= e($u['username']) ?><br><small class="muted">가입 <?= e(substr($u['created_at'], 0, 10)) ?></small></td>
+        <td><?= e($u['phone']) ?></td>
+        <td><select name="rank_level" form="<?= $fid ?>" <?= $locked ? 'disabled' : '' ?>>
+          <?php foreach (RANKS as $v => $label): ?><option value="<?= $v ?>" <?= (int) $u['rank_level'] === $v ? 'selected' : '' ?>><?= e($label) ?></option><?php endforeach ?>
+        </select></td>
+        <td><select name="team_id" form="<?= $fid ?>" <?= $locked ? 'disabled' : '' ?>>
+          <option value="">(미지정)</option>
+          <?php foreach (teams_all() as $t): ?><option value="<?= (int) $t['id'] ?>" <?= (int) $u['team_id'] === (int) $t['id'] ? 'selected' : '' ?>><?= e($t['name']) ?></option><?php endforeach ?>
+        </select></td>
+        <td><select name="squad_id" form="<?= $fid ?>" <?= $locked ? 'disabled' : '' ?>>
+          <option value="">(반 없음)</option>
+          <?php $tg = null; foreach (squads_all() as $sq):
+              if ($tg !== $sq['team_id']): ?><?= $tg === null ? '' : '</optgroup>' ?><optgroup label="<?= e($sq['team_name']) ?>"><?php $tg = $sq['team_id']; endif ?>
+            <option value="<?= (int) $sq['id'] ?>" <?= (int) $u['squad_id'] === (int) $sq['id'] ? 'selected' : '' ?>><?= e($sq['name']) ?></option>
+          <?php endforeach ?><?= $tg === null ? '' : '</optgroup>' ?>
+        </select></td>
+        <td class="center"><input type="checkbox" name="is_squad_leader" value="1" form="<?= $fid ?>" <?= $u['is_squad_leader'] ? 'checked' : '' ?> <?= $locked ? 'disabled' : '' ?>></td>
+        <td><input name="position" value="<?= e($u['position']) ?>" form="<?= $fid ?>" placeholder="예: 매표·안내" maxlength="50" class="position-input" <?= $locked ? 'disabled' : '' ?>></td>
+        <td><select name="status" form="<?= $fid ?>" <?= $locked ? 'disabled' : '' ?>>
+          <?php foreach (['pending' => '승인대기', 'active' => '사용', 'disabled' => '중지'] as $v => $label): ?>
+            <option value="<?= $v ?>" <?= $u['status'] === $v ? 'selected' : '' ?>><?= $label ?></option>
+          <?php endforeach ?>
+        </select></td>
+        <td rowspan="2" class="user-actions">
+          <?php if (!$locked): ?>
+          <form method="post" id="<?= $fid ?>">
+            <?= csrf_field() ?><input type="hidden" name="id" value="<?= (int) $u['id'] ?>">
+            <button class="btn small primary" name="action" value="save">저장</button>
+            <button class="btn small ghost" name="action" value="reset_password" onclick="return confirm('임시 비밀번호를 발급할까요?')">비번초기화</button>
+          </form>
           <?php endif ?>
-          <td class="nowrap">
-            <?php if (!$locked): ?>
-            <form method="post" id="u<?= (int) $u['id'] ?>">
-              <?= csrf_field() ?><input type="hidden" name="id" value="<?= (int) $u['id'] ?>">
-              <button class="btn small primary" name="action" value="save">저장</button>
-              <button class="btn small ghost" name="action" value="reset_password" onclick="return confirm('임시 비밀번호를 발급할까요?')">비번초기화</button>
-            </form>
-            <?php endif ?>
-          </td>
+        </td>
       </tr>
-    <?php endforeach ?>
+      <tr class="user-sub">
+        <td colspan="8"><div class="user-opts">
+          <span class="user-opt" title="사원 근태: 입사일·근무시간·휴무요일"><b>근무 설정</b>
+            <?php if ((int) $u['rank_level'] === RANK_KEEPER): ?>
+              <a href="<?= e(url('admin/user_work.php?id=' . (int) $u['id'])) ?>" class="btn small <?= att_work_configured($u) ? 'ghost' : '' ?>"><?= att_work_configured($u) ? '설정됨' : '입력' ?></a>
+              <?php if ($u['hire_date']): ?><small class="muted"><?= e($u['hire_date']) ?> ~ <?= e($u['contract_end'] ?: '만료일 미입력') ?>
+                <?= att_expired($u) ? '<b class="warn">계약만료</b>' : '' ?> · <?= e(implode('~', att_work_hours($u))) ?> · 휴무 <?= e(att_off_label($u)) ?></small><?php endif ?>
+            <?php else: ?><span class="muted">-</span><?php endif ?></span>
+          <span class="user-opt menu-perms" title="체크한 메인메뉴만 보입니다 (사원에게만 적용)"><b>메뉴 권한</b>
+            <?php foreach (MENU_OPTIONAL as $g => $label): ?>
+              <label class="inline-check"><input type="checkbox" name="menu[]" value="<?= $g ?>" form="<?= $fid ?>" <?= can_menu($u, $g) ? 'checked' : '' ?> <?= $locked || $u['is_admin'] || (int) $u['rank_level'] >= RANK_WORKER ? 'disabled' : '' ?>> <?= e($label) ?></label>
+            <?php endforeach ?></span>
+          <span class="user-opt">
+            <label class="inline-check" title="체크하면 조직도에 나오지 않음 (관리자·테스트 계정 등)"><input type="checkbox" name="hide_in_org" value="1" form="<?= $fid ?>" <?= !empty($u['hide_in_org']) ? 'checked' : '' ?> <?= $locked ? 'disabled' : '' ?>> 조직도 숨김</label>
+            <?php if ((int) $u['rank_level'] === RANK_OFFICER): ?>
+              <label class="inline-check" title="팀장 부재 시 주무관이 최종 결재"><input type="checkbox" name="can_delegate" value="1" form="<?= $fid ?>" <?= $u['can_delegate'] ? 'checked' : '' ?> <?= $locked ? 'disabled' : '' ?>> 전결권한</label>
+            <?php endif ?>
+            <?php if ($me['is_admin']): ?>
+              <label class="inline-check"><input type="checkbox" name="is_admin" value="1" form="<?= $fid ?>" <?= $u['is_admin'] ? 'checked' : '' ?>> 관리자</label>
+            <?php endif ?></span>
+        </div></td>
+      </tr>
     </tbody>
+    <?php endforeach ?>
   </table>
   </div>
 </section>
