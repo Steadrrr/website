@@ -705,8 +705,8 @@ a.gcal-ev.bar { color: #fff; }
 .prog-session-head b { font-size: 1.05rem; color: var(--green-d); }
 .time-range { display: flex; align-items: center; gap: .35rem; }
 .time-range input { flex: 1; min-width: 0; }
-.prog-paid { display: flex; flex-direction: column; gap: .2rem; }
-.prog-paid .label-text { font-weight: 600; font-size: .9rem; }
+.prog-paid { display: flex; flex-flow: row wrap; align-items: center; gap: .3rem 1.1rem; }
+.prog-paid .label-text { font-weight: 600; font-size: .9rem; flex-basis: 100%; }
 .prog-people { width: auto; min-width: 100%; }
 .prog-people th, .prog-people td { padding: .3rem .35rem; text-align: center; }
 .prog-people input { width: 4.2rem; text-align: right; }
