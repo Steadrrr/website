@@ -28,6 +28,8 @@ if (is_post()) {
     // ── 객실 분류 추가·수정·삭제 ──
     if (post('target') === 'room_type') {
         $name = mb_substr(post('name'), 0, 50);
+        $vals = [];
+        foreach (ROOM_TYPE_COLS as $c) $vals[$c] = to_int(post($c));
         if ($action === 'delete') {
             $st = $pdo->prepare('SELECT COUNT(*) FROM products WHERE room_type_id = ?');
             $st->execute([$id]);
@@ -35,12 +37,18 @@ if (is_post()) {
             else { $pdo->prepare('DELETE FROM room_types WHERE id = ?')->execute([$id]); flash('객실 분류를 삭제했습니다.', 'success'); }
         } elseif ($name === '') {
             flash('분류 이름을 입력하세요.', 'error');
-        } elseif ($id) {
-            $pdo->prepare('UPDATE room_types SET name = ?, sort_order = ? WHERE id = ?')->execute([$name, (int) post('sort_order', '0'), $id]);
-            flash("객실 분류 '{$name}'을(를) 저장했습니다.", 'success');
+        } elseif ($vals['max_people'] < 1 || $vals['base_people'] > $vals['max_people']) {
+            flash("{$name}: 최대인원을 입력하고, 기준인원은 최대인원 이하로 입력하세요.", 'error');
         } else {
-            $pdo->prepare('INSERT INTO room_types (name, sort_order) VALUES (?, ?)')->execute([$name, (int) post('sort_order', '0')]);
-            flash("객실 분류 '{$name}'을(를) 추가했습니다.", 'success');
+            $cols = ['name' => $name, 'sort_order' => (int) post('sort_order', '0')] + $vals;
+            if ($id) {
+                $pdo->prepare('UPDATE room_types SET ' . implode(', ', array_map(fn($c) => "$c = ?", array_keys($cols))) . ' WHERE id = ?')->execute([...array_values($cols), $id]);
+                $n = room_type_apply($id);
+                flash("객실 분류 '{$name}'을(를) 저장하고 이 분류 객실 {$n}실에 인원·요금·환급액을 적용했습니다. (이미 작성된 매출보고의 금액은 바뀌지 않습니다)", 'success');
+            } else {
+                $pdo->prepare('INSERT INTO room_types (' . implode(', ', array_keys($cols)) . ') VALUES (?' . str_repeat(', ?', count($cols) - 1) . ')')->execute(array_values($cols));
+                flash("객실 분류 '{$name}'을(를) 추가했습니다. 객실 표에서 객실마다 분류를 고르세요.", 'success');
+            }
         }
         redirect('admin/products.php#room-types');
     }
@@ -112,9 +120,10 @@ if (is_post()) {
 
     if ($name === '') {
         flash('상품명을 입력하세요.', 'error');
-    } elseif ($grp === 'room' && $data['max_people'] < 1) {
-        flash("{$name}: 최대인원을 입력하세요.", 'error');
+    } elseif ($grp === 'room' && !$data['room_type_id']) {
+        flash("{$name}: 객실 분류를 고르세요. 인원·요금·환급액은 분류에서 정해집니다.", 'error');
     } else {
+        if ($grp === 'room') foreach (ROOM_TYPE_COLS as $c) unset($data[$c]); // 분류 값으로 덮어씀 (아래 room_type_apply)
         $cols = array_keys($data);
         $pdo->beginTransaction();
         if ($id) {
@@ -134,8 +143,9 @@ if (is_post()) {
                 }
             }
         }
+        if ($grp === 'room') room_type_apply((int) $data['room_type_id'], $id);
         $pdo->commit();
-        flash("{$name} 저장했습니다. (이미 작성된 매출보고의 금액은 바뀌지 않습니다)", 'success');
+        flash("{$name} 저장했습니다." . ($grp === 'room' ? " (분류 '" . room_type_name((int) $data['room_type_id']) . "'의 인원·요금·환급액 적용)" : '') . ' (이미 작성된 매출보고의 금액은 바뀌지 않습니다)', 'success');
     }
     redirect('admin/products.php#' . $grp);
 }
@@ -181,18 +191,19 @@ function product_row(string $grp, ?array $p, int $sort, array $ticketSeasons): v
         <td><input form="<?= $fid ?>" name="season_price[<?= $sid ?>]" value="<?= $sp !== null ? e(number_format($sp)) : '' ?>" class="num" inputmode="numeric" data-money placeholder="정상가"></td>
       <?php endforeach ?>
     <?php else: ?>
-      <td><select form="<?= $fid ?>" name="room_type_id">
-        <option value="">(미분류)</option>
+      <td><select form="<?= $fid ?>" name="room_type_id" required>
+        <option value="">- 분류 선택 -</option>
         <?php foreach (room_types_all() as $t): ?><option value="<?= (int) $t['id'] ?>" <?= (int) ($p['room_type_id'] ?? 0) === (int) $t['id'] ? 'selected' : '' ?>><?= e($t['name']) ?></option><?php endforeach ?>
-      </select></td>
-      <td><input form="<?= $fid ?>" name="max_people" value="<?= $val('max_people') ?>" class="num tiny" inputmode="numeric" required></td>
-      <?php foreach (['weekday' => 'price', 'weekend' => 'price_weekend', 'peak' => 'price_peak'] as $rate => $col): ?>
-        <td><input form="<?= $fid ?>" name="<?= $col ?>" value="<?= $money($col) ?>" class="num" inputmode="numeric" data-money placeholder="0">
-          <?php if ($p && room_dc_pct($rate) > 0): ?><small class="muted dc-preview">할인 <?= number_format(room_price($p, $rate, true)) ?></small><?php endif ?></td>
-      <?php endforeach ?>
-      <?php foreach (['refund_amount', 'refund_weekend', 'refund_peak'] as $col): ?>
-        <td class="refund-cell"><input form="<?= $fid ?>" name="<?= $col ?>" value="<?= $money($col) ?>" class="num" inputmode="numeric" data-money placeholder="0"></td>
-      <?php endforeach ?>
+      </select><?= $p && !$p['room_type_id'] ? '<br><small class="warn">분류를 지정하세요</small>' : '' ?></td>
+      <?php if ($p): // 인원·요금·환급액은 분류에서 (읽기 전용) ?>
+        <td class="center small"><?= (int) ($p['base_people'] ?? 0) ?> / <?= (int) $p['max_people'] ?></td>
+        <?php foreach (['weekday' => 'price', 'weekend' => 'price_weekend', 'peak' => 'price_peak'] as $rate => $col): ?>
+          <td class="right"><?= number_format((int) $p[$col]) ?><?php if (room_dc_pct($rate) > 0): ?><br><small class="muted dc-preview">할인 <?= number_format(room_price($p, $rate, true)) ?></small><?php endif ?></td>
+        <?php endforeach ?>
+        <?php foreach (['refund_amount', 'refund_weekend', 'refund_peak'] as $col): ?><td class="right refund-cell"><?= number_format((int) $p[$col]) ?></td><?php endforeach ?>
+      <?php else: ?>
+        <td colspan="7" class="small muted">인원·요금·환급액은 고른 분류의 값이 들어갑니다.</td>
+      <?php endif ?>
     <?php endif ?>
     <td class="center"><input form="<?= $fid ?>" type="checkbox" name="is_active" value="1" <?= !$p || $p['is_active'] ? 'checked' : '' ?>></td>
     <td class="nowrap">
@@ -263,10 +274,10 @@ settings_nav('products');
 <section class="card" id="room">
   <h1>상품관리 · 객실</h1>
   <p class="muted small">
+    객실의 <b>기준인원 · 최대인원 · 요금 · 상품권 환급액</b>은 <b>객실 분류</b>에서 정합니다. 분류를 저장하면 그 분류의 모든 객실에 덮어씁니다.<br>
     요금은 <b>비수기 평일 · 비수기 주말 · 성수기</b> 3가지입니다. 매출보고에서
-    <?= $roomSeasons ? e(implode(', ', array_map('season_label', $roomSeasons))) . '은 성수기, ' : '' ?>그 외 금·토요일은 비수기 주말, 나머지는 비수기 평일 요금이 자동 선택됩니다.<br>
-    <b>상품권 환급액</b>은 객실 1실당 환급해 주는 지역상품권 금액으로, 요금에 따라 다르므로 <b>비수기 평일 · 비수기 주말 · 성수기</b>별로 입력합니다.
-    매출보고에서 입력한 환급액이 그 객실의 요금구분별 기준 환급액과 다르면 알려 줍니다.
+    <?= $roomSeasons ? e(implode(', ', array_map('season_label', $roomSeasons))) . '은 성수기, ' : '' ?>그 외 금·토요일은 비수기 주말, 나머지는 비수기 평일 요금이 자동 선택됩니다.
+    <b>상품권 환급액</b>은 1실당 환급해 주는 지역상품권 금액이며, 매출보고에서 입력한 환급액이 기준과 다르면 알려 줍니다.
   </p>
   <form method="post" class="dc-form">
     <?= csrf_field() ?><input type="hidden" name="target" value="room_dc">
@@ -276,11 +287,50 @@ settings_nav('products');
     <?php endforeach ?>
     <button class="btn small primary">할인율 저장</button>
   </form>
+
+  <h2 id="room-types">객실 분류 <small class="muted">인원 · 요금 · 환급액</small></h2>
+  <div class="table-scroll">
+  <table class="table product-table room-type-table">
+    <thead>
+      <tr><th rowspan="2">순서</th><th rowspan="2">분류</th><th rowspan="2">기준인원</th><th rowspan="2">최대인원</th><th colspan="3" class="center">요금(원)</th><th colspan="3" class="center refund-head">상품권 환급액(원)</th><th rowspan="2">객실</th><th rowspan="2"></th></tr>
+      <tr><?php foreach (RATE_TYPES as $rate => $label): ?><th><?= e($label) ?><br><small><?= room_dc_pct($rate) ?>% 할인</small></th><?php endforeach ?>
+        <?php foreach (RATE_TYPES as $label): ?><th class="refund-head"><?= e($label) ?></th><?php endforeach ?></tr>
+    </thead>
+    <tbody>
+    <?php $typeCount = array_count_values(array_map(fn($p) => (int) $p['room_type_id'], $byGroup['room']));
+    foreach ([...room_types_all(), null] as $t): $fid = 'rt' . ($t['id'] ?? 'new');
+        $tm = fn(string $c) => $t && $t[$c] ? e(number_format((int) $t[$c])) : ''; ?>
+      <tr class="<?= $t ? '' : 'new-row' ?>">
+        <td><input form="<?= $fid ?>" name="sort_order" value="<?= e($t['sort_order'] ?? (count(room_types_all()) + 1) * 10) ?>" class="num tiny" inputmode="numeric"></td>
+        <td><input form="<?= $fid ?>" name="name" value="<?= e($t['name'] ?? '') ?>" placeholder="<?= $t ? '' : '새 분류 (예: 6인실)' ?>" maxlength="50" required class="short-name"></td>
+        <td><input form="<?= $fid ?>" name="base_people" value="<?= e($t['base_people'] ?? '') ?>" class="num tiny" inputmode="numeric" placeholder="0"></td>
+        <td><input form="<?= $fid ?>" name="max_people" value="<?= e($t['max_people'] ?? '') ?>" class="num tiny" inputmode="numeric" required></td>
+        <?php foreach (['price', 'price_weekend', 'price_peak'] as $c): ?>
+          <td><input form="<?= $fid ?>" name="<?= $c ?>" value="<?= $tm($c) ?>" class="num" inputmode="numeric" data-money placeholder="0"></td>
+        <?php endforeach ?>
+        <?php foreach (['refund_amount', 'refund_weekend', 'refund_peak'] as $c): ?>
+          <td class="refund-cell"><input form="<?= $fid ?>" name="<?= $c ?>" value="<?= $tm($c) ?>" class="num" inputmode="numeric" data-money placeholder="0"></td>
+        <?php endforeach ?>
+        <td class="small nowrap"><?= $t ? (int) ($typeCount[(int) $t['id']] ?? 0) . '실' : '' ?></td>
+        <td class="nowrap"><form method="post" id="<?= $fid ?>">
+          <?= csrf_field() ?><input type="hidden" name="target" value="room_type"><input type="hidden" name="id" value="<?= (int) ($t['id'] ?? 0) ?>">
+          <button class="btn small primary" name="action" value="save" <?= $t && ($typeCount[(int) $t['id']] ?? 0) ? 'onclick="return confirm(\'이 분류의 객실 ' . (int) $typeCount[(int) $t['id']] . '실에 인원·요금·환급액을 덮어씁니다. 저장할까요?\')"' : '' ?>><?= $t ? '저장' : '추가' ?></button>
+          <?php if ($t): ?><button class="btn small ghost danger" name="action" value="delete" formnovalidate onclick="return confirm('이 분류를 삭제할까요?')">삭제</button><?php endif ?>
+        </form></td>
+      </tr>
+    <?php endforeach ?>
+    </tbody>
+  </table>
+  </div>
+  <p class="muted small">객실이 지정된 분류는 삭제할 수 없습니다. 분류별로 <b>객실이용통계</b>를 볼 수 있습니다.</p>
+
+  <h2>객실</h2>
+  <p class="muted small">객실마다 분류만 고르면 인원·요금·환급액은 분류의 값이 들어갑니다 (아래 숫자는 보기용).</p>
   <div class="table-scroll">
   <table class="table product-table">
     <thead>
-      <tr><th rowspan="2">순서</th><th rowspan="2">객실명</th><th rowspan="2">분류</th><th rowspan="2">최대인원</th><th colspan="3" class="center">요금(원)</th><th colspan="3" class="center refund-head">상품권 환급액(원)</th><th rowspan="2">판매</th><th rowspan="2"></th></tr>
-      <tr><?php foreach (RATE_TYPES as $rate => $label): ?><th><?= e($label) ?><br><small><?= room_dc_pct($rate) ?>% 할인</small></th><?php endforeach ?>
+      <tr><th rowspan="2">순서</th><th rowspan="2">객실명</th><th rowspan="2">분류</th><th rowspan="2">기준/최대</th><th colspan="3" class="center">요금(원)</th><th colspan="3" class="center refund-head">상품권 환급액(원)</th><th rowspan="2">판매</th><th rowspan="2"></th></tr>
+      <tr><?php foreach (RATE_TYPES as $rate => $label): ?><th><?= e($label) ?></th><?php endforeach ?>
         <?php foreach (RATE_TYPES as $label): ?><th class="refund-head"><?= e($label) ?></th><?php endforeach ?></tr>
     </thead>
     <tbody>
@@ -289,28 +339,6 @@ settings_nav('products');
     </tbody>
   </table>
   </div>
-
-  <h2 id="room-types">객실 분류</h2>
-  <p class="muted small">객실을 2인실·4인실·독채처럼 묶는 분류입니다. 위 객실 표에서 객실마다 분류를 고르면 <b>객실이용통계</b>에서 분류별로 볼 수 있습니다.
-    객실이 지정된 분류는 삭제할 수 없습니다.</p>
-  <table class="table product-table room-type-table">
-    <thead><tr><th>순서</th><th>분류 이름</th><th>객실 수</th><th></th></tr></thead>
-    <tbody>
-    <?php $typeCount = array_count_values(array_map(fn($p) => (int) $p['room_type_id'], $byGroup['room']));
-    foreach ([...room_types_all(), null] as $t): $fid = 'rt' . ($t['id'] ?? 'new'); ?>
-      <tr class="<?= $t ? '' : 'new-row' ?>">
-        <td><input form="<?= $fid ?>" name="sort_order" value="<?= e($t['sort_order'] ?? (count(room_types_all()) + 1) * 10) ?>" class="num tiny" inputmode="numeric"></td>
-        <td><input form="<?= $fid ?>" name="name" value="<?= e($t['name'] ?? '') ?>" placeholder="<?= $t ? '' : '새 분류 (예: 6인실)' ?>" maxlength="50" required></td>
-        <td class="small"><?= $t ? (int) ($typeCount[(int) $t['id']] ?? 0) . '실' : '' ?></td>
-        <td class="nowrap"><form method="post" id="<?= $fid ?>">
-          <?= csrf_field() ?><input type="hidden" name="target" value="room_type"><input type="hidden" name="id" value="<?= (int) ($t['id'] ?? 0) ?>">
-          <button class="btn small primary" name="action" value="save"><?= $t ? '저장' : '추가' ?></button>
-          <?php if ($t): ?><button class="btn small ghost danger" name="action" value="delete" formnovalidate onclick="return confirm('이 분류를 삭제할까요?')">삭제</button><?php endif ?>
-        </form></td>
-      </tr>
-    <?php endforeach ?>
-    </tbody>
-  </table>
 </section>
 
 <section class="card" id="rental">

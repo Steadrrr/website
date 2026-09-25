@@ -29,6 +29,21 @@ function room_types_all(): array
     return $cache;
 }
 
+/** 객실 분류에서 관리해 객실에 덮어쓰는 칸 */
+const ROOM_TYPE_COLS = ['base_people', 'max_people', 'price', 'price_weekend', 'price_peak', 'refund_amount', 'refund_weekend', 'refund_peak'];
+
+/** 분류의 인원·요금·환급액을 그 분류 객실(들)에 덮어쓴다. $productId 를 주면 그 객실만. @return int 바뀐 객실 수 */
+function room_type_apply(int $typeId, ?int $productId = null): int
+{
+    $set = implode(', ', array_map(fn($c) => "p.$c = t.$c", ROOM_TYPE_COLS));
+    $st = db()->prepare("UPDATE products p JOIN room_types t ON t.id = p.room_type_id SET $set
+                          WHERE p.grp = 'room' AND t.id = ?" . ($productId ? ' AND p.id = ?' : ''));
+    $st->execute($productId ? [$typeId, $productId] : [$typeId]);
+    $st = db()->prepare("SELECT COUNT(*) FROM products WHERE grp = 'room' AND room_type_id = ?" . ($productId ? ' AND id = ?' : ''));
+    $st->execute($productId ? [$typeId, $productId] : [$typeId]);
+    return (int) $st->fetchColumn();
+}
+
 function room_type_name(?int $id): string
 {
     return $id && isset(room_types_all()[$id]) ? room_types_all()[$id]['name'] : '미분류';

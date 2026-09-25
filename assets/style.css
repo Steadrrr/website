@@ -851,3 +851,9 @@ tr.recur td { background: #fff4e0; }
 .vcheck-table tr.issue td { background: #fdecea; }
 .vcheck-table input.short { width: 6rem; }
 @media (max-width: 800px) { .vault-forms { grid-template-columns: 1fr; } }
+.room-type-table input.short-name { width: 8rem; }
+.room-type-table td, .room-type-table th { padding-left: .3rem; padding-right: .3rem; }
+.room-type-table input.num { width: 5.4rem; min-width: 0; }
+.room-type-table input.num.tiny { width: 2.8rem; }
+.room-type-table input[name="name"].short-name { width: 6rem; min-width: 0; }
+.room-type-table thead th { white-space: nowrap; }

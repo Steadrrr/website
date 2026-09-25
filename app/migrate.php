@@ -6,7 +6,7 @@ defined('APP_ROOT') || exit;
  * 새 버전 파일을 FTP로 덮어쓰기만 하면, 첫 접속 때 부족한 테이블/컬럼을 만든다.
  * (기존 자료는 그대로 유지)
  */
-const DB_VERSION = 25;
+const DB_VERSION = 26;
 
 function db_version(): int
 {
@@ -237,6 +237,26 @@ function db_migrate(): void
         $pdo->exec("ALTER TABLE journals MODIFY type ENUM('daily','sales','facility','voucher','attendance','healing','kidsforest','guide','kidsdirect','vcheck') NOT NULL");
     }
     $pdo->exec("INSERT IGNORE INTO settings (name, value) VALUES ('vault_start', CURDATE())");
+
+    // 26) v25 → v26: 객실 요금·인원·환급액을 객실 분류에서 관리 (분류를 저장하면 그 분류 객실에 덮어씀).
+    //     처음에는 분류마다 그 분류 첫 객실의 값을 가져온다.
+    if (!column_exists('products', 'base_people')) {
+        $pdo->exec("ALTER TABLE products ADD base_people SMALLINT UNSIGNED NOT NULL DEFAULT 0 AFTER refund_peak");
+    }
+    $applyTypes = !column_exists('room_types', 'max_people');
+    if (!column_exists('room_types', 'max_people')) {
+        $pdo->exec("ALTER TABLE room_types ADD base_people SMALLINT UNSIGNED NOT NULL DEFAULT 0 AFTER name,
+                    ADD max_people SMALLINT UNSIGNED NOT NULL DEFAULT 0 AFTER base_people,
+                    ADD price INT UNSIGNED NOT NULL DEFAULT 0 AFTER max_people, ADD price_weekend INT UNSIGNED NOT NULL DEFAULT 0 AFTER price,
+                    ADD price_peak INT UNSIGNED NOT NULL DEFAULT 0 AFTER price_weekend, ADD refund_amount INT UNSIGNED NOT NULL DEFAULT 0 AFTER price_peak,
+                    ADD refund_weekend INT UNSIGNED NOT NULL DEFAULT 0 AFTER refund_amount, ADD refund_peak INT UNSIGNED NOT NULL DEFAULT 0 AFTER refund_weekend");
+        $pdo->exec("UPDATE room_types t JOIN products p ON p.id = (SELECT p2.id FROM products p2 WHERE p2.grp = 'room' AND p2.room_type_id = t.id ORDER BY p2.is_active DESC, p2.sort_order, p2.id LIMIT 1)
+                       SET t.max_people = p.max_people, t.price = p.price, t.price_weekend = p.price_weekend, t.price_peak = p.price_peak,
+                           t.refund_amount = p.refund_amount, t.refund_weekend = p.refund_weekend, t.refund_peak = p.refund_peak");
+    }
+    if ($applyTypes) { // 분류 값을 그 분류 객실에 적용 (같은 분류 객실은 인원·요금·환급액이 같아진다)
+        $pdo->exec("UPDATE products p JOIN room_types t ON t.id = p.room_type_id SET " . implode(', ', array_map(fn($c) => "p.$c = t.$c", ROOM_TYPE_COLS)) . " WHERE p.grp = 'room'");
+    }
 
     $pdo->prepare("INSERT INTO settings (name, value) VALUES ('db_version', ?) ON DUPLICATE KEY UPDATE value = VALUES(value)")
         ->execute([(string) DB_VERSION]);

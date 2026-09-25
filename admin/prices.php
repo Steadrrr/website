@@ -82,7 +82,10 @@ if (is_post()) {
     // 상품별 가격: 칸을 비우면 현재 가격, 줄 전체를 비우면 이 상품은 가격표에서 빠짐(현재 가격)
     if (post('target') === 'items') {
         foreach (priced_products() as $p) {
-            $in = (array) ($_POST['items'][(int) $p['id']] ?? []);
+            // 분류가 있는 객실은 분류 한 줄의 가격을 그 분류 객실 모두에 적용
+            $in = $p['grp'] === 'room' && $p['room_type_id'] && isset($_POST['rtype'])
+                ? (array) ($_POST['rtype'][(int) $p['room_type_id']] ?? [])
+                : (array) ($_POST['items'][(int) $p['id']] ?? []);
             $vals = [];
             foreach (array_keys(PRICE_COLS[$p['grp']]) as $c) {
                 if (trim((string) ($in[$c] ?? '')) !== '') $vals[$c] = to_int($in[$c]);
@@ -201,12 +204,26 @@ $salesN = period_sales_count($period);
   <table class="table product-table pp-table">
     <thead><tr><th>상품</th><?php foreach ($cols as $c => $cl): ?><th class="right"><?= e($cl) ?></th><?php endforeach ?></tr></thead>
     <tbody>
-    <?php foreach ($byGroup[$grp] as $p): $it = $items[(int) $p['id']] ?? null; ?>
-      <tr class="<?= $p['is_active'] ? '' : 'inactive' ?>">
-        <td><b><?= e($p['name']) ?></b><?= $p['is_active'] ? '' : ' <small class="muted">판매중지</small>' ?><?= $it ? '' : '<br><small class="muted">현재 가격 사용</small>' ?></td>
+    <?php
+    // 객실은 분류마다 한 줄 (분류 없는 객실만 따로)
+    $rows = [];
+    foreach ($byGroup[$grp] as $p) {
+        if ($grp === 'room' && $p['room_type_id'] && isset(room_types_all()[(int) $p['room_type_id']])) {
+            $tid = (int) $p['room_type_id'];
+            $rows["t$tid"] ??= ['p' => $p, 'label' => room_type_name($tid), 'rooms' => [], 'field' => "rtype[$tid]", 'active' => false];
+            $rows["t$tid"]['rooms'][] = $p['name'];
+            $rows["t$tid"]['active'] = $rows["t$tid"]['active'] || $p['is_active'];
+        } else {
+            $rows['p' . $p['id']] = ['p' => $p, 'label' => $p['name'], 'rooms' => [], 'field' => 'items[' . (int) $p['id'] . ']', 'active' => (bool) $p['is_active']];
+        }
+    }
+    foreach ($rows as $row): $p = $row['p']; $it = $items[(int) $p['id']] ?? null; ?>
+      <tr class="<?= $row['active'] ? '' : 'inactive' ?>">
+        <td><b><?= e($row['label']) ?></b><?= $row['active'] ? '' : ' <small class="muted">판매중지</small>' ?>
+          <?= $row['rooms'] ? '<br><small class="muted">' . e(implode(', ', $row['rooms'])) . '</small>' : '' ?><?= $it ? '' : '<br><small class="muted">현재 가격 사용</small>' ?></td>
         <?php foreach ($cols as $c => $cl): $cur = (int) $p[$c]; $val = $it ? (int) $it[$c] : null; ?>
           <td class="right <?= $val !== null && $val !== $cur ? 'pp-diff' : '' ?>">
-            <input form="pf" name="items[<?= (int) $p['id'] ?>][<?= $c ?>]" value="<?= $val === null ? '' : e(number_format($val)) ?>" class="num" inputmode="numeric" data-cur="<?= $cur ?>">
+            <input form="pf" name="<?= $row['field'] ?>[<?= $c ?>]" value="<?= $val === null ? '' : e(number_format($val)) ?>" class="num" inputmode="numeric" data-cur="<?= $cur ?>">
             <small class="muted">현재 <?= number_format($cur) ?></small>
           </td>
         <?php endforeach ?>

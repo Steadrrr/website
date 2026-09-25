@@ -118,6 +118,7 @@ CREATE TABLE IF NOT EXISTS products (
   price_night   INT UNSIGNED NOT NULL DEFAULT 0 COMMENT '시설대관 야간(18~21시) 추가요금',
   dc_weekday    INT UNSIGNED NOT NULL DEFAULT 0,
   dc_weekend    INT UNSIGNED NOT NULL DEFAULT 0,
+  base_people   SMALLINT UNSIGNED NOT NULL DEFAULT 0 COMMENT '객실 기준인원 (객실 분류에서 복사)',
   max_people    SMALLINT UNSIGNED NOT NULL DEFAULT 0,
   room_type_id  INT UNSIGNED NULL COMMENT '객실 분류 (room_types)',
   sys_key       VARCHAR(20)  NULL COMMENT '시스템 상품 (stay_in / stay_out: 쉬자파크숙박 입실·퇴실, 수정·삭제 불가, 수량 자동)',
@@ -471,9 +472,17 @@ CREATE TABLE IF NOT EXISTS program_sessions (
 
 -- 객실 분류 (예: 2인실·4인실·독채) — 상품관리에서 추가·수정, 객실 상품마다 하나 지정 (products.room_type_id)
 CREATE TABLE IF NOT EXISTS room_types (
-  id         INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-  name       VARCHAR(50) NOT NULL,
-  sort_order INT NOT NULL DEFAULT 0
+  id             INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  name           VARCHAR(50) NOT NULL,
+  base_people    SMALLINT UNSIGNED NOT NULL DEFAULT 0 COMMENT '기준인원',
+  max_people     SMALLINT UNSIGNED NOT NULL DEFAULT 0 COMMENT '최대인원',
+  price          INT UNSIGNED NOT NULL DEFAULT 0 COMMENT '비수기 평일',
+  price_weekend  INT UNSIGNED NOT NULL DEFAULT 0 COMMENT '비수기 주말',
+  price_peak     INT UNSIGNED NOT NULL DEFAULT 0 COMMENT '성수기',
+  refund_amount  INT UNSIGNED NOT NULL DEFAULT 0 COMMENT '상품권 환급액 (비수기 평일)',
+  refund_weekend INT UNSIGNED NOT NULL DEFAULT 0 COMMENT '환급액 (비수기 주말)',
+  refund_peak    INT UNSIGNED NOT NULL DEFAULT 0 COMMENT '환급액 (성수기)',
+  sort_order     INT NOT NULL DEFAULT 0
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- 민원 (일일업무일지에 입력, 운영관리 › 민원관리에서 조회·처리). 분류 코드는 app/complaints.php 의 CPL_TREE
