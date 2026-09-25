@@ -23,6 +23,7 @@ const JOURNAL_TYPES = [
     'kidsforest' => '유아숲체험원 운영보고',
     'guide'      => '숲해설 운영보고',
     'kidsdirect' => '유아숲(직영) 운영보고',
+    'vcheck'     => '상품권 금고점검',
 ];
 // 프로그램 운영보고 분야 (journals.type)
 const PROGRAM_TYPES = ['healing' => '산림치유센터', 'kidsforest' => '유아숲체험원', 'kidsdirect' => '유아숲(직영)', 'guide' => '숲해설'];
@@ -33,7 +34,7 @@ const PROGRAM_AGES = ['infant' => '유아', 'elem' => '초등', 'teen' => '중�
 const SHARED_DRAFT_TYPES = ['daily', 'sales'];
 
 // 날씨 입력란이 없는 문서 (상품권입고, 일일매출보고)
-const NO_WEATHER_TYPES = ['voucher', 'sales'];
+const NO_WEATHER_TYPES = ['voucher', 'sales', 'vcheck'];
 
 // 대시보드 '오늘 일지 현황'에 표시하는 매일 쓰는 일지
 const DAILY_TYPES = ['daily', 'sales', 'facility'];

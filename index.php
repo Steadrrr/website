@@ -130,6 +130,13 @@ layout_header('대시보드', 'home');
 </section>
 
 <?php if (can_menu($user, 'ops')): // 판매 현황·오늘 일지 현황은 운영관리 권한이 있을 때만 ?>
+<?php if (can_vault($user)):
+    $vc = vault_last_check();
+    $vcDays = $vc ? max(0, (int) round((strtotime('today') - strtotime($vc['work_date'])) / 86400)) : null;
+    if ($vcDays === null || $vcDays > 31): ?>
+<div class="flash flash-warn">🔒 상품권 금고점검이 <?= $vc ? "{$vcDays}일 전(" . e($vc['work_date']) . ')' : '아직 한 번도' ?> 마지막입니다.
+  월 1회 이상 금고의 실제 매수를 세어 <a href="<?= e(url('write.php?type=vcheck')) ?>">금고점검 보고서</a>를 올려 주세요.</div>
+<?php endif; endif ?>
 <div class="card-head">
   <h1>판매 현황</h1>
   <div class="tabs" id="periodTabs">

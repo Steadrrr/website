@@ -91,6 +91,8 @@ function journal_snapshot(array $journal): array
         );
     } elseif ($journal['type'] === 'voucher') {
         $snap['입고'] = $vouchersText($p['vouchers']);
+    } elseif ($journal['type'] === 'vcheck') {
+        $snap['실제 매수'] = implode(', ', array_map(fn($d, $c) => denom_label((int) $d) . ' ' . $c['actual'] . '매 (장부 ' . $c['book'] . ')', array_keys($p['checks']), $p['checks']));
     }
     return $snap;
 }

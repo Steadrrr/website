@@ -42,14 +42,15 @@ foreach ($st as $row) {
     $byDate[$row['work_date']][] = $row;
 }
 
-layout_header(JOURNAL_TYPES[$type], $type === 'voucher' ? 'voucher' : $type);
+layout_header(JOURNAL_TYPES[$type], in_array($type, ['voucher', 'vcheck'], true) ? 'voucher' : $type);
+$canWrite = $type !== 'vcheck' || can_vault($user); // 금고점검은 공무직 이상만 작성
 ?>
 <div class="card">
   <div class="card-head">
     <h1><?= e(JOURNAL_TYPES[$type]) ?></h1>
     <div class="actions no-margin no-print">
       <button class="btn ghost" onclick="window.print()">인쇄</button>
-      <a class="btn primary" href="<?= e(url("write.php?type=$type$tq&date=" . ($selected ?: date('Y-m-d')))) ?>">+ 작성</a>
+      <?php if ($canWrite): ?><a class="btn primary" href="<?= e(url("write.php?type=$type$tq&date=" . ($selected ?: date('Y-m-d')))) ?>">+ 작성</a><?php endif ?>
     </div>
   </div>
 
@@ -111,7 +112,7 @@ layout_header(JOURNAL_TYPES[$type], $type === 'voucher' ? 'voucher' : $type);
 <div class="card">
   <div class="card-head">
     <h2><?= e(date('n월 j일', strtotime($selected))) ?> (<?= weekday_ko($selected) ?>)</h2>
-    <a class="btn" href="<?= e(url("write.php?type=$type$tq&date=$selected")) ?>">이 날짜로 작성</a>
+    <?php if ($canWrite): ?><a class="btn" href="<?= e(url("write.php?type=$type$tq&date=$selected")) ?>">이 날짜로 작성</a><?php endif ?>
   </div>
   <?php if (!$items): ?>
     <p class="muted">작성된 일지가 없습니다.</p>

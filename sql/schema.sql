@@ -30,7 +30,7 @@ CREATE TABLE IF NOT EXISTS users (
 
 CREATE TABLE IF NOT EXISTS journals (
   id           INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-  type         ENUM('daily','sales','facility','voucher','attendance','healing','kidsforest','guide','kidsdirect') NOT NULL COMMENT '업무일지/매출보고/시설물관리/상품권입고/근태/프로그램 운영보고(산림치유센터·유아숲체험원·숲해설·유아숲 직영)',
+  type         ENUM('daily','sales','facility','voucher','attendance','healing','kidsforest','guide','kidsdirect','vcheck') NOT NULL COMMENT '업무일지/매출보고/시설물관리/상품권입고/근태/프로그램 운영보고(산림치유센터·유아숲체험원·숲해설·유아숲 직영)/상품권 금고점검',
   team_id      INT UNSIGNED NULL COMMENT '시설점검일지의 관리팀',
   work_date    DATE         NOT NULL,
   author_id    INT UNSIGNED NOT NULL,
@@ -222,6 +222,53 @@ CREATE TABLE IF NOT EXISTS price_period_items (
   PRIMARY KEY (period_id, product_id),
   CONSTRAINT fk_ppi_period FOREIGN KEY (period_id) REFERENCES price_periods(id) ON DELETE CASCADE,
   CONSTRAINT fk_ppi_product FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 상품권 불출·반납: 공무직이 금고에서 꺼내 담당자에게 주는 것(issue)과 담당자가 금고로 돌려주는 것(return).
+-- 반납 사유: cancel = 입실 취소, unpaid = 입실했지만 고객에게 주지 못함(미지급)
+CREATE TABLE IF NOT EXISTS voucher_issues (
+  id         INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  work_date  DATE         NOT NULL,
+  kind       ENUM('issue','return') NOT NULL,
+  reason     ENUM('cancel','unpaid') NULL,
+  holder_id  INT UNSIGNED NULL COMMENT '담당자 (받은 사람 / 돌려준 사람)',
+  room       VARCHAR(100) NULL COMMENT '반납 객실',
+  note       VARCHAR(300) NULL,
+  created_by INT UNSIGNED NULL,
+  updated_by INT UNSIGNED NULL,
+  created_at DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME     NULL,
+  INDEX idx_date (work_date)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS voucher_issue_items (
+  issue_id INT UNSIGNED NOT NULL,
+  denom    INT UNSIGNED NOT NULL,
+  qty      INT UNSIGNED NOT NULL,
+  PRIMARY KEY (issue_id, denom),
+  CONSTRAINT fk_vii_issue FOREIGN KEY (issue_id) REFERENCES voucher_issues(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 불출·반납 입력·수정·삭제 기록 (삭제돼도 남도록 FK 없음)
+CREATE TABLE IF NOT EXISTS voucher_issue_logs (
+  id         INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  issue_id   INT UNSIGNED NULL,
+  work_date  DATE         NOT NULL,
+  user_id    INT UNSIGNED NULL,
+  action     VARCHAR(20)  NOT NULL,
+  note       VARCHAR(500) NULL,
+  created_at DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_date (work_date)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 상품권 금고점검 보고서(journals type vcheck)의 권종별 장부·실제 매수. 결재완료되면 차이(실제−장부)만큼 재고를 맞춘다
+CREATE TABLE IF NOT EXISTS voucher_checks (
+  journal_id INT UNSIGNED NOT NULL,
+  denom      INT UNSIGNED NOT NULL,
+  book_qty   INT          NOT NULL,
+  actual_qty INT          NOT NULL,
+  PRIMARY KEY (journal_id, denom),
+  CONSTRAINT fk_vc_journal FOREIGN KEY (journal_id) REFERENCES journals(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- 관리팀 (대분류): 휴양림팀, 산림문화팀

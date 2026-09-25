@@ -64,7 +64,7 @@ if (is_post()) {
                 if (is_program_type($journal['type'])) photos_delete_all('program', $id);
                 if ($journal['type'] === 'sales') stay_sync_next($journal['work_date']); // 다음 날 퇴실 인원 다시 계산
                 flash($att ? '근태를 취소(삭제)했습니다.' : '삭제했습니다.', 'success');
-                redirect($journal['type'] === 'voucher' ? 'voucher.php' : $listUrl);
+                redirect(in_array($journal['type'], ['voucher', 'vcheck'], true) ? 'voucher.php' : $listUrl);
         }
     } catch (RuntimeException $e) {
         flash($e->getMessage(), 'error');
@@ -79,7 +79,7 @@ $delegatable = can_delegate($user, $step);
 $revisions = journal_revisions($id);
 $lastEditor = $revisions[0]['user_name'] ?? '';
 
-layout_header(JOURNAL_TYPES[$journal['type']], $journal['type'] === 'voucher' ? 'voucher' : $journal['type']);
+layout_header(JOURNAL_TYPES[$journal['type']], in_array($journal['type'], ['voucher', 'vcheck'], true) ? 'voucher' : $journal['type']);
 $docTitle = $att ? '근태 신청 · ' . $att['user_name'] . ' ' . att_kind_name($att['kind']) : JOURNAL_TYPES[$journal['type']];
 ?>
 <article class="card doc">
@@ -125,13 +125,14 @@ $docTitle = $att ? '근태 신청 · ' . $att['user_name'] . ' ' . att_kind_name
       </form>
     <?php endif ?>
   <?php else: items_view($journal); endif ?>
+  <?php if ($journal['type'] === 'sales') vault_day_html($journal['work_date'], $id) ?>
 
   <?php if ($journal['content']): ?>
-    <h3><?= ['daily' => '업무내용', 'voucher' => '적요', 'attendance' => '사유'][$journal['type']] ?? '메모' ?></h3>
+    <h3><?= ['daily' => '업무내용', 'voucher' => '적요', 'attendance' => '사유', 'vcheck' => '점검 메모'][$journal['type']] ?? '메모' ?></h3>
     <div class="pre"><?= e($journal['content']) ?></div>
   <?php endif ?>
   <?php if ($journal['remarks']): ?>
-    <h3>특이사항</h3>
+    <h3><?= $journal['type'] === 'vcheck' ? '차이 사유' : '특이사항' ?></h3>
     <div class="pre"><?= e($journal['remarks']) ?></div>
   <?php endif ?>
 

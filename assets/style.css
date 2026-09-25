@@ -817,3 +817,37 @@ tr.recur td { background: #fff4e0; }
 .pp-guide { background: #f3f7f4; border-left: 4px solid var(--green-d, #2e7d4f); border-radius: 6px; padding: .7rem .9rem; margin: .4rem 0 1rem; font-size: .9rem; }
 .pp-guide ol { margin: .4rem 0 .4rem 1.2rem; padding: 0; }
 .pp-guide li { margin-bottom: .3rem; }
+/* 상품권 금고: 불출·반납, 대조, 금고점검 */
+.vault-now th { white-space: nowrap; }
+.vault-now tr.issue td, .vault-now tr.issue th { background: #fff4e0; }
+.vault-check { border: 1px solid #cfe3d5; border-left: 4px solid var(--green, #2e7d4f); border-radius: 8px; padding: .5rem .8rem; margin: 1rem 0; background: #f7fbf8; }
+.vault-check.bad { border-color: #e7a39b; border-left-color: #c0392b; background: #fdf5f4; }
+.vault-check h3 { margin: .2rem 0 .4rem; display: flex; flex-wrap: wrap; align-items: center; gap: .4rem; }
+.vault-check .table { margin-bottom: .3rem; }
+.vault-table tfoot tr.issue th { background: #fbe3e0; }
+.vault-forms { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-top: 1rem; }
+.vault-form { border: 1px solid #dfe7e1; border-radius: 8px; padding: .7rem .9rem; background: #fbfdfb; }
+.vault-form.issue { border-left: 4px solid var(--blue, #1a73e8); }
+.vault-form.return { border-left: 4px solid #e8710a; }
+.vault-form h3 { margin: 0 0 .5rem; }
+.vault-fields { display: flex; flex-wrap: wrap; gap: .4rem .8rem; align-items: end; }
+.vault-fields label { margin-bottom: .4rem; }
+.vault-fields input.short { width: 5rem; }
+.vault-fields select { width: auto; }
+.vault-reason { display: flex; flex-direction: column; margin-bottom: .4rem; font-size: .9rem; }
+.vault-reason .label-text { font-weight: 600; margin-bottom: .2rem; }
+.vault-reason .reason-opts { display: flex; gap: .8rem; padding: .45rem 0; }
+.vault-reason .inline-check { margin: 0; display: inline-flex; white-space: nowrap; width: auto; }
+.vault-reason .inline-check input { width: auto; }
+.vault-records tr.vk-issue td:first-child { color: var(--blue, #1a73e8); }
+.vault-records tr.vk-return td:first-child { color: #e8710a; }
+.vault-logs { margin-top: .8rem; font-size: .88rem; }
+.vault-logs ul { margin: .4rem 0 0 1rem; padding: 0; }
+.ledger tr.lk-in td:nth-child(2) { color: var(--blue, #1a73e8); font-weight: 600; }
+.ledger tr.lk-issue td:nth-child(2) { color: #6a4bc4; font-weight: 600; }
+.ledger tr.lk-paid td:nth-child(2) { color: var(--red, #c0392b); font-weight: 600; }
+.ledger tr.lk-return td:nth-child(2) { color: #e8710a; font-weight: 600; }
+.ledger tr.lk-check td:nth-child(2) { color: #8e24aa; font-weight: 600; }
+.vcheck-table tr.issue td { background: #fdecea; }
+.vcheck-table input.short { width: 6rem; }
+@media (max-width: 800px) { .vault-forms { grid-template-columns: 1fr; } }

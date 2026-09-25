@@ -33,6 +33,7 @@ if ($id) {
 }
 
 if ($menu = journal_menu($type)) require_menu($user, $menu);
+if ($type === 'vcheck' && !can_vault($user)) abort(403, '상품권 금고점검 보고서는 공무직 이상이 작성합니다.');
 $revision = $journal && is_revision_edit($journal); // 상신된 적 있는 일지 수정 → 이력 + 결재 초기화
 $errors = [];
 
@@ -103,7 +104,7 @@ if (is_post()) {
 $v = fn(string $k) => e(is_post() ? post($k) : ($journal[$k] ?? ''));
 $line = approval_line_for((int) $user['rank_level']);
 
-layout_header(JOURNAL_TYPES[$type] . ($journal ? ' 수정' : ' 작성'), $type === 'voucher' ? 'voucher' : $type);
+layout_header(JOURNAL_TYPES[$type] . ($journal ? ' 수정' : ' 작성'), in_array($type, ['voucher', 'vcheck'], true) ? 'voucher' : $type);
 ?>
 <form method="post" class="card" enctype="multipart/form-data">
   <?= csrf_field() ?>
@@ -151,13 +152,16 @@ layout_header(JOURNAL_TYPES[$type] . ($journal ? ' 수정' : ' 작성'), $type =
       <label>메모<textarea name="content" rows="3" placeholder="환불, 정산 차이, 상품권 환급 객실 등"><?= $v('content') ?></textarea></label>
     <?php elseif ($type === 'voucher'): ?>
       <label>적요<textarea name="content" rows="3" placeholder="구입처, 구입일, 기초재고 등록 등"><?= $v('content') ?></textarea></label>
+    <?php elseif ($type === 'vcheck'): ?>
+      <label>차이 사유 <small class="muted">(장부와 실제 매수가 다르면 필수)</small><textarea name="remarks" rows="3" placeholder="예: 5/12 불출 입력 누락 확인"><?= $v('remarks') ?></textarea></label>
+      <label>점검 메모<textarea name="content" rows="3" placeholder="점검 시각, 입회자, 점검 방법 등"><?= $v('content') ?></textarea></label>
     <?php else: ?>
       <label>특이사항<textarea name="remarks" rows="4"><?= $v('remarks') ?></textarea></label>
     <?php endif ?>
   <?php endif ?>
 
   <div class="actions">
-    <a class="btn ghost" href="<?= e(url($journal ? 'view.php?id=' . $journal['id'] : ($type === 'voucher' ? 'voucher.php' : "journal.php?type=$type"))) ?>">취소</a>
+    <a class="btn ghost" href="<?= e(url($journal ? 'view.php?id=' . $journal['id'] : (in_array($type, ['voucher', 'vcheck'], true) ? 'voucher.php' : "journal.php?type=$type"))) ?>">취소</a>
     <?php if ($revision): ?>
       <input name="edit_reason" value="<?= e(post('edit_reason')) ?>" placeholder="수정 사유 (선택)" class="reason-input" maxlength="500">
       <button class="btn primary" name="action" value="submit" onclick="return confirm('결재 상태가 초기화되고 처음부터 다시 결재를 받습니다. 저장할까요?')">

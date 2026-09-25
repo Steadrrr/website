@@ -9,6 +9,7 @@ defined('APP_ROOT') || exit;
  *   sales    : ['lines' => [판매내역... (객실은 'vouchers' => [권종 => 환급매수])], 'ticket_cash' => 입장권 현금,
  *               'vouchers' => [권종 => 객실 미지정 환급매수 (이전 버전 자료)], 'legacy' => [구버전 항목], 'warnings' => [...]]
  *   voucher  : ['vouchers' => [권종 => 입고매수]]
+ *   vcheck   : ['checks' => [권종 => ['book' => 장부상 금고 매수, 'actual' => 실제 매수]]]
  */
 
 function items_default(string $type, ?int $teamId = null): array
@@ -18,6 +19,7 @@ function items_default(string $type, ?int $teamId = null): array
         'sales'    => ['lines' => [], 'ticket_cash' => 0, 'rent_dc_rule' => null, 'rent_dc_pct' => 0, 'rent_youth' => 0, 'vouchers' => array_fill_keys(voucher_denoms(), 0), 'legacy' => []],
         'voucher'  => ['vouchers' => array_fill_keys(voucher_denoms(), 0)],
         'daily'    => ['complaints' => []],
+        'vcheck'   => ['checks' => []], // 장부 매수는 폼에서 그 날짜 기준으로 계산
         default    => is_program_type($type) ? ['sessions' => [program_empty_session()]] : [],
     };
 }
@@ -67,6 +69,7 @@ function items_load(array $journal): array
     return match ($journal['type']) {
         'facility' => ['team_id' => $journal['team_id'] ? (int) $journal['team_id'] : null, 'facility' => $q('SELECT * FROM facility_items WHERE journal_id = ? ORDER BY id')],
         'voucher'  => ['vouchers' => $vouchers('in')],
+        'vcheck'   => ['checks' => vcheck_load($id)],
         default    => [],
     };
 }
@@ -246,6 +249,18 @@ function items_parse(string $type, string $workDate, int $journalId): array
         if (array_sum($payload['vouchers']) === 0) $errors[] = '입고 매수를 입력하세요.';
     }
 
+    if ($type === 'vcheck') {
+        $book = vcheck_book($workDate, $journalId);
+        $diff = false;
+        foreach (voucher_denoms() as $d) {
+            $raw = trim((string) ($_POST['vc_actual'][$d] ?? ''));
+            if ($raw === '') { $errors[] = denom_label($d) . ' 실제 매수를 입력하세요 (없으면 0).'; $raw = '0'; }
+            $payload['checks'][$d] = ['book' => $book[$d], 'actual' => to_int($raw)];
+            if ($payload['checks'][$d]['actual'] !== $book[$d]) $diff = true;
+        }
+        if ($diff && trim(post('remarks')) === '') $errors[] = '장부와 실제 매수가 다릅니다. 차이 사유를 입력하세요.';
+    }
+
     return [$payload, $errors];
 }
 
@@ -261,6 +276,13 @@ function items_save(int $id, string $type, array $payload): void
         $st = $pdo->prepare('SELECT work_date FROM journals WHERE id = ?');
         $st->execute([$id]);
         cpl_save($id, (string) $st->fetchColumn(), $payload['complaints'] ?? []);
+        return;
+    }
+
+    if ($type === 'vcheck') {
+        $pdo->prepare('DELETE FROM voucher_checks WHERE journal_id = ?')->execute([$id]);
+        $ins = $pdo->prepare('INSERT INTO voucher_checks (journal_id, denom, book_qty, actual_qty) VALUES (?, ?, ?, ?)');
+        foreach ($payload['checks'] as $d => $c) $ins->execute([$id, $d, $c['book'], $c['actual']]);
         return;
     }
 
@@ -324,6 +346,11 @@ function items_form(string $type, array $payload, string $workDate, ?array $jour
 
     if ($type === 'voucher') {
         voucher_qty_table('voucher_in', '입고 매수', $payload['vouchers'], voucher_stock());
+        return;
+    }
+
+    if ($type === 'vcheck') {
+        vcheck_form($payload, $workDate, $journal);
         return;
     }
 
@@ -644,6 +671,11 @@ function items_view(array $journal): void
 </table>
 </div>
     <?php return; endif;
+
+    if ($journal['type'] === 'vcheck') {
+        vcheck_view($journal, $payload['checks']);
+        return;
+    }
 
     if ($journal['type'] === 'voucher') {
         voucher_view_table($payload['vouchers'], '입고');

@@ -6,7 +6,7 @@ defined('APP_ROOT') || exit;
  * 새 버전 파일을 FTP로 덮어쓰기만 하면, 첫 접속 때 부족한 테이블/컬럼을 만든다.
  * (기존 자료는 그대로 유지)
  */
-const DB_VERSION = 24;
+const DB_VERSION = 25;
 
 function db_version(): int
 {
@@ -230,6 +230,13 @@ function db_migrate(): void
     // 23) v22 → v23: 민원(complaints), 일지 작성·수정 기록(journal_logs) — 둘 다 1) 단계에서 생성
 
     // 24) v23 → v24: 기간별 가격표(price_periods, price_period_items) — 1) 단계에서 생성
+
+    // 25) v24 → v25: 상품권 금고 관리 — 불출·반납(voucher_issues…), 금고점검 보고서(journals type vcheck, voucher_checks).
+    //     이 날부터 매출보고 지급분은 담당자 보유(불출분)에서 빠진다. 그 전 지급분은 금고에서 바로 나간 것으로 본다.
+    if (!enum_has('journals', 'type', 'vcheck')) {
+        $pdo->exec("ALTER TABLE journals MODIFY type ENUM('daily','sales','facility','voucher','attendance','healing','kidsforest','guide','kidsdirect','vcheck') NOT NULL");
+    }
+    $pdo->exec("INSERT IGNORE INTO settings (name, value) VALUES ('vault_start', CURDATE())");
 
     $pdo->prepare("INSERT INTO settings (name, value) VALUES ('db_version', ?) ON DUPLICATE KEY UPDATE value = VALUES(value)")
         ->execute([(string) DB_VERSION]);

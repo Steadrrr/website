@@ -90,15 +90,30 @@ function approvable_step(array $journal, array $user): ?array
 }
 
 /**
- * 전결 가능 여부: 전결 권한이 있는 주무관이, 자기 차례의 결재 뒤에 팀장 결재가 남아 있을 때.
+ * 전결 가능 여부: 전결 권한이 있는 주무관이(금고점검은 모든 주무관), 자기 차례의 결재 뒤에 팀장 결재가 남아 있을 때.
  * (팀장 부재 시 주무관 결재로 문서를 최종 완료)
  */
 function can_delegate(array $user, ?array $step): bool
 {
-    if (!$step || empty($user['can_delegate']) || (int) $user['rank_level'] !== RANK_OFFICER) return false;
+    if (!$step || (int) $user['rank_level'] !== RANK_OFFICER) return false;
+    if (empty($user['can_delegate']) && !in_array(journal_type_of((int) $step['journal_id']), DELEGATE_ANY_OFFICER_TYPES, true)) return false;
     $st = db()->prepare("SELECT COUNT(*) FROM approvals WHERE journal_id = ? AND status = 'waiting' AND step_order > ?");
     $st->execute([$step['journal_id'], $step['step_order']]);
     return (int) $st->fetchColumn() > 0;
+}
+
+/** 전결 권한 설정과 관계없이 주무관이면 전결할 수 있는 문서 (상품권 금고점검) */
+const DELEGATE_ANY_OFFICER_TYPES = ['vcheck'];
+
+function journal_type_of(int $id): string
+{
+    static $cache = [];
+    if (!isset($cache[$id])) {
+        $st = db()->prepare('SELECT type FROM journals WHERE id = ?');
+        $st->execute([$id]);
+        $cache[$id] = (string) $st->fetchColumn();
+    }
+    return $cache[$id];
 }
 
 /** @param string $action approve | reject | delegate(전결) */
