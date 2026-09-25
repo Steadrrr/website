@@ -7,7 +7,7 @@ require __DIR__ . '/app/bootstrap.php';
 require __DIR__ . '/app/xlsx.php';
 
 $user = require_login();
-require_menu($user, 'prog');
+require_menu($user, 'stat');
 $pdo = db();
 
 $unit = in_array($_GET['unit'] ?? '', ['day', 'week', 'month'], true) ? $_GET['unit'] : 'day';

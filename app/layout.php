@@ -90,12 +90,12 @@ function nav_groups(?array $user): array
             'kidsforest' => ['journal.php?type=kidsforest', '유아숲체험원'],
             'kidsdirect' => ['journal.php?type=kidsdirect', '유아숲(직영)'],
             'guide'      => ['journal.php?type=guide', '숲해설'],
-            'prog_stats' => ['program_stats.php', '프로그램 통계'],
         ]],
         'stat'     => ['label' => '통계', 'items' => [
             'stats'      => ['stats.php', '매출통계'],
             'room_stats' => ['room_stats.php', '객실이용통계'],
             'cpl_stats'  => ['complaint_stats.php', '민원통계'],
+            'prog_stats' => ['program_stats.php', '프로그램 통계'],
         ]],
         'fac'      => ['label' => '시설관리', 'items' => [
             'facility'   => ['journal.php?type=facility', '시설점검'],
@@ -107,6 +107,7 @@ function nav_groups(?array $user): array
             'org'      => ['org.php', '조직도'],
             'approval' => ['approvals.php', '결재함'],
             'sitemap'  => ['sitemap.php', '사이트맵'],
+            'updates'  => ['updates.php', '업데이트'],
         ]],
     ];
     foreach (array_keys(MENU_OPTIONAL) as $g) {

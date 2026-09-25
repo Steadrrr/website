@@ -42,6 +42,7 @@ require __DIR__ . '/attendance.php';
 require __DIR__ . '/programs.php';
 require __DIR__ . '/complaints.php';
 require __DIR__ . '/vault.php';
+require __DIR__ . '/changelog.php';
 require __DIR__ . '/sales.php';
 require __DIR__ . '/layout.php';
 
