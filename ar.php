@@ -26,7 +26,7 @@ if (is_post()) {
     csrf_verify();
     $target = post('target');
     if ($target === 'quota') {
-        if (!can_ar_quota($user)) abort(403, '사용가능횟수는 주무관 이상이 정합니다.');
+        if (!can_ar_quota($user)) abort(403, '사용가능횟수는 공무직 이상이 정합니다.');
         $y = (int) post('year');
         if ($y < 2000 || $y > 2100) abort(400, '잘못된 값입니다.');
         setting_set("ar_quota_$y", (string) to_int(post('quota')));
@@ -95,7 +95,7 @@ layout_header('AR사용관리', 'ar');
       <?php if (can_ar_quota($user)): ?>
         <form method="post" class="ar-quota-form no-print"><?= csrf_field() ?><input type="hidden" name="target" value="quota"><input type="hidden" name="year" value="<?= $year ?>">
           <input name="quota" value="<?= $sum['quota'] ?: '' ?>" inputmode="numeric" class="num tiny" placeholder="0" aria-label="<?= $year ?>년 사용가능횟수"><button class="btn small">저장</button></form>
-      <?php elseif (!$sum['quota']): ?><small class="muted">주무관 이상이 입력</small><?php endif ?></div>
+      <?php elseif (!$sum['quota']): ?><small class="muted">공무직 이상이 입력</small><?php endif ?></div>
     <div class="kpi"><span>계획횟수</span><b><?= number_format($sum['planned']) ?>회</b>
       <small class="<?= $sum['quota'] && $sum['planned'] > $sum['quota'] ? 'warn' : 'muted' ?>"><?= $sum['quota'] ? ($sum['planned'] > $sum['quota'] ? '한도 ' . number_format($sum['planned'] - $sum['quota']) . '회 초과' : '계획 후 여유 ' . number_format($sum['quota'] - $sum['planned']) . '회') : '' ?></small></div>
     <div class="kpi"><span>사용횟수</span><b><?= number_format($sum['used']) ?>회</b><small class="muted">결재완료 <?= number_format($sum['approved']) ?>회 · <?= e(ar_hm($sum['minutes'])) ?></small></div>
@@ -103,7 +103,7 @@ layout_header('AR사용관리', 'ar');
       <?php if ($sum['quota']): ?><div class="ar-bar" title="사용 <?= $sum['used'] ?> / 계획 <?= $sum['planned'] ?> / 가능 <?= $sum['quota'] ?>">
         <i class="plan" style="width: <?= min(100, round($sum['planned'] / $sum['quota'] * 100)) ?>%"></i><i class="used" style="width: <?= min(100, round($sum['used'] / $sum['quota'] * 100)) ?>%"></i></div><?php endif ?></div>
   </div>
-  <p class="muted small">사용횟수는 결재중·결재완료된 AR 사용보고의 인원 합계입니다 (임시저장·반려 제외). 사용가능횟수는 해마다 주무관 이상이 입력합니다.</p>
+  <p class="muted small">사용횟수는 결재중·결재완료된 AR 사용보고의 인원 합계입니다 (임시저장·반려 제외). 사용가능횟수는 해마다 공무직 이상이 입력합니다.</p>
 </div>
 
 <form method="post" class="card">

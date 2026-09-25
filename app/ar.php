@@ -6,7 +6,7 @@ defined('APP_ROOT') || exit;
  *  - 사용계획: 날짜별 계획 인원 (ar_plans) — 달력에서 입력
  *  - 사용보고: 사용일별 1건 (journals type arwork) — 아르바이트 성명·사용시간을 입력해 결재
  *  - 횟수: 아르바이트 1명이 하루 사용 = 1회
- *      사용가능횟수 = 연간 한도 (settings ar_quota_YYYY, 주무관 이상이 입력)
+ *      사용가능횟수 = 연간 한도 (settings ar_quota_YYYY, 공무직 이상이 입력)
  *      계획횟수 = 그 해 계획 인원 합계, 사용횟수 = 그 해 사용보고(결재중·결재완료)의 인원 합계
  */
 const AR_TYPE = 'arwork';
@@ -30,10 +30,10 @@ function ar_quota(int $year): int
     return (int) setting("ar_quota_$year", '0');
 }
 
-/** 한도를 정할 수 있는 사람: 주무관 이상·최고관리자 */
+/** 한도를 정할 수 있는 사람: 공무직 이상·최고관리자 (AR사용관리를 쓰는 사람 모두) */
 function can_ar_quota(array $u): bool
 {
-    return !empty($u['is_admin']) || (int) $u['rank_level'] >= RANK_OFFICER;
+    return can_ar($u);
 }
 
 /** @return array{quota:int, planned:int, used:int, approved:int, minutes:int} 그 해 요약 */
