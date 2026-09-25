@@ -34,6 +34,7 @@ if ($id) {
 
 if ($menu = journal_menu($type)) require_menu($user, $menu);
 if ($type === 'vcheck' && !can_vault($user)) abort(403, '상품권 금고점검 보고서는 공무직 이상이 작성합니다.');
+if ($type === 'voucher' && !can_vault($user)) abort(403, '상품권 입고 등록·수정은 공무직 이상이 합니다.');
 $revision = $journal && is_revision_edit($journal); // 상신된 적 있는 일지 수정 → 이력 + 결재 초기화
 $errors = [];
 

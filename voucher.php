@@ -179,7 +179,7 @@ layout_header('상품권 재고', 'voucher');
     <div class="actions no-margin no-print">
       <button class="btn ghost" onclick="window.print()">인쇄</button>
       <?php if ($canVault): ?><a class="btn" href="<?= e(url('write.php?type=vcheck')) ?>">금고점검 보고서 작성</a><?php endif ?>
-      <a class="btn primary" href="<?= e(url('write.php?type=voucher')) ?>">+ 입고 등록</a>
+      <?php if ($canVault): ?><a class="btn primary" href="<?= e(url('write.php?type=voucher')) ?>">+ 입고 등록</a><?php endif ?>
     </div>
   </div>
   <div class="table-scroll">

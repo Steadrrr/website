@@ -231,6 +231,7 @@ function journal_badges(array $j): string
 /** 이 사용자가 이 일지를 수정할 수 있는가: 임시저장은 작성자만, 상신된 일지는 모든 직원 */
 function can_edit_journal(array $journal, array $user): bool
 {
+    if (in_array($journal['type'], ['voucher', 'vcheck'], true) && !can_vault($user)) return false; // 상품권 입고·금고점검은 공무직 이상
     if ($journal['type'] === 'attendance') return false; // 근태는 수정 대신 취소 후 다시 입력
     if ($journal['status'] === 'draft' && in_array($journal['type'], SHARED_DRAFT_TYPES, true)) return true; // 공유 임시저장
     return $journal['status'] !== 'draft' || (int) $journal['author_id'] === (int) $user['id'];

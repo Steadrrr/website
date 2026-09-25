@@ -43,7 +43,7 @@ foreach ($st as $row) {
 }
 
 layout_header(JOURNAL_TYPES[$type], in_array($type, ['voucher', 'vcheck'], true) ? 'voucher' : $type);
-$canWrite = $type !== 'vcheck' || can_vault($user); // 금고점검은 공무직 이상만 작성
+$canWrite = !in_array($type, ['vcheck', 'voucher'], true) || can_vault($user); // 상품권 입고·금고점검은 공무직 이상만 작성
 ?>
 <div class="card">
   <div class="card-head">
