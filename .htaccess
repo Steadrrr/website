@@ -2,7 +2,7 @@ DirectoryIndex index.php
 Options -Indexes
 
 # 설정·스키마·문서 파일 직접 접근 차단
-<FilesMatch "\.(sql|md|sample\.php|log)$">
+<FilesMatch "(\.(sql|md|sample\.php|log)|^\.ftp-deploy-sync-state\.json)$">
   <IfModule mod_authz_core.c>
     Require all denied
   </IfModule>

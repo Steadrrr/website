@@ -27,6 +27,20 @@
 
 ---
 
+
+## 자동 배포 (GitHub Actions → FTP)
+- **main 브랜치에 합쳐지면** GitHub Actions(`.github/workflows/deploy.yml`)가 바뀐 파일만 서버의 `/www/` 폴더로 FTP 업로드합니다.
+- 서버의 `app/config.php`와 `uploads/`(첨부·사진)는 **올리지도 지우지도 않습니다.** `README.md`·`CLAUDE.md`·`.github`도 올리지 않습니다.
+- 처음 한 번 GitHub 저장소 **Settings › Secrets and variables › Actions › New repository secret**에 다음 세 가지를 등록합니다.
+  | 이름 | 값 |
+  |---|---|
+  | `FTP_SERVER` | FTP 서버 주소 (예: `ftp.example.com`, `ftp://` 없이) |
+  | `FTP_USERNAME` | FTP 아이디 |
+  | `FTP_PASSWORD` | FTP 비밀번호 |
+- 배포 결과는 저장소의 **Actions** 탭에서 봅니다 (실패하면 빨간 표시와 이유). 같은 화면의 'Run workflow'로 수동 실행도 됩니다.
+- 첫 실행은 전체 파일을 올리고, 서버에 `.ftp-deploy-sync-state.json`(배포 기록)을 남겨 다음부터는 바뀐 파일만 올립니다.
+- DB 구조 변경은 업로드 후 사이트 첫 접속 때 자동으로 적용됩니다(자동 업그레이드).
+
 ## 1. 왜 워드프레스/그누보드를 쓰지 않았나
 
 호스팅의 자동설치(워드프레스, 그누보드)는 **게시판·블로그용**입니다.

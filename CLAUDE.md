@@ -4,3 +4,5 @@
   (기타 › 업데이트 화면에 표시됨). 날짜, 한 줄 요약, 관련 메뉴, 사용자 입장에서 알기 쉬운 설명 몇 줄.
 - README.md 도 함께 갱신한다.
 - DB 구조가 바뀌면 `sql/schema.sql` 과 `app/migrate.php`(DB_VERSION + 단계) 를 함께 고친다.
+- 배포: main 에 push 되면 `.github/workflows/deploy.yml` 이 서버 `/www/` 로 FTP 업로드한다
+  (app/config.php, uploads/ 는 제외). FTP 접속 정보는 GitHub Secrets 에만 둔다.
