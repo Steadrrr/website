@@ -92,6 +92,7 @@ function nav_groups(?array $user): array
             'kidsforest' => ['journal.php?type=kidsforest', '유아숲체험원'],
             'kidsdirect' => ['journal.php?type=kidsdirect', '유아숲(직영)'],
             'guide'      => ['journal.php?type=guide', '숲해설'],
+            'guide2'     => ['journal.php?type=guide2', '숲해설(용문산)'],
         ]],
         'stat'     => ['label' => '통계', 'items' => [
             'stats'      => ['stats.php', '매출통계'],

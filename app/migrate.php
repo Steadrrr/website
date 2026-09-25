@@ -6,7 +6,7 @@ defined('APP_ROOT') || exit;
  * 새 버전 파일을 FTP로 덮어쓰기만 하면, 첫 접속 때 부족한 테이블/컬럼을 만든다.
  * (기존 자료는 그대로 유지)
  */
-const DB_VERSION = 28;
+const DB_VERSION = 29;
 
 function db_version(): int
 {
@@ -284,6 +284,11 @@ function db_migrate(): void
         $pdo->prepare("UPDATE voucher_moves m JOIN sales_lines l ON l.id = m.line_id SET m.journal_id = ? WHERE l.journal_id = ? AND l.grp = 'room'")->execute([$rid, $j['id']]);
         $pdo->prepare("UPDATE sales_lines SET journal_id = ? WHERE journal_id = ? AND grp = 'room'")->execute([$rid, $j['id']]);
         $pdo->prepare("UPDATE voucher_moves SET journal_id = ? WHERE journal_id = ? AND direction = 'out'")->execute([$rid, $j['id']]); // 객실 미지정 환급(이전 자료)
+    }
+
+    // 29) v28 → v29: 프로그램 분야 '숲해설(용문산)' (type guide2)
+    if (!enum_has('journals', 'type', 'guide2')) {
+        $pdo->exec("ALTER TABLE journals MODIFY type ENUM('daily','sales','facility','voucher','attendance','healing','kidsforest','guide','kidsdirect','vcheck','rooms','guide2') NOT NULL");
     }
 
     $pdo->prepare("INSERT INTO settings (name, value) VALUES ('db_version', ?) ON DUPLICATE KEY UPDATE value = VALUES(value)")

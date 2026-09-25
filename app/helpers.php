@@ -23,11 +23,12 @@ const JOURNAL_TYPES = [
     'kidsforest' => '유아숲체험원 운영보고',
     'guide'      => '숲해설 운영보고',
     'kidsdirect' => '유아숲(직영) 운영보고',
+    'guide2'     => '숲해설(용문산) 운영보고',
     'vcheck'     => '상품권 금고점검',
     'rooms'      => '일일객실판매',
 ];
 // 프로그램 운영보고 분야 (journals.type)
-const PROGRAM_TYPES = ['healing' => '산림치유센터', 'kidsforest' => '유아숲체험원', 'kidsdirect' => '유아숲(직영)', 'guide' => '숲해설'];
+const PROGRAM_TYPES = ['healing' => '산림치유센터', 'kidsforest' => '유아숲체험원', 'kidsdirect' => '유아숲(직영)', 'guide' => '숲해설', 'guide2' => '숲해설(용문산)'];
 // 참여 인원 연령대 (program_sessions 의 m_* / f_* 컬럼)
 const PROGRAM_AGES = ['infant' => '유아', 'elem' => '초등', 'teen' => '중고등', 'adult' => '성인', 'senior' => '65세이상'];
 
