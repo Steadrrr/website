@@ -297,3 +297,36 @@
   });
   document.addEventListener('click', () => groups.forEach((g) => g.classList.remove('open')));
 })();
+
+// 입력 중 표시: 저장(POST) 폼에 입력하면 window.__formDirty = true → 탭 화면이 탭에 ● 표시, 탭 닫기·페이지 이동 전에 확인.
+// 폼을 제출(저장)하면 해제. 검색·필터(GET) 폼과 data-no-dirty 폼은 제외.
+(function () {
+  const watched = (el) => {
+    const f = el && (el.form || (el.closest && el.closest('form')));
+    return !!f && (f.getAttribute('method') || '').toLowerCase() === 'post' && !f.hasAttribute('data-no-dirty') && f.id !== 'loginForm';
+  };
+  const mark = (ev) => { if (watched(ev.target)) window.__formDirty = true; };
+  document.addEventListener('input', mark, true);
+  document.addEventListener('change', mark, true);
+  document.addEventListener('submit', () => { window.__formDirty = false; }, true);
+  window.addEventListener('beforeunload', (ev) => { if (window.__formDirty) { ev.preventDefault(); ev.returnValue = ''; } });
+})();
+
+// 탭을 꺼 둔 경우 상단에 '탭 켜기' (화면 폭 900px 이상)
+(function () {
+  let off = false;
+  try { off = localStorage.getItem('forestlog.tabs') === '0'; } catch (e) {}
+  const me = document.querySelector('.topbar .me');
+  if (!off || !me || window.top !== window.self || window.innerWidth < 900) return;
+  const a = document.createElement('a');
+  a.href = '#';
+  a.className = 'me-tabs';
+  a.textContent = '🗂 탭 켜기';
+  a.title = '페이지를 하단 탭(최대 5개)으로 열기';
+  a.addEventListener('click', (ev) => {
+    ev.preventDefault();
+    try { localStorage.setItem('forestlog.tabs', '1'); } catch (e) {}
+    location.href = (document.querySelector('.brand').getAttribute('href') || '/').replace(/index\.php$/, '') + 'shell.php#' + encodeURIComponent(location.pathname + location.search);
+  });
+  me.prepend(a);
+})();

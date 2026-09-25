@@ -1,8 +1,10 @@
 <?php
 defined('APP_ROOT') || exit;
 
-function layout_header(string $title, string $active = ''): void
+/** $opt['shell'] = 탭 화면(shell.php): 메뉴 + 탭 틀만 그린다 */
+function layout_header(string $title, string $active = '', array $opt = []): void
 {
+    $shell = !empty($opt['shell']);
     $user = current_user();
     $site = config('site_name', '휴양림 업무일지');
     $waiting = $user ? count(waiting_for_user($user)) : 0;
@@ -19,8 +21,22 @@ function layout_header(string $title, string $active = ''): void
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title><?= e($title) ?> · <?= e($site) ?></title>
 <link rel="stylesheet" href="<?= e(url('assets/style.css')) ?>">
+<?php if ($user && !$shell): // 탭 모드: 탭 안에서는 메뉴를 숨기고, 탭 밖에서 열리면 탭 화면(shell.php)으로 ?>
+<script>(function () {
+  var d = document.documentElement, inTab = false;
+  try { inTab = window.top !== window.self && !!window.top.FORESTLOG_TABS; } catch (e) {}
+  if (inTab) { d.classList.add('in-frame'); return; }
+  <?php if (!is_post()): ?>var on = true;
+  try { on = localStorage.getItem('forestlog.tabs') !== '0'; } catch (e) {}
+  if (on && window.top === window.self && window.innerWidth >= 900) {
+    location.replace(<?= json_encode(url('shell.php')) ?> + '#' + encodeURIComponent(location.pathname + location.search + location.hash));
+  }<?php endif ?>
+})();</script>
+<?php elseif (!$user): // 로그인이 풀려 탭 안에 로그인 화면이 뜨면 전체 화면으로 ?>
+<script>try { if (window.top !== window.self && window.top.FORESTLOG_TABS) window.top.location.href = location.href; } catch (e) {}</script>
+<?php endif ?>
 </head>
-<body>
+<body class="<?= $shell ? 'tab-shell' : '' ?>">
 <header class="topbar">
   <a class="brand" href="<?= e(url('index.php')) ?>"><?= e($site) ?></a>
   <?php if ($user): ?>
@@ -49,7 +65,9 @@ function layout_header(string $title, string $active = ''): void
   </div>
   <?php endif ?>
 </header>
-<?php if ($user && $current && !empty($groups[$current]['items'])): ?>
+<?php if ($shell): ?>
+<nav class="subbar no-print" data-shell-subbar hidden></nav>
+<?php elseif ($user && $current && !empty($groups[$current]['items'])): ?>
 <nav class="subbar no-print">
   <span class="subbar-title"><?= e($groups[$current]['label']) ?></span>
   <?php foreach ($groups[$current]['items'] as $key => [$href, $label]): ?>
