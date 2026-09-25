@@ -33,8 +33,8 @@ function layout_header(string $title, string $active = '', array $opt = []): voi
     location.replace(<?= json_encode(url('shell.php')) ?> + '#' + encodeURIComponent(location.pathname + location.search + location.hash));
   }<?php endif ?>
 })();</script>
-<?php elseif (!$user): // 로그인이 풀려 탭 안에 로그인 화면이 뜨면 전체 화면으로 ?>
-<script>try { if (window.top !== window.self && window.top.FORESTLOG_TABS) window.top.location.href = location.href; } catch (e) {}</script>
+<?php elseif (!$user): // 로그아웃·세션 만료: 열어 둔 탭 목록을 지우고, 탭 안에 로그인 화면이 뜨면 전체 화면으로 ?>
+<script>try { sessionStorage.removeItem('forestlog.tabs.v1'); if (window.top !== window.self && window.top.FORESTLOG_TABS) { window.top.sessionStorage.removeItem('forestlog.tabs.v1'); window.top.location.href = location.href; } } catch (e) {}</script>
 <?php endif ?>
 </head>
 <body class="<?= $shell ? 'tab-shell' : '' ?>">

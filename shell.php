@@ -20,5 +20,5 @@ layout_header('업무일지', '', ['shell' => true]);
     <button type="button" class="tabbar-off" data-tabs-off title="탭 없이 한 화면으로 보기 (상단의 '탭 켜기'로 다시 켬)">탭 끄기</button>
   </div>
 </div>
-<script>window.FORESTLOG_TABS = { max: 10, home: <?= json_encode(url('index.php')) ?>, shell: <?= json_encode(url('shell.php')) ?>, site: <?= json_encode(' · ' . config('site_name', '휴양림 업무일지')) ?> };</script>
+<script>window.FORESTLOG_TABS = { uid: <?= (int) $user['id'] ?>, max: 10, home: <?= json_encode(url('index.php')) ?>, shell: <?= json_encode(url('shell.php')) ?>, site: <?= json_encode(' · ' . config('site_name', '휴양림 업무일지')) ?> };</script>
 <?php layout_footer([url('assets/tabs.js')]);

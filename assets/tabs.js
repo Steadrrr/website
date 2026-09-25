@@ -13,7 +13,13 @@
   const norm = (href) => { const u = new URL(href, location.href); return u.origin === location.origin ? u.pathname + u.search : null; };
   const frameOf = (t) => frames.querySelector(`iframe[data-id="${t.id}"]`);
   const dirty = (t) => { try { return !!frameOf(t).contentWindow.__formDirty; } catch (e) { return false; } };
-  const save = () => { try { sessionStorage.setItem(KEY, JSON.stringify({ tabs: tabs.map(({ url, title }) => ({ url, title })), active: tabs.indexOf(tabs.find((t) => t.id === active)) })); } catch (e) {} };
+  let closing = false; // 로그아웃·세션 만료로 탭을 모두 닫는 중이면 저장하지 않는다
+  const endSession = () => {
+    closing = true;
+    try { sessionStorage.removeItem(KEY); } catch (e) {}
+    frames.querySelectorAll('iframe').forEach((f) => { try { f.contentWindow.__formDirty = false; } catch (e) {} }); // 탭마다 또 묻지 않게
+  };
+  const save = () => { if (closing) return; try { sessionStorage.setItem(KEY, JSON.stringify({ uid: CFG.uid, tabs: tabs.map(({ url, title }) => ({ url, title })), active: tabs.indexOf(tabs.find((t) => t.id === active)) })); } catch (e) {} };
 
   function render() {
     bar.innerHTML = '';
@@ -69,6 +75,7 @@
     f.addEventListener('load', () => {
       try {
         const w = f.contentWindow;
+        if (/\/login\.php$/.test(w.location.pathname)) { endSession(); top.location.href = w.location.href; return; } // 세션 만료
         t.url = w.location.pathname + w.location.search;
         t.title = (w.document.title || '').replace(CFG.site, '').trim() || t.title;
         w.addEventListener('input', () => setTimeout(render, 0), true);
@@ -116,7 +123,12 @@
     const a = ev.target.closest('.topbar a[href], [data-shell-subbar] a[href]');
     if (!a || ev.defaultPrevented || ev.button !== 0 || ev.ctrlKey || ev.metaKey || ev.shiftKey || a.target) return;
     const url = norm(a.href);
-    if (!url || /\/(logout|shell)\.php$/.test(url.split('?')[0])) return; // 로그아웃은 전체 화면
+    if (url && /\/logout\.php$/.test(url.split('?')[0])) { // 로그아웃: 탭 모두 닫기
+      if (tabs.some(dirty) && !confirm('입력 중인 탭이 있습니다. 로그아웃하면 모든 탭이 닫히고 입력한 내용이 사라집니다. 로그아웃할까요?')) { ev.preventDefault(); return; }
+      endSession();
+      return;
+    }
+    if (!url || /\/shell\.php$/.test(url.split('?')[0])) return;
     ev.preventDefault();
     document.body.classList.remove('nav-open');
     document.querySelectorAll('.nav-group.open').forEach((g) => g.classList.remove('open'));
@@ -155,11 +167,12 @@
   });
 
   // 창을 닫거나 새로고침할 때 입력 중인 탭이 있으면 확인
-  window.addEventListener('beforeunload', (ev) => { if (tabs.some(dirty)) { ev.preventDefault(); ev.returnValue = ''; } });
+  window.addEventListener('beforeunload', (ev) => { if (!closing && tabs.some(dirty)) { ev.preventDefault(); ev.returnValue = ''; } });
 
   // 시작: 이전 탭 복원 + 주소 # 뒤의 페이지 열기
   let saved = null;
   try { saved = JSON.parse(sessionStorage.getItem(KEY) || 'null'); } catch (e) {}
+  if (saved && saved.uid !== CFG.uid) saved = null; // 다른 계정이 열어 둔 탭은 복원하지 않는다
   if (saved && Array.isArray(saved.tabs)) {
     saved.tabs.slice(0, CFG.max).forEach((s) => { if (typeof s.url === 'string' && s.url.startsWith('/')) { const t = { id: seq++, url: s.url, title: s.title || '', used: 0 }; tabs.push(t); makeFrame(t); } });
     if (tabs[saved.active]) activate(tabs[saved.active]);
