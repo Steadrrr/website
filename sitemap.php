@@ -30,6 +30,7 @@ const SITEMAP_DESC = [
     'notices'    => '공지사항 게시판 (공무직 이상 작성)',
     'org'        => '팀·반별 조직도 (사진·보직·연락처)',
     'approval'   => '내 결재 차례인 문서와 내가 올린 문서 진행 상황',
+    'docs'       => '모든 결재 문서를 분류·기간·상태·작성자로 조회·정렬하고 수정 (공무직 이상, 삭제는 최고관리자)',
     'sitemap'    => '이 페이지',
     'admin'      => '가입 승인, 직급·팀·반·보직, 근무 설정, 메뉴 권한',
 ];
@@ -41,7 +42,7 @@ const SITEMAP_SETTINGS_DESC = [
     'facility'  => '팀별 시설 구역·건물',
     'equipment' => '팀별 장비 분류',
 ];
-const SITEMAP_ICON = ['home' => '🏠', 'schedule' => '📅', 'att' => '🕘', 'ops' => '📋', 'prog' => '🌲', 'stat' => '📊', 'fac' => '🛠', 'etc' => '📌', 'settings' => '⚙'];
+const SITEMAP_ICON = ['home' => '🏠', 'schedule' => '📅', 'att' => '🕘', 'ops' => '📋', 'prog' => '🌲', 'stat' => '📊', 'fac' => '🛠', 'docs' => '🗂', 'etc' => '📌', 'settings' => '⚙'];
 
 $groups = nav_groups($user);
 layout_header('사이트맵', 'sitemap');

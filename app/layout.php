@@ -27,7 +27,7 @@ function layout_header(string $title, string $active = ''): void
   <button class="nav-toggle" type="button" aria-label="메뉴" onclick="document.body.classList.toggle('nav-open')">☰</button>
   <nav class="nav">
     <?php foreach ($groups as $gkey => $g):
-        $badge = $gkey === 'etc' && $waiting > 0 ? ' <span class="count">' . $waiting . '</span>' : '';
+        $badge = $gkey === 'docs' && $waiting > 0 ? ' <span class="count">' . $waiting . '</span>' : '';
         if (empty($g['items'])): ?>
       <a href="<?= e(url($g['href'])) ?>" class="nav-main <?= $current === $gkey ? 'on' : '' ?>"><?= e($g['label']) ?></a>
     <?php else: ?>
@@ -102,10 +102,13 @@ function nav_groups(?array $user): array
             'facilities' => ['facilities.php', '시설물'],
             'equipment'  => ['equipment.php', '장비'],
         ]],
+        'docs'     => ['label' => '문서관리', 'items' => [
+            'approval' => ['approvals.php', '결재함'],
+            'docs'     => ['docs.php', '문서조회및수정'],
+        ]],
         'etc'      => ['label' => '기타', 'items' => [
             'notices'  => ['notices.php', '공지사항'],
             'org'      => ['org.php', '조직도'],
-            'approval' => ['approvals.php', '결재함'],
             'sitemap'  => ['sitemap.php', '사이트맵'],
             'updates'  => ['updates.php', '업데이트'],
         ]],
@@ -118,6 +121,11 @@ function nav_groups(?array $user): array
     } elseif ($user && can_manage_users($user)) {
         $groups['etc']['items']['admin'] = ['admin/users.php', '회원관리'];
     }
+    if (!$user || !can_manage_docs($user)) unset($groups['docs']['items']['docs']); // 문서조회및수정은 공무직 이상
+    // 기타는 항상 맨 마지막
+    $etc = $groups['etc'];
+    unset($groups['etc']);
+    $groups['etc'] = $etc;
     return $groups;
 }
 

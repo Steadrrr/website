@@ -102,6 +102,23 @@ function can_delegate(array $user, ?array $step): bool
     return (int) $st->fetchColumn() > 0;
 }
 
+/** 문서관리 › 문서조회및수정: 공무직 이상·최고관리자는 모든 문서를 조회·수정 (삭제는 최고관리자만) */
+function can_manage_docs(array $user): bool
+{
+    return !empty($user['is_admin']) || (int) $user['rank_level'] >= RANK_WORKER;
+}
+
+/** 문서 삭제 (첨부·사진·다음 날 퇴실 인원 정리 포함) */
+function journal_delete(array $journal): void
+{
+    $id = (int) $journal['id'];
+    $att = $journal['type'] === 'attendance' ? att_find($id) : null;
+    db()->prepare('DELETE FROM journals WHERE id = ?')->execute([$id]);
+    if ($att && $att['attachment'] && is_file(APP_ROOT . '/' . $att['attachment'])) @unlink(APP_ROOT . '/' . $att['attachment']);
+    if (is_program_type($journal['type'])) photos_delete_all('program', $id);
+    if ($journal['type'] === 'sales') stay_sync_next($journal['work_date']); // 다음 날 퇴실 인원 다시 계산
+}
+
 /** 전결 권한 설정과 관계없이 주무관이면 전결할 수 있는 문서 (상품권 금고점검) */
 const DELEGATE_ANY_OFFICER_TYPES = ['vcheck'];
 

@@ -60,10 +60,7 @@ if (is_post()) {
                 redirect('view.php?id=' . $id);
             case 'delete':
                 if ($att ? !$canCancel : !$deletable) abort(403, '삭제 권한이 없습니다.');
-                db()->prepare('DELETE FROM journals WHERE id = ?')->execute([$id]);
-                if ($att && $att['attachment'] && is_file(APP_ROOT . '/' . $att['attachment'])) @unlink(APP_ROOT . '/' . $att['attachment']);
-                if (is_program_type($journal['type'])) photos_delete_all('program', $id);
-                if ($journal['type'] === 'sales') stay_sync_next($journal['work_date']); // 다음 날 퇴실 인원 다시 계산
+                journal_delete($journal);
                 flash($att ? '근태를 취소(삭제)했습니다.' : '삭제했습니다.', 'success');
                 redirect(in_array($journal['type'], ['voucher', 'vcheck'], true) ? 'voucher.php' : $listUrl);
         }

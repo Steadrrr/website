@@ -882,3 +882,15 @@ tr.recur td { background: #fff4e0; }
 .ev-repeat .inline-check { display: inline-flex; align-items: center; white-space: nowrap; width: auto; margin: 0; }
 .ev-repeat .inline-check input[type="radio"] { width: auto; margin: 0 .2rem 0 0; }
 .ev-repeat input[name="rep_day"] { width: 3.2rem; padding-left: .3rem; padding-right: .3rem; }
+/* 문서조회및수정 */
+.doc-filters label { font-size: .88rem; }
+.doc-presets { display: flex; flex-wrap: wrap; align-items: center; gap: .35rem; }
+.doc-presets .chip { border: 1px solid #d3ddd6; border-radius: 1rem; padding: .15rem .7rem; font-size: .88rem; color: var(--text); background: #fff; }
+.doc-presets .chip.on { background: var(--green, #2e7d4f); border-color: var(--green, #2e7d4f); color: #fff; }
+.doc-table th a.sort { color: inherit; white-space: nowrap; }
+.doc-table th a.sort.on { color: var(--green-d, #1b5e20); }
+.doc-table td { vertical-align: middle; }
+.pager { align-items: center; flex-wrap: wrap; }
+.pager a.btn { border-radius: 4px; }
+.doc-table td.doc-sum { min-width: 11rem; }
+.doc-table th, .doc-table td { padding-left: .4rem; padding-right: .4rem; }
