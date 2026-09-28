@@ -346,3 +346,10 @@
     tabs.openHelp(fab.href);
   });
 })();
+
+// 인쇄: 인쇄하는 동안 스크롤바를 숨겨 오른쪽이 스크롤바 폭만큼 잘리지 않게 (탭 화면 안에서 인쇄할 때 특히)
+(function () {
+  const root = document.documentElement;
+  window.addEventListener('beforeprint', () => root.classList.add('printing'));
+  window.addEventListener('afterprint', () => root.classList.remove('printing'));
+})();
