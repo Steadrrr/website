@@ -64,7 +64,15 @@ function program_load(int $journalId): array
 {
     $st = db()->prepare('SELECT * FROM program_sessions WHERE journal_id = ? ORDER BY session_no, id');
     $st->execute([$journalId]);
-    return ['sessions' => $st->fetchAll()];
+    return ['sessions' => $st->fetchAll(), 'tasks' => program_tasks_load($journalId)];
+}
+
+/** 기타 업무추진 (담당자·업무내용) */
+function program_tasks_load(int $journalId): array
+{
+    $st = db()->prepare('SELECT * FROM program_tasks WHERE journal_id = ? ORDER BY sort_no, id');
+    $st->execute([$journalId]);
+    return $st->fetchAll();
 }
 
 /** @return array{0: array, 1: string[]} */
@@ -121,7 +129,17 @@ function program_parse(string $type, string $workDate, int $journalId): array
         $st->execute([$type, $workDate, $journalId]);
         if ($dup = $st->fetchColumn()) $errors[] = "해당 날짜의 " . JOURNAL_TYPES[$type] . "가 이미 있습니다. (문서번호 $dup) 그 보고서에 회차를 추가하세요.";
     }
-    return [['sessions' => $sessions ?: [program_empty_session()]], $errors];
+    // 기타 업무추진: 담당자·업무내용 (둘 다 비운 줄은 건너뜀)
+    $tasks = [];
+    foreach ((array) ($_POST['tk'] ?? []) as $row) {
+        if (!is_array($row)) continue;
+        $t = ['staff' => mb_substr(trim((string) ($row['staff'] ?? '')), 0, 100), 'content' => trim((string) ($row['content'] ?? ''))];
+        if ($t['staff'] === '' && $t['content'] === '') continue;
+        $t['sort_no'] = count($tasks) + 1;
+        if ($t['content'] === '') $errors[] = "기타 업무추진 {$t['sort_no']}번째 줄: 업무내용을 입력하세요.";
+        $tasks[] = $t;
+    }
+    return [['sessions' => $sessions ?: [program_empty_session()], 'tasks' => $tasks], $errors];
 }
 
 /** 그 보고서의 회차 id 목록 */
@@ -160,6 +178,10 @@ function program_save(int $journalId, array $payload): void
         photos_delete('program_session', $sid, $del);
         foreach (program_session_photos_save((string) ($s['form_key'] ?? ''), $sid, $uid) as $err) flash($err, 'error');
     }
+    // 기타 업무추진
+    $pdo->prepare('DELETE FROM program_tasks WHERE journal_id = ?')->execute([$journalId]);
+    $tk = $pdo->prepare('INSERT INTO program_tasks (journal_id, sort_no, staff, content) VALUES (?, ?, ?, ?)');
+    foreach ($payload['tasks'] ?? [] as $t) $tk->execute([$journalId, $t['sort_no'], $t['staff'] !== '' ? $t['staff'] : null, $t['content']]);
     // 화면에서 지운 회차: 사진과 함께 삭제
     foreach (array_diff($existing, $kept) as $sid) {
         photos_delete_all('program_session', $sid);
@@ -304,8 +326,26 @@ function program_form(string $type, array $payload, string $workDate, ?array $jo
     <small class="muted">(남 <span data-sum-m>0</span> · 여 <span data-sum-f>0</span> / 유료 <span data-sum-paid>0</span> · 할인 <span data-sum-discount>0</span> · 무료 <span data-sum-free>0</span>)</small>
     · 금액 <b data-sum-amount>0원</b></div>
 
+  <h3>기타 업무추진 <small class="muted">프로그램 운영 외에 추진한 업무 (없으면 비워 두세요)</small></h3>
+  <div class="prog-tasks" data-tasks>
+    <?php foreach (array_values($payload['tasks'] ?? []) ?: [['staff' => '', 'content' => '']] as $i => $t) program_task_row((string) $i, $t) ?>
+  </div>
+  <template id="taskTpl"><?php program_task_row('__TK__', ['staff' => '', 'content' => '']) ?></template>
+  <button type="button" class="btn" data-add-task>+ 업무 추가</button>
 </div>
 <script src="<?= e(asset_url('assets/program.js')) ?>" defer></script>
+    <?php
+}
+
+/** 기타 업무추진 한 줄 */
+function program_task_row(string $key, array $t): void
+{
+    ?>
+  <div class="prog-task" data-task>
+    <label>담당자<input name="tk[<?= e($key) ?>][staff]" value="<?= e($t['staff'] ?? '') ?>" maxlength="100" placeholder="예: 김숲해설"></label>
+    <label class="prog-task-content">업무내용<textarea name="tk[<?= e($key) ?>][content]" rows="2" placeholder="예: 다음 달 프로그램 홍보물 제작, 교구 정리"><?= e($t['content'] ?? '') ?></textarea></label>
+    <button type="button" class="btn small ghost danger" data-remove-task>삭제</button>
+  </div>
     <?php
 }
 
@@ -351,6 +391,15 @@ function program_view(array $journal): void
         <?php render_gallery($ph) ?></div>
     <?php endforeach ?>
   <?php endif ?>
+  <?php if ($tasks = program_tasks_load((int) $journal['id'])): ?>
+    <h3>기타 업무추진 <small class="muted"><?= count($tasks) ?>건</small></h3>
+    <table class="table prog-task-view">
+      <thead><tr><th>No</th><th>담당자</th><th>업무내용</th></tr></thead>
+      <tbody>
+      <?php foreach ($tasks as $tk): ?><tr><td class="center"><?= (int) $tk['sort_no'] ?></td><td class="nowrap"><?= e($tk['staff'] ?? '') ?></td><td class="pre"><?= e($tk['content']) ?></td></tr><?php endforeach ?>
+      </tbody>
+    </table>
+  <?php endif ?>
     <?php
 }
 
@@ -368,7 +417,7 @@ function program_snapshot(array $journal): array
             . ($s['activity'] ? ' · 활동: ' . preg_replace('/\s+/', ' ', $s['activity']) : '')
             . ' · 사진 ' . count(photos_for('program_session', (int) $s['id'])) . '장';
     }
-    return ['회차' => $lines];
+    return ['회차' => $lines, '기타 업무추진' => array_map(fn($t) => ($t['staff'] ? "{$t['staff']}: " : '') . preg_replace('/\s+/', ' ', $t['content']), program_tasks_load((int) $journal['id']))];
 }
 
 /* ───────────── 매출보고 '프로그램 판매' 연동 ───────────── */

@@ -23,7 +23,7 @@ function items_default(string $type, ?int $teamId = null): array
         'vcheck'   => ['checks' => []], // 장부 매수는 폼에서 그 날짜 기준으로 계산
         'arwork'   => ['workers' => []],
         'purchase' => ['vendor' => '', 'pay_method' => 'card', 'items' => [purchase_empty_item()]],
-        default    => is_program_type($type) ? ['sessions' => [program_empty_session()]] : [],
+        default    => is_program_type($type) ? ['sessions' => [program_empty_session()], 'tasks' => []] : [],
     };
 }
 

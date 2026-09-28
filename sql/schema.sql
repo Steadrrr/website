@@ -633,3 +633,14 @@ CREATE TABLE IF NOT EXISTS auth_tokens (
   INDEX idx_user (user_id),
   CONSTRAINT fk_auth_token_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 프로그램 운영보고의 기타 업무추진 (담당자·업무내용, 여러 줄)
+CREATE TABLE IF NOT EXISTS program_tasks (
+  id         INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  journal_id INT UNSIGNED NOT NULL,
+  sort_no    SMALLINT UNSIGNED NOT NULL DEFAULT 1,
+  staff      VARCHAR(100) NULL COMMENT '담당자',
+  content    TEXT NOT NULL COMMENT '업무내용',
+  INDEX idx_journal (journal_id, sort_no),
+  CONSTRAINT fk_prog_task_journal FOREIGN KEY (journal_id) REFERENCES journals(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

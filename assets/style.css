@@ -1089,3 +1089,11 @@ html.printing { scrollbar-width: none; }
 html.printing::-webkit-scrollbar, html.printing body::-webkit-scrollbar { display: none; width: 0; }
 .prog-pick-warn { display: block; color: var(--red); font-size: .8rem; font-weight: 600; margin-top: .2rem; }
 select.need-pick { border-color: var(--red); background: #fff6f5; }
+
+/* 프로그램 운영보고: 기타 업무추진 */
+.prog-task { display: grid; grid-template-columns: 180px 1fr auto; gap: .6rem; align-items: end; padding: .5rem .6rem; border: 1px solid #e3ebe5; border-radius: 8px; margin-bottom: .5rem; background: #fbfdfb; }
+.prog-task label { margin: 0; }
+.prog-task textarea { min-height: 2.6rem; }
+.prog-task [data-remove-task] { margin-bottom: .2rem; }
+.prog-task-view td.pre { white-space: pre-wrap; }
+@media (max-width: 700px) { .prog-task { grid-template-columns: 1fr; } }

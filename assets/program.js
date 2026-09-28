@@ -71,6 +71,27 @@
     recalc();
   });
   box.addEventListener('change', recalc);
+  // 기타 업무추진: 한 줄씩 추가·삭제 (최소 1줄은 남김)
+  const tasks = form.querySelector('[data-tasks]');
+  const taskTpl = document.getElementById('taskTpl');
+  if (tasks && taskTpl) {
+    let tseq = Date.now();
+    const syncTasks = () => { const rows = tasks.querySelectorAll('[data-task]'); rows.forEach((r) => { r.querySelector('[data-remove-task]').hidden = rows.length === 1; }); };
+    form.querySelector('[data-add-task]').addEventListener('click', () => {
+      tasks.insertAdjacentHTML('beforeend', taskTpl.innerHTML.replace(/__TK__/g, 't' + tseq++));
+      syncTasks();
+      tasks.lastElementChild.querySelector('input').focus();
+    });
+    tasks.addEventListener('click', (ev) => {
+      const btn = ev.target.closest('[data-remove-task]');
+      if (!btn) return;
+      const row = btn.closest('[data-task]');
+      if ([...row.querySelectorAll('input, textarea')].some((x) => x.value.trim() !== '') && !confirm('이 업무를 삭제할까요?')) return;
+      row.remove();
+      syncTasks();
+    });
+    syncTasks();
+  }
   // 결재 올리기 전에: 내용을 입력한 회차에 프로그램이 안 골라져 있으면 알려 주고 그 칸으로
   const formEl = form.closest('form');
   if (formEl) formEl.addEventListener('submit', (ev) => {
