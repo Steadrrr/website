@@ -291,7 +291,7 @@ function cpl_form(array $rows, string $workDate): void
   <?php cpl_summary_html($rows, '오늘 민원 요약') ?>
 </section>
 <script>window.CPL = <?= json_encode(['tree' => $jsTree, 'etc' => array_keys($t['etc']), 'urgent' => CPL_URGENT, 'simple' => CPL_SIMPLE], JSON_UNESCAPED_UNICODE) ?>;</script>
-<script src="<?= e(url('assets/complaints.js')) ?>" defer></script>
+<script src="<?= e(asset_url('assets/complaints.js')) ?>" defer></script>
     <?php
 }
 

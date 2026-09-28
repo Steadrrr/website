@@ -229,5 +229,5 @@ layout_header('대시보드', 'home');
 <script>window.SALES_API = <?= json_encode(url('api/sales.php')) ?>;</script>
 <?php layout_footer([
     'https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js',
-    url('assets/dashboard.js'),
+    asset_url('assets/dashboard.js'),
 ]);

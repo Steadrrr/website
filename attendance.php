@@ -446,4 +446,4 @@ window.ATT = {
   openNew: <?= json_encode(valid_date($_GET['new'] ?? '') ? $_GET['new'] : null) ?>,
 };
 </script>
-<?php layout_footer([url('assets/attendance.js')]);
+<?php layout_footer([asset_url('assets/attendance.js')]);

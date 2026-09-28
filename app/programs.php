@@ -249,7 +249,7 @@ function program_session_card(string $key, array $s, int $no, array $products): 
         <?php foreach ($products as $id => $p): ?>
           <option value="<?= (int) $id ?>" data-price="<?= (int) $p['price'] ?>" data-discount="<?= (int) $p['price_discount'] ?>" <?= $pid === (int) $id ? 'selected' : '' ?>><?= e($p['name']) ?><?= $p['is_active'] ? '' : ' (판매중지)' ?></option>
         <?php endforeach ?>
-      </select></label>
+      </select><small class="prog-pick-warn" data-pick-warn hidden>프로그램을 고르면 1인 요금이 들어갑니다</small></label>
       <div class="prog-paid">
         <span class="label-text">요금 구분</span>
         <?php foreach (PROGRAM_FEE_TYPES as $ft => $label): $fee = program_fee_for($cur, $ft); ?>
@@ -305,7 +305,7 @@ function program_form(string $type, array $payload, string $workDate, ?array $jo
     · 금액 <b data-sum-amount>0원</b></div>
 
 </div>
-<script src="<?= e(url('assets/program.js')) ?>" defer></script>
+<script src="<?= e(asset_url('assets/program.js')) ?>" defer></script>
     <?php
 }
 

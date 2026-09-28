@@ -28,6 +28,9 @@
       const opt = sel && sel.value ? sel.selectedOptions[0] : null;
       const fees = { paid: opt ? num(opt.dataset.price) : 0, discount: opt ? num(opt.dataset.discount) : 0, free: 0 };
       card.querySelectorAll('[data-fee-label]').forEach((el) => set(el, opt ? `(1인 ${fmt(fees[el.dataset.feeLabel])}원)` : ''));
+      const warn = card.querySelector('[data-pick-warn]');
+      if (warn) warn.hidden = !!opt || !sel; // 프로그램을 안 골랐으면 안내
+      if (sel) sel.classList.toggle('need-pick', !opt);
       const amount = total * fees[type];
       set(card.querySelector('[data-total]'), fmt(total));
       set(card.querySelector('[data-total-text]'), fmt(total) + '명');
@@ -68,5 +71,24 @@
     recalc();
   });
   box.addEventListener('change', recalc);
+  // 결재 올리기 전에: 내용을 입력한 회차에 프로그램이 안 골라져 있으면 알려 주고 그 칸으로
+  const formEl = form.closest('form');
+  if (formEl) formEl.addEventListener('submit', (ev) => {
+    const btn = ev.submitter;
+    if (btn && btn.value === 'save') return; // 임시저장은 그대로
+    const cards = [...box.querySelectorAll('[data-session]')];
+    for (let i = 0; i < cards.length; i++) {
+      const c = cards[i];
+      const sel = c.querySelector('[data-product]');
+      const used = [...c.querySelectorAll('[data-people], input[name$="[group_name]"]')].some((x) => x.value.trim() !== '' && x.value.trim() !== '0');
+      if (sel && used && !sel.value) {
+        ev.preventDefault();
+        alert(`${i + 1}회차: 프로그램을 고르세요. 프로그램을 골라야 1인 요금이 들어가고 저장됩니다.`);
+        sel.scrollIntoView({ block: 'center' });
+        sel.focus();
+        return;
+      }
+    }
+  });
   recalc();
 })();

@@ -369,4 +369,4 @@ window.GCAL = {
   viewUrl: <?= json_encode(url('view.php?id=')) ?>,
 };
 </script>
-<?php layout_footer([url('assets/schedule.js')]);
+<?php layout_footer([asset_url('assets/schedule.js')]);

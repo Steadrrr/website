@@ -21,7 +21,7 @@ function layout_header(string $title, string $active = '', array $opt = []): voi
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title><?= e($title) ?> · <?= e($site) ?></title>
-<link rel="stylesheet" href="<?= e(url('assets/style.css')) ?>">
+<link rel="stylesheet" href="<?= e(asset_url('assets/style.css')) ?>">
 <?php if ($user && !$shell): // 탭 모드: 탭 안에서는 메뉴를 숨기고, 탭 밖에서 열리면 탭 화면(shell.php)으로 ?>
 <script>(function () {
   var d = document.documentElement, inTab = false;
@@ -175,7 +175,7 @@ function layout_footer(array $scripts = []): void
   <div class="footer-copy">Copyright © 2026 임일래 · Made with Claude.ai</div>
 </footer>
 <?php endif ?>
-<script src="<?= e(url('assets/app.js')) ?>"></script>
+<script src="<?= e(asset_url('assets/app.js')) ?>"></script>
 <?php foreach ($scripts as $src): ?>
 <script src="<?= e($src) ?>"></script>
 <?php endforeach ?>

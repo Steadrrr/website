@@ -21,4 +21,4 @@ layout_header('업무일지', '', ['shell' => true]);
   </div>
 </div>
 <script>window.FORESTLOG_TABS = { uid: <?= (int) $user['id'] ?>, max: 10, home: <?= json_encode(url('index.php')) ?>, shell: <?= json_encode(url('shell.php')) ?>, site: <?= json_encode(' · ' . config('site_name', '휴양림 업무일지')) ?> };</script>
-<?php layout_footer([url('assets/tabs.js')]);
+<?php layout_footer([asset_url('assets/tabs.js')]);

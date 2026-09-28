@@ -1087,3 +1087,5 @@ body.tab-shell > main.container .tab-frames { bottom: 38px; }
 }
 html.printing { scrollbar-width: none; }
 html.printing::-webkit-scrollbar, html.printing body::-webkit-scrollbar { display: none; width: 0; }
+.prog-pick-warn { display: block; color: var(--red); font-size: .8rem; font-weight: 600; margin-top: .2rem; }
+select.need-pick { border-color: var(--red); background: #fff6f5; }

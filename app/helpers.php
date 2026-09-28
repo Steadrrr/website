@@ -126,6 +126,13 @@ function url(string $path = ''): string
     return rtrim((string) config('base_url', ''), '/') . '/' . ltrim($path, '/');
 }
 
+/** 정적 파일 주소 + 수정 시각(?v=) — 배포 후 브라우저가 예전 JS·CSS를 쓰지 않게 */
+function asset_url(string $path): string
+{
+    $file = APP_ROOT . '/' . ltrim($path, '/');
+    return url($path) . (is_file($file) ? '?v=' . filemtime($file) : '');
+}
+
 function redirect(string $path): never
 {
     header('Location: ' . url($path));
