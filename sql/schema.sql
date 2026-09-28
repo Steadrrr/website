@@ -360,7 +360,7 @@ CREATE TABLE IF NOT EXISTS equipment_logs (
 -- 사진 (시설물·장비 공용). 파일은 uploads/ 폴더에 저장
 CREATE TABLE IF NOT EXISTS photos (
   id         INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-  owner_type ENUM('facility','equipment','program','purchase_check','purchase_receipt') NOT NULL COMMENT 'program = 프로그램 운영보고 활동사진, purchase_check/receipt = 물품구매 검수·영수증 사진 (owner_id = journal_id)',
+  owner_type ENUM('facility','equipment','program','purchase_check','purchase_receipt','program_session') NOT NULL COMMENT 'program_session = 프로그램 운영보고 회차별 활동사진(owner_id = program_sessions.id), program = 이전 방식(보고서 전체), purchase_check/receipt = 물품구매 검수·영수증 사진 (owner_id = journal_id)',
   owner_id   INT UNSIGNED NOT NULL,
   path       VARCHAR(200) NOT NULL,
   user_id    INT UNSIGNED NULL,

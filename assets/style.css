@@ -1062,3 +1062,10 @@ body.tab-shell > main.container .tab-frames { bottom: 38px; }
   padding: 0 .8rem; font-size: .8rem; cursor: pointer; white-space: nowrap; }
 .tabbar-closeall:hover:not(:disabled) { background: rgba(255,255,255,.12); }
 .tabbar-closeall:disabled { opacity: .45; cursor: default; }
+
+/* 프로그램 운영보고: 회차별 활동사진 */
+.prog-photos { margin-top: .5rem; }
+.prog-photos .label-text { font-weight: 600; font-size: .9rem; display: block; margin-bottom: .25rem; }
+.prog-photos .photo-editor { padding: .5rem .6rem; }
+.prog-photos .gallery .thumb img { max-height: 110px; }
+.prog-activity .gallery { margin-top: .4rem; }

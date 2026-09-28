@@ -262,8 +262,11 @@
     const blob = await new Promise((r) => canvas.toBlob(r, 'image/jpeg', Q));
     return blob ? new File([blob], file.name.replace(/\.\w+$/, '') + '.jpg', { type: 'image/jpeg' }) : file;
   }
-  document.querySelectorAll('input[type=file][data-resize]').forEach((input) => {
-    input.addEventListener('change', async () => {
+  // 문서 전체에서 받는다 → 나중에 추가된 칸(예: 운영보고 '+ 회차 추가')도 줄여서 올림
+  document.addEventListener('change', async (ev) => {
+    const input = ev.target;
+    if (!input.matches || !input.matches('input[type=file][data-resize]')) return;
+    {
       if (!window.DataTransfer || !window.createImageBitmap) return; // 구형 브라우저는 원본 그대로
       const form = input.form;
       const buttons = form ? form.querySelectorAll('button') : [];
@@ -280,7 +283,7 @@
       } finally {
         buttons.forEach((b) => (b.disabled = false));
       }
-    });
+    }
   });
 })();
 

@@ -55,8 +55,8 @@
     const btn = ev.target.closest('[data-remove-session]');
     if (!btn) return;
     const card = btn.closest('[data-session]');
-    const filled = [...card.querySelectorAll('input:not([type=radio]), textarea')].some((i) => i.value.trim() !== '');
-    if (filled && !confirm('이 회차를 삭제할까요? 뒤 회차 번호가 앞으로 당겨집니다.')) return;
+    const filled = [...card.querySelectorAll('input:not([type=radio]):not([type=hidden]), textarea')].some((i) => i.value.trim() !== '') || !!card.querySelector('.photo-editor img');
+    if (filled && !confirm('이 회차를 삭제할까요? 뒤 회차 번호가 앞으로 당겨지고, 저장하면 이 회차의 활동사진도 함께 삭제됩니다.')) return;
     card.remove();
     recalc();
   });

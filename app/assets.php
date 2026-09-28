@@ -227,7 +227,10 @@ function photos_delete(string $type, int $ownerId, array $photoIds): void
 
 function photos_delete_all(string $type, int $ownerId): void
 {
-    photos_delete($type, $ownerId, array_column(photos_for($type, $ownerId), 'id'));
+    // 파일이 이미 없어진 사진 기록도 함께 지운다 (photos_for 는 파일 없는 것을 빼고 돌려줌)
+    $st = db()->prepare('SELECT id FROM photos WHERE owner_type = ? AND owner_id = ?');
+    $st->execute([$type, $ownerId]);
+    photos_delete($type, $ownerId, $st->fetchAll(PDO::FETCH_COLUMN));
 }
 
 /** 사진 편집 영역 (등록/수정 폼 안에서 사용) */

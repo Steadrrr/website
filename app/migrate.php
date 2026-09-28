@@ -6,7 +6,7 @@ defined('APP_ROOT') || exit;
  * 새 버전 파일을 FTP로 덮어쓰기만 하면, 첫 접속 때 부족한 테이블/컬럼을 만든다.
  * (기존 자료는 그대로 유지)
  */
-const DB_VERSION = 36;
+const DB_VERSION = 37;
 
 function db_version(): int
 {
@@ -359,6 +359,15 @@ function db_migrate(): void
     }
 
     // 36) v35 → v36: 로그인 화면 자동 로그인 (auth_tokens 는 1) 단계에서 생성)
+
+    // 37) v36 → v37: 프로그램 운영보고 활동사진을 회차별로 (photos.owner_type program_session, owner_id = program_sessions.id).
+    //     보고서 전체에 붙어 있던 사진은 그 보고서의 1회차(첫 회차)로 옮긴다.
+    if (!enum_has('photos', 'owner_type', 'program_session')) {
+        $pdo->exec("ALTER TABLE photos MODIFY owner_type ENUM('facility','equipment','program','purchase_check','purchase_receipt','program_session') NOT NULL");
+    }
+    $pdo->exec("UPDATE photos p JOIN program_sessions s ON s.id = (SELECT s2.id FROM program_sessions s2 WHERE s2.journal_id = p.owner_id ORDER BY s2.session_no, s2.id LIMIT 1)
+                   SET p.owner_type = 'program_session', p.owner_id = s.id
+                 WHERE p.owner_type = 'program'");
 
     $pdo->prepare("INSERT INTO settings (name, value) VALUES ('db_version', ?) ON DUPLICATE KEY UPDATE value = VALUES(value)")
         ->execute([(string) DB_VERSION]);

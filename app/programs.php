@@ -6,7 +6,8 @@ defined('APP_ROOT') || exit;
  *  - 분야별로 하루 1건. 보고서 안에 회차(1회차부터 자동 번호)를 여러 개 입력
  *  - 회차: 단체명(개인 성명), 담당자, 운영시간, 인원(남·여 × 유아·초등·중고등·성인·65세이상), 유료/무료, 활동내용
  *  - 회차마다 프로그램(설정 › 상품·요금 › 프로그램)을 고르고, 프로그램 금액 = 인원 합계 × 그 프로그램의 1인 요금 (유료 / 할인 / 무료)
- *  - 활동사진은 보고서에 여러 장 (photos.owner_type 'program', 긴 변 PROGRAM_PHOTO_MAX px)
+ *  - 활동사진은 회차마다 여러 장 (photos.owner_type 'program_session', owner_id = program_sessions.id, 긴 변 PROGRAM_PHOTO_MAX px)
+ *    회차는 저장할 때 id 를 유지한다(지우고 다시 넣지 않음) — 사진이 회차에 계속 붙어 있도록
  */
 const PROGRAM_PHOTO_MAX = 1000;
 
@@ -80,9 +81,11 @@ function program_parse(string $type, string $workDate, int $journalId): array
         $keep = array_map('intval', $st->fetchAll(PDO::FETCH_COLUMN));
     }
     $products = program_products($type, $workDate, $keep);
-    foreach ((array) ($_POST['s'] ?? []) as $row) {
+    foreach ((array) ($_POST['s'] ?? []) as $formKey => $row) {
         if (!is_array($row)) continue;
         $s = program_empty_session();
+        $s['id'] = to_int($row['id'] ?? 0) ?: null; // 기존 회차 (사진 유지)
+        $s['form_key'] = (string) $formKey;          // 이 회차의 사진 업로드 칸 sp[form_key][]
         $s['group_name'] = mb_substr(trim((string) ($row['group_name'] ?? '')), 0, 100);
         $s['staff'] = mb_substr(trim((string) ($row['staff'] ?? '')), 0, 100);
         foreach (program_people_cols() as $c) $s[$c] = min(9999, to_int($row[$c] ?? 0));
@@ -95,8 +98,8 @@ function program_parse(string $type, string $workDate, int $journalId): array
         $product = $products[(int) ($row['product_id'] ?? 0)] ?? null;
         $s['product_id'] = $product ? (int) $product['id'] : null;
         $s['product_name'] = $product['name'] ?? null;
-        // 아무것도 입력하지 않은 회차는 건너뜀
-        if ($s['group_name'] === '' && $s['total'] === 0 && $s['activity'] === '' && $s['start_time'] === '') continue;
+        // 아무것도 입력하지 않은 새 회차는 건너뜀
+        if (!$s['id'] && $s['group_name'] === '' && $s['total'] === 0 && $s['activity'] === '' && $s['start_time'] === '') continue;
 
         $no = count($sessions) + 1;
         if ($s['group_name'] === '') $errors[] = "{$no}회차: 단체명(또는 개인 성명)을 입력하세요.";
@@ -121,23 +124,72 @@ function program_parse(string $type, string $workDate, int $journalId): array
     return [['sessions' => $sessions ?: [program_empty_session()]], $errors];
 }
 
-/** 트랜잭션 안에서 호출. 회차 저장 + 활동사진 추가·삭제 */
+/** 그 보고서의 회차 id 목록 */
+function program_session_ids(int $journalId): array
+{
+    $st = db()->prepare('SELECT id FROM program_sessions WHERE journal_id = ?');
+    $st->execute([$journalId]);
+    return array_map('intval', $st->fetchAll(PDO::FETCH_COLUMN));
+}
+
+/** 트랜잭션 안에서 호출. 회차 저장(기존 회차는 id 유지) + 회차별 활동사진 추가·삭제 */
 function program_save(int $journalId, array $payload): void
 {
     $pdo = db();
-    $pdo->prepare('DELETE FROM program_sessions WHERE journal_id = ?')->execute([$journalId]);
     $cols = ['session_no', 'group_name', 'staff', 'product_id', 'product_name', 'start_time', 'end_time', ...program_people_cols(), 'total', 'is_paid', 'fee_type', 'fee', 'amount', 'activity'];
     $ins = $pdo->prepare('INSERT INTO program_sessions (journal_id, ' . implode(', ', $cols) . ') VALUES (?' . str_repeat(', ?', count($cols)) . ')');
+    $upd = $pdo->prepare('UPDATE program_sessions SET ' . implode(', ', array_map(fn($c) => "$c = ?", $cols)) . ' WHERE id = ? AND journal_id = ?');
+    $existing = program_session_ids($journalId);
+    $kept = [];
+    $del = (array) ($_POST['delete_photos'] ?? []);
+    $uid = (int) (current_user()['id'] ?? 0);
     foreach ($payload['sessions'] as $s) {
         $s['start_time'] = $s['start_time'] ?: null;
         $s['end_time'] = $s['end_time'] ?: null;
         $s['activity'] = $s['activity'] !== '' ? $s['activity'] : null;
         $s['staff'] = $s['staff'] !== '' ? $s['staff'] : null;
-        $ins->execute([$journalId, ...array_map(fn($c) => $s[$c], $cols)]);
+        $vals = array_map(fn($c) => $s[$c], $cols);
+        if (!empty($s['id']) && in_array((int) $s['id'], $existing, true)) {
+            $sid = (int) $s['id'];
+            $upd->execute([...$vals, $sid, $journalId]);
+        } else {
+            $ins->execute([$journalId, ...$vals]);
+            $sid = (int) $pdo->lastInsertId();
+        }
+        $kept[] = $sid;
+        photos_delete('program_session', $sid, $del);
+        foreach (program_session_photos_save((string) ($s['form_key'] ?? ''), $sid, $uid) as $err) flash($err, 'error');
     }
-    photos_delete('program', $journalId, (array) ($_POST['delete_photos'] ?? []));
-    $user = current_user();
-    foreach (photos_save_uploaded('program', $journalId, (int) ($user['id'] ?? 0), PROGRAM_PHOTO_MAX) as $err) flash($err, 'error');
+    // 화면에서 지운 회차: 사진과 함께 삭제
+    foreach (array_diff($existing, $kept) as $sid) {
+        photos_delete_all('program_session', $sid);
+        $pdo->prepare('DELETE FROM program_sessions WHERE id = ?')->execute([$sid]);
+    }
+}
+
+/** 회차 사진 업로드 ($_FILES['sp']['name'][form_key][]) @return string[] 오류 */
+function program_session_photos_save(string $formKey, int $sessionId, int $userId): array
+{
+    $f = $_FILES['sp'] ?? null;
+    if ($formKey === '' || !$f || !isset($f['name'][$formKey]) || !is_array($f['name'][$formKey])) return [];
+    $errors = [];
+    foreach ($f['name'][$formKey] as $i => $name) {
+        [$path, $error] = store_uploaded_image((string) $name, (string) $f['tmp_name'][$formKey][$i], (int) $f['error'][$formKey][$i], 'program');
+        if ($error) $errors[] = $error;
+        if ($path) {
+            image_downscale(APP_ROOT . '/' . $path, PROGRAM_PHOTO_MAX);
+            db()->prepare("INSERT INTO photos (owner_type, owner_id, path, user_id) VALUES ('program_session', ?, ?, ?)")->execute([$sessionId, $path, $userId]);
+        }
+    }
+    return $errors;
+}
+
+/** 보고서의 회차별 사진: session_id => photos */
+function program_photos_by_session(array $sessions): array
+{
+    $out = [];
+    foreach ($sessions as $s) if (!empty($s['id'])) $out[(int) $s['id']] = photos_for('program_session', (int) $s['id']);
+    return $out;
 }
 
 /** "10:00~12:00" */
@@ -179,6 +231,7 @@ function program_session_card(string $key, array $s, int $no, array $products): 
     $cur = $products[$pid] ?? null;
     ?>
   <div class="prog-session" data-session>
+    <input type="hidden" name="<?= $n('id') ?>" value="<?= (int) ($s['id'] ?? 0) ?: '' ?>">
     <div class="prog-session-head">
       <b><span data-no><?= $no ?></span>회차</b>
       <button type="button" class="btn small ghost danger" data-remove-session>회차 삭제</button>
@@ -223,6 +276,10 @@ function program_session_card(string $key, array $s, int $no, array $products): 
     </div>
     <p class="prog-amount">인원 합계 <b data-total-text>0명</b> · 프로그램 금액 <b data-amount>0원</b></p>
     <label>활동내용<textarea name="<?= $n('activity') ?>" rows="3" placeholder="예: 오감 숲체험, 숲길 걷기, 나무 이름 알기"><?= e($s['activity'] ?? '') ?></textarea></label>
+    <div class="prog-photos">
+      <span class="label-text">이 회차 활동사진</span>
+      <?php render_photo_editor('program_session', !empty($s['id']) ? (int) $s['id'] : null, PROGRAM_PHOTO_MAX, "sp[$key]", '사진 추가') ?>
+    </div>
   </div>
     <?php
 }
@@ -247,8 +304,6 @@ function program_form(string $type, array $payload, string $workDate, ?array $jo
     <small class="muted">(남 <span data-sum-m>0</span> · 여 <span data-sum-f>0</span> / 유료 <span data-sum-paid>0</span> · 할인 <span data-sum-discount>0</span> · 무료 <span data-sum-free>0</span>)</small>
     · 금액 <b data-sum-amount>0원</b></div>
 
-  <h3>활동사진</h3>
-  <?php render_photo_editor('program', $journal ? (int) $journal['id'] : null, PROGRAM_PHOTO_MAX) ?>
 </div>
 <script src="<?= e(url('assets/program.js')) ?>" defer></script>
     <?php
@@ -287,15 +342,14 @@ function program_view(array $journal): void
       <th class="right"><?= number_format($t['total']) ?></th><th></th><th class="right"><?= number_format($t['amount']) ?></th></tr></tfoot>
   </table>
   </div>
-  <?php if (array_filter(array_column($sessions, 'activity'))): ?>
-    <h3>활동내용</h3>
-    <?php foreach ($sessions as $s): if (!$s['activity']) continue; ?>
-      <div class="prog-activity"><b><?= (int) $s['session_no'] ?>회차 · <?= e($s['group_name']) ?></b><div class="pre"><?= e($s['activity']) ?></div></div>
+  <?php $photos = program_photos_by_session($sessions);
+  if (array_filter(array_column($sessions, 'activity')) || array_filter($photos)): ?>
+    <h3>회차별 활동내용 · 활동사진</h3>
+    <?php foreach ($sessions as $s): $ph = $photos[(int) $s['id']] ?? []; if (!$s['activity'] && !$ph) continue; ?>
+      <div class="prog-activity"><b><?= (int) $s['session_no'] ?>회차 · <?= e($s['group_name']) ?></b><?= $ph ? ' <small class="muted">사진 ' . count($ph) . '장</small>' : '' ?>
+        <?php if ($s['activity']): ?><div class="pre"><?= e($s['activity']) ?></div><?php endif ?>
+        <?php render_gallery($ph) ?></div>
     <?php endforeach ?>
-  <?php endif ?>
-  <?php if ($photos = photos_for('program', (int) $journal['id'])): ?>
-    <h3>활동사진 <small class="muted"><?= count($photos) ?>장</small></h3>
-    <?php render_gallery($photos) ?>
   <?php endif ?>
     <?php
 }
@@ -311,9 +365,10 @@ function program_snapshot(array $journal): array
         }
         $lines[] = "{$s['session_no']}회차 · {$s['group_name']}" . (!empty($s['staff']) ? " · 담당 {$s['staff']}" : '') . (!empty($s['product_name']) ? " · {$s['product_name']}" : '') . (program_time($s) ? ' · ' . program_time($s) : '')
             . ' · ' . implode(', ', $people) . " = {$s['total']}명 · " . (PROGRAM_FEE_TYPES[$s['fee_type']] ?? '') . ($s['amount'] ? ' ' . number_format($s['amount']) . '원' : '')
-            . ($s['activity'] ? ' · 활동: ' . preg_replace('/\s+/', ' ', $s['activity']) : '');
+            . ($s['activity'] ? ' · 활동: ' . preg_replace('/\s+/', ' ', $s['activity']) : '')
+            . ' · 사진 ' . count(photos_for('program_session', (int) $s['id'])) . '장';
     }
-    return ['회차' => $lines, '활동사진' => count(photos_for('program', (int) $journal['id'])) . '장'];
+    return ['회차' => $lines];
 }
 
 /* ───────────── 매출보고 '프로그램 판매' 연동 ───────────── */
