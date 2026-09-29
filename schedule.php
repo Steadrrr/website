@@ -1,18 +1,33 @@
 <?php
 /**
- * 일정표 (구글 캘린더 스타일): schedule.php?ym=2026-09[&view=month|list]
+ * 일정표 (구글 캘린더 스타일): schedule.php?ym=2026-09[&view=month|list]  또는  &date=2026-09-29
  * 누구나 일정을 만들 수 있고, 수정·삭제는 작성자·주무관 이상·최고관리자.
- * 공휴일·휴관일은 최고관리자만 등록하며 근태관리와 공유된다 (공휴일은 근태의 근무일에서 빠짐).
+ * 공휴일은 최고관리자만 등록하며 근태관리와 공유된다 (공휴일은 근태의 근무일에서 빠짐).
  * 근태(사원) 결재중·완료 건도 '근태' 분류로 함께 보여 준다 (&att_team=팀 으로 팀별 조회).
+ *
+ * 프로그램일정(program_schedule.php)도 이 파일을 쓴다: $CAL = 'program' → 분류 산림치유·유아숲·숲해설, 보기 일·주·월
  */
-require __DIR__ . '/app/bootstrap.php';
+if (!defined('APP_ROOT')) require __DIR__ . '/app/bootstrap.php';
+
+$CAL = isset($CAL, EVENT_CALENDARS[$CAL]) ? $CAL : 'main';
+$C = EVENT_CALENDARS[$CAL];
+$PAGE = $C['page'];
+$CATS = array_intersect_key(EVENT_CATEGORIES, array_flip($C['cats'])); // 이 달력의 분류
+$isMain = $CAL === 'main';
 
 $user = require_login();
+if (!$isMain) require_menu($user, 'prog');
 $pdo = db();
 
-$ym = $_GET['ym'] ?? date('Y-m');
-if (!preg_match('/^\d{4}-\d{2}$/', $ym) || !valid_date("$ym-01")) $ym = date('Y-m');
-$view = ($_GET['view'] ?? 'month') === 'list' ? 'list' : 'month';
+$views = $isMain ? ['month' => '월', 'list' => '목록'] : ['day' => '일', 'week' => '주', 'month' => '월'];
+$view = isset($views[$_GET['view'] ?? '']) ? $_GET['view'] : ($isMain ? 'month' : 'week');
+// 기준 날짜: &date=, 없으면 &ym= 의 1일(이번 달이면 오늘)
+$date = (string) ($_GET['date'] ?? '');
+if (!valid_date($date)) {
+    $ymq = (string) ($_GET['ym'] ?? '');
+    $date = preg_match('/^\d{4}-\d{2}$/', $ymq) && valid_date("$ymq-01") && $ymq !== date('Y-m') ? "$ymq-01" : date('Y-m-d');
+}
+$ym = substr($date, 0, 7);
 
 /* ───────────── 저장 / 삭제 ───────────── */
 if (is_post()) {
@@ -23,9 +38,10 @@ if (is_post()) {
         $st = $pdo->prepare('SELECT * FROM events WHERE id = ?');
         $st->execute([$id]);
         $ev = $st->fetch() ?: abort(404, '일정을 찾을 수 없습니다.');
+        if (!isset($CATS[$ev['category']])) abort(404, '이 달력의 일정이 아닙니다.');
         if (!can_edit_event($ev, $user)) abort(403, '작성자 또는 주무관 이상만 수정·삭제할 수 있습니다.');
     }
-    $back = fn(string $date) => 'schedule.php?ym=' . substr($date, 0, 7) . ($view === 'list' ? '&view=list' : '');
+    $back = fn(string $d) => $PAGE . '?' . http_build_query(['view' => $view, 'date' => $d]);
 
     if (post('action') === 'delete' && $ev) {
         if (post('scope') === 'series' && $ev['series_id']) {
@@ -56,8 +72,8 @@ if (is_post()) {
     $validTime = fn(string $t) => (bool) preg_match('/^([01]\d|2[0-3]):[0-5]\d$/', $t);
     $err = null;
     if ($title === '') $err = '제목을 입력하세요.';
-    elseif (!isset(EVENT_CATEGORIES[$cat])) $err = '분류를 고르세요.';
-    elseif (!can_use_event_category($cat, $user)) $err = '공휴일·휴관일은 최고관리자만 등록할 수 있습니다.';
+    elseif (!isset($CATS[$cat])) $err = '분류를 고르세요.';
+    elseif (!can_use_event_category($cat, $user)) $err = '공휴일은 최고관리자만 등록할 수 있습니다.';
     elseif (!valid_date($start) || !valid_date($end)) $err = '날짜를 확인하세요.';
     elseif ($end < $start) $err = '종료일이 시작일보다 빠릅니다.';
     elseif (!$allDay && !$validTime($t1)) $err = '시작 시간을 확인하세요.';
@@ -88,7 +104,7 @@ if (is_post()) {
     }
     if ($err) {
         flash($err, 'error');
-        redirect($back(valid_date($start) ? $start : "$ym-01"));
+        redirect($back(valid_date($start) ? $start : $date));
     }
     $row = [$title, $cat, $start, $end, (int) $allDay, $allDay ? null : $t1, $allDay || $t2 === '' ? null : $t2,
         mb_substr(post('location'), 0, 100) ?: null, post('description') ?: null];
@@ -120,14 +136,14 @@ if (is_post()) {
 /* ───────────── 달력 계산 ───────────── */
 [$first, $last, $gridStart, $gridEnd] = month_grid($ym); // 첫 주 일요일 ~ 마지막 주 토요일
 $today = date('Y-m-d');
-$events = events_between($gridStart->format('Y-m-d'), $gridEnd->format('Y-m-d'));
+$events = events_between($gridStart->format('Y-m-d'), $gridEnd->format('Y-m-d'), $C['cats']);
 $monthEvents = array_filter($events, fn($e) => $e['start_date'] <= $last->format('Y-m-d') && $e['end_date'] >= $first->format('Y-m-d'));
 $catCount = array_count_values(array_column($monthEvents, 'category'));
 
 // 근태 (사원) — 팀별 조회
 $attTeam = (int) ($_GET['att_team'] ?? 0);
 if (!isset(teams_all()[$attTeam])) $attTeam = 0;
-$attItems = array_map(fn($i) => $i + ['src' => 'att'], att_calendar_items(att_records(['from' => $gridStart->format('Y-m-d'), 'to' => $gridEnd->format('Y-m-d'), 'team_id' => $attTeam])));
+$attItems = $isMain ? array_map(fn($i) => $i + ['src' => 'att'], att_calendar_items(att_records(['from' => $gridStart->format('Y-m-d'), 'to' => $gridEnd->format('Y-m-d'), 'team_id' => $attTeam]))) : [];
 $attMonth = count(array_filter($attItems, fn($i) => $i['start_date'] <= $last->format('Y-m-d') && $i['end_date'] >= $first->format('Y-m-d')));
 $holidays = holiday_dates($gridStart->format('Y-m-d'), $gridEnd->format('Y-m-d'));
 
@@ -151,64 +167,79 @@ $jsEvents = array_map(fn($e) => [
     'series' => $e['series_id'] ? (int) ($seriesCount[$e['series_id']] ?? 0) : 0,
 ], $events);
 
-$prev = $first->modify('-1 month')->format('Y-m');
-$next = $first->modify('+1 month')->format('Y-m');
-$q = fn(array $o) => 'schedule.php?' . http_build_query(array_merge(['ym' => $ym, 'view' => $view === 'list' ? 'list' : null, 'att_team' => $attTeam ?: null], $o));
+// 일·주 보기 범위
+$dt = new DateTimeImmutable($date);
+$weekStart = $dt->modify('-' . (int) $dt->format('w') . ' days');
+$step = ['day' => '1 day', 'week' => '7 days'][$view] ?? null;
+$prevDate = $step ? $dt->modify("-$step")->format('Y-m-d') : $first->modify('-1 month')->format('Y-m-d');
+$nextDate = $step ? $dt->modify("+$step")->format('Y-m-d') : $first->modify('+1 month')->format('Y-m-d');
+$prevMonth = $first->modify('-1 month')->format('Y-m-d');
+$nextMonth = $first->modify('+1 month')->format('Y-m-d');
+$heading = match ($view) {
+    'day'   => $dt->format('Y년 n월 j일') . ' (' . weekday_ko($date) . ')',
+    'week'  => $weekStart->format('Y년 n월 j일') . ' – ' . $weekStart->modify('+6 days')->format(($weekStart->format('m') === $weekStart->modify('+6 days')->format('m') ? '' : 'n월 ') . 'j일'),
+    default => $first->format('Y년 n월'),
+};
+$q = fn(array $o) => $PAGE . '?' . http_build_query(array_merge(['view' => $view, 'date' => $date, 'att_team' => $attTeam ?: null], $o));
 
-layout_header('일정표 ' . $first->format('Y년 n월'), 'schedule');
+layout_header($C['label'] . ' ' . $heading, $isMain ? 'schedule' : 'prog_sched');
 ?>
-<div class="gcal" id="gcal">
+<div class="gcal cal-<?= $CAL ?>" id="gcal">
   <aside class="gcal-side no-print">
-    <button class="gcal-create" type="button" data-create="<?= e($ym === substr($today, 0, 7) ? $today : "$ym-01") ?>"><span>+</span> 만들기</button>
+    <button class="gcal-create" type="button" data-create="<?= e($view !== 'month' || $ym === substr($today, 0, 7) ? ($view === 'month' ? $today : $date) : "$ym-01") ?>"><span>+</span> 만들기</button>
 
     <div class="mini-cal">
       <div class="mini-head">
         <b><?= e($first->format('Y년 n월')) ?></b>
-        <span><a href="<?= e(url($q(['ym' => $prev]))) ?>" aria-label="이전 달">‹</a><a href="<?= e(url($q(['ym' => $next]))) ?>" aria-label="다음 달">›</a></span>
+        <span><a href="<?= e(url($q(['date' => $prevMonth]))) ?>" aria-label="이전 달">‹</a><a href="<?= e(url($q(['date' => $nextMonth]))) ?>" aria-label="다음 달">›</a></span>
       </div>
       <div class="mini-grid">
         <?php foreach (['일', '월', '화', '수', '목', '금', '토'] as $w): ?><span class="mini-w"><?= $w ?></span><?php endforeach ?>
         <?php for ($d = $gridStart; $d <= $gridEnd; $d = $d->modify('+1 day')):
             $ds = $d->format('Y-m-d');
             $has = array_filter($events, fn($e) => $e['start_date'] <= $ds && $e['end_date'] >= $ds); ?>
-          <button type="button" class="mini-d <?= $d->format('m') !== $first->format('m') ? 'other' : '' ?> <?= $ds === $today ? 'today' : '' ?> <?= $has ? 'has' : '' ?>" data-day="<?= $ds ?>"><?= $d->format('j') ?></button>
+          <button type="button" class="mini-d <?= $d->format('m') !== $first->format('m') ? 'other' : '' ?> <?= $ds === $today ? 'today' : '' ?> <?= $has ? 'has' : '' ?> <?= $view !== 'month' && $ds === $date ? 'sel' : '' ?>" data-day="<?= $ds ?>"><?= $d->format('j') ?></button>
         <?php endfor ?>
       </div>
     </div>
 
     <div class="gcal-filters">
       <h4>분류</h4>
-      <?php foreach (EVENT_CATEGORIES as $key => [$label, $color]): ?>
+      <?php foreach ($CATS as $key => [$label, $color]): ?>
         <label style="--c: <?= $color ?>"><input type="checkbox" data-filter="<?= $key ?>" checked><span class="box"></span><?= e($label) ?>
           <small><?= (int) ($catCount[$key] ?? 0) ?></small></label>
       <?php endforeach ?>
+      <?php if ($isMain): ?>
       <label style="--c: #1a73e8"><input type="checkbox" data-filter="att" checked><span class="box"></span>근태 (사원)
         <small><?= $attMonth ?></small></label>
       <form method="get">
-        <input type="hidden" name="ym" value="<?= e($ym) ?>"><?php if ($view === 'list'): ?><input type="hidden" name="view" value="list"><?php endif ?>
+        <input type="hidden" name="date" value="<?= e($date) ?>"><input type="hidden" name="view" value="<?= e($view) ?>">
         <select name="att_team" onchange="this.form.submit()" aria-label="근태 팀별 조회">
           <option value="">근태: 전체 팀</option>
           <?php foreach (teams_all() as $t): ?><option value="<?= (int) $t['id'] ?>" <?= $attTeam === (int) $t['id'] ? 'selected' : '' ?>>근태: <?= e($t['name']) ?></option><?php endforeach ?>
         </select>
       </form>
       <a class="small" href="<?= e(url('attendance.php?ym=' . $ym . ($attTeam ? '&team=' . $attTeam : ''))) ?>">근태관리에서 보기 ›</a>
+      <?php else: ?>
+      <p class="muted small">운영보고는 메뉴 프로그램 › 각 분야에서 작성합니다.</p>
+      <?php endif ?>
     </div>
   </aside>
 
   <section class="gcal-main">
     <div class="gcal-toolbar">
-      <a class="btn" href="<?= e(url($q(['ym' => date('Y-m')]))) ?>">오늘</a>
-      <a class="icon-btn" href="<?= e(url($q(['ym' => $prev]))) ?>" aria-label="이전 달">‹</a>
-      <a class="icon-btn" href="<?= e(url($q(['ym' => $next]))) ?>" aria-label="다음 달">›</a>
-      <h1><?= e($first->format('Y년 n월')) ?></h1>
+      <a class="btn" href="<?= e(url($q(['date' => $today]))) ?>">오늘</a>
+      <a class="icon-btn" href="<?= e(url($q(['date' => $prevDate]))) ?>" aria-label="이전">‹</a>
+      <a class="icon-btn" href="<?= e(url($q(['date' => $nextDate]))) ?>" aria-label="다음">›</a>
+      <h1><?= e($heading) ?></h1>
       <div class="gcal-views no-print">
-        <a href="<?= e(url('schedule.php?ym=' . $ym)) ?>" class="<?= $view === 'month' ? 'on' : '' ?>">월</a>
-        <a href="<?= e(url('schedule.php?ym=' . $ym . '&view=list')) ?>" class="<?= $view === 'list' ? 'on' : '' ?>">목록</a>
+        <?php foreach ($views as $k => $label): ?><a href="<?= e(url($q(['view' => $k]))) ?>" class="<?= $view === $k ? 'on' : '' ?>"><?= $label ?></a><?php endforeach ?>
       </div>
       <button class="btn ghost no-print" type="button" onclick="window.print()">인쇄</button>
     </div>
 
-    <?php if ($view === 'month'): ?>
+    <?php if ($view === 'day' || $view === 'week'): require __DIR__ . '/app/schedule_timegrid.php'; ?>
+    <?php elseif ($view === 'month'): ?>
     <div class="gcal-month">
       <div class="gcal-head"><?php foreach (['일', '월', '화', '수', '목', '금', '토'] as $i => $w): ?><div class="<?= $i === 0 ? 'sun' : ($i === 6 ? 'sat' : '') ?>"><?= $w ?></div><?php endforeach ?></div>
       <?php for ($w = $gridStart; $w <= $gridEnd; $w = $w->modify('+7 days')):
@@ -231,7 +262,7 @@ layout_header('일정표 ' . $first->format('Y년 n월'), 'schedule');
                 <?php if (!$e['all_day']): ?><i></i><?php endif ?><span class="n"><?= e($e['all_day'] ? $e['title'] : $e['rec']['user_name'] . ' ' . att_kind_name($e['kind'])) ?></span>
               </<?= $tag ?>>
             <?php continue; endif;
-                $color = EVENT_CATEGORIES[$e['category']][1];
+                $color = $CATS[$e['category']][1];
                 $bar = $e['all_day'] || $e['start_date'] !== $e['end_date']; ?>
               <button type="button" class="gcal-ev <?= $bar ? 'bar' : 'dot' ?> <?= $b['contL'] ? 'cont-l' : '' ?> <?= $b['contR'] ? 'cont-r' : '' ?>"
                       data-id="<?= (int) $e['id'] ?>" data-cat="<?= e($e['category']) ?>" style="--c: <?= $color ?>; grid-column: <?= $b['start'] + 1 ?> / span <?= $b['span'] ?>; grid-row: <?= $b['lane'] + 1 ?>;"
@@ -247,7 +278,7 @@ layout_header('일정표 ' . $first->format('Y년 n월'), 'schedule');
         </div>
       <?php endfor ?>
     </div>
-    <p class="muted small no-print">빈 칸을 누르면 그 날짜로 일정을 만들고, 일정을 누르면 내용을 볼 수 있습니다.</p>
+    <p class="muted small no-print">빈 칸을 누르면 그 날짜로 일정을 만들고, 일정을 누르면 내용을 볼 수 있습니다.<?= $isMain ? '' : ' 날짜 숫자를 누르면 그 날의 일간 보기로 갑니다.' ?></p>
 
     <?php else: // 목록 보기 (구글 캘린더 '일정' 보기)
         $byDay = [];
@@ -269,10 +300,10 @@ layout_header('일정표 ' . $first->format('Y년 n월'), 'schedule');
                 <span class="ag-cat">근태</span>
               </<?= $tag ?>>
             <?php continue; endif ?>
-              <button type="button" class="ag-ev gcal-ev" data-id="<?= (int) $e['id'] ?>" data-cat="<?= e($e['category']) ?>" style="--c: <?= EVENT_CATEGORIES[$e['category']][1] ?>">
+              <button type="button" class="ag-ev gcal-ev" data-id="<?= (int) $e['id'] ?>" data-cat="<?= e($e['category']) ?>" style="--c: <?= $CATS[$e['category']][1] ?>">
                 <i></i><span class="ag-when"><?= e(event_when($e)) ?></span>
                 <span class="ag-title"><b><?= e($e['title']) ?></b><?= $e['location'] ? ' <small class="muted">· ' . e($e['location']) . '</small>' : '' ?></span>
-                <span class="ag-cat"><?= e(EVENT_CATEGORIES[$e['category']][0]) ?></span>
+                <span class="ag-cat"><?= e($CATS[$e['category']][0]) ?></span>
               </button>
             <?php endforeach ?>
           </div>
@@ -314,8 +345,8 @@ layout_header('일정표 ' . $first->format('Y년 n월'), 'schedule');
     <div class="ev-tools"><b data-form-title>일정 만들기</b><button type="button" class="icon-btn" data-close title="닫기">✕</button></div>
     <input name="title" class="ev-title-input" placeholder="제목 추가" maxlength="100" required>
     <div class="ev-cats">
-      <?php foreach (EVENT_CATEGORIES as $key => [$label, $color]): if (!can_use_event_category($key, $user)) continue; ?>
-        <label style="--c: <?= $color ?>"><input type="radio" name="category" value="<?= $key ?>" <?= $key === 'event' ? 'checked' : '' ?>><span><?= e($label) ?></span></label>
+      <?php foreach ($CATS as $key => [$label, $color]): if (!can_use_event_category($key, $user)) continue; ?>
+        <label style="--c: <?= $color ?>"><input type="radio" name="category" value="<?= $key ?>" <?= $key === $C['default'] ? 'checked' : '' ?>><span><?= e($label) ?></span></label>
       <?php endforeach ?>
     </div>
     <div class="ev-dates">
@@ -346,7 +377,7 @@ layout_header('일정표 ' . $first->format('Y년 n월'), 'schedule');
       <label class="rep-opt" data-rep="weekly monthly yearly">반복 종료일<input type="date" name="repeat_until"></label>
       <p class="muted small rep-opt" data-rep="weekly monthly yearly" data-rep-preview></p>
     </div>
-    <label>장소<input name="location" maxlength="100" placeholder="예: 숲속의집 앞 잔디광장"></label>
+    <label>장소<input name="location" maxlength="100" placeholder="<?= $isMain ? '예: 숲속의집 앞 잔디광장' : '예: 치유의 숲 데크길' ?>"></label>
     <label>설명<textarea name="description" rows="3"></textarea></label>
     <div class="actions"><button type="button" class="btn ghost" data-close>취소</button><button class="btn primary">저장</button></div>
   </form>
@@ -361,9 +392,10 @@ layout_header('일정표 ' . $first->format('Y년 n월'), 'schedule');
 <script>
 window.GCAL = {
   events: <?= json_encode($jsEvents, JSON_UNESCAPED_UNICODE) ?>,
-  categories: <?= json_encode(array_map(fn($c) => ['label' => $c[0], 'color' => $c[1]], EVENT_CATEGORIES), JSON_UNESCAPED_UNICODE) ?>,
+  categories: <?= json_encode(array_map(fn($c) => ['label' => $c[0], 'color' => $c[1]], $CATS), JSON_UNESCAPED_UNICODE) ?>,
   openNew: <?= json_encode(valid_date($_GET['new'] ?? '') ? $_GET['new'] : null) ?>, // 대시보드 '+ 일정 추가'에서 바로 만들기 창
-  newCat: <?= json_encode(can_use_event_category((string) ($_GET['cat'] ?? ''), $user) ? $_GET['cat'] : 'event') ?>,
+  newCat: <?= json_encode(isset($CATS[$_GET['cat'] ?? '']) && can_use_event_category((string) $_GET['cat'], $user) ? $_GET['cat'] : $C['default']) ?>,
+  dayUrl: <?= json_encode($isMain ? null : url($PAGE . '?view=day&date=')) ?>, // 프로그램일정: 날짜를 누르면 일간 보기로
   att: <?= json_encode(array_map(fn($i) => ['id' => $i['id'], 'kind' => $i['kind'], 'start_date' => $i['start_date'], 'end_date' => $i['end_date'],
       'title' => $i['title'], 'when' => $i['when'], 'pending' => $i['status'] === 'pending', 'color' => ATT_KINDS[$i['kind']][1], 'open' => att_can_open($user, $i['rec'])], $attItems), JSON_UNESCAPED_UNICODE) ?>,
   viewUrl: <?= json_encode(url('view.php?id=')) ?>,

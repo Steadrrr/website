@@ -107,7 +107,7 @@
     if (!F('end_date').value || F('end_date').value < F('start_date').value) F('end_date').value = F('start_date').value;
   });
 
-  function openForm(e, date) {
+  function openForm(e, date, time) {
     form.reset();
     F('id').value = e ? e.id : '';
     F('title').value = e ? e.title : '';
@@ -115,9 +115,9 @@
     catInput.checked = true;
     F('start_date').value = e ? e.start_date : date;
     F('end_date').value = e ? e.end_date : date;
-    F('all_day').checked = e ? !!e.all_day : true;
-    F('start_time').value = e ? e.start_time : '10:00';
-    F('end_time').value = e ? e.end_time : '';
+    F('all_day').checked = e ? !!e.all_day : !time; // 주간·일간 보기에서 시간 칸을 누르면 그 시간으로
+    F('start_time').value = e ? e.start_time : (time || '10:00');
+    F('end_time').value = e ? e.end_time : (time ? String(Math.min(23, +time.slice(0, 2) + 1)).padStart(2, '0') + ':00' : '');
     F('location').value = e ? e.location : '';
     F('description').value = e ? e.description : '';
     $('[data-form-title]').textContent = e ? '일정 수정' : '일정 만들기';
@@ -171,9 +171,10 @@
     const evBtn = ev.target.closest('.gcal-ev[data-id]');
     if (evBtn) return openView(+evBtn.dataset.id);
     const more = ev.target.closest('.gcal-more, .mini-d, .gcal-num');
+    if (more && data.dayUrl && !more.classList.contains('gcal-more')) { location.href = data.dayUrl + more.dataset.day; return; } // 프로그램일정: 그 날 일간 보기
     if (more) return openDay(more.dataset.day);
     const create = ev.target.closest('[data-create]');
-    if (create) return openForm(null, create.dataset.create);
+    if (create) return openForm(null, create.dataset.create, create.dataset.time);
   });
 
   if (data.openNew) openForm(null, data.openNew);

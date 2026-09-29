@@ -6,7 +6,7 @@ defined('APP_ROOT') || exit;
  * 새 버전 파일을 FTP로 덮어쓰기만 하면, 첫 접속 때 부족한 테이블/컬럼을 만든다.
  * (기존 자료는 그대로 유지)
  */
-const DB_VERSION = 38;
+const DB_VERSION = 39;
 
 function db_version(): int
 {
@@ -370,6 +370,19 @@ function db_migrate(): void
                  WHERE p.owner_type = 'program'");
 
     // 38) v37 → v38: 프로그램 운영보고 '기타 업무추진' (program_tasks 는 1) 단계에서 생성)
+
+    // 39) v38 → v39: 일정표에서 '프로그램'·'휴관일' 분류를 없애고 메인메뉴 프로그램 › 프로그램일정(산림치유·유아숲·숲해설) 신설.
+    //     예전 프로그램 일정은 제목으로 분야를 짐작해 프로그램일정으로 옮기고(모르면 일정표 '기타'), 휴관일은 '기타'로.
+    if (!enum_has('events', 'category', 'p_healing')) {
+        $pdo->exec("ALTER TABLE events MODIFY category ENUM('event','construction','program','rental','etc','holiday','closed','p_healing','p_kids','p_guide') NOT NULL DEFAULT 'etc'");
+    }
+    $pdo->exec("UPDATE events SET category = CASE
+                    WHEN title LIKE '%치유%' THEN 'p_healing'
+                    WHEN title LIKE '%유아%' THEN 'p_kids'
+                    WHEN title LIKE '%해설%' THEN 'p_guide'
+                    ELSE 'etc' END
+                 WHERE category = 'program'");
+    $pdo->exec("UPDATE events SET category = 'etc' WHERE category = 'closed'");
 
     $pdo->prepare("INSERT INTO settings (name, value) VALUES ('db_version', ?) ON DUPLICATE KEY UPDATE value = VALUES(value)")
         ->execute([(string) DB_VERSION]);

@@ -127,7 +127,6 @@ if ($view === 'sheet') {
     if ($worker) {
         $recs = att_records(['user_id' => $worker['id'], 'from' => $from, 'to' => $to]);
         $hol = holiday_dates($from, $to);
-        $closed = holiday_dates($from, $to, ['closed']);
         $off = att_off_days($worker);
         [$ws, $we] = att_work_hours($worker);
         for ($d = $from; $d <= $to; $d = date('Y-m-d', strtotime("$d +1 day"))) {
@@ -153,7 +152,7 @@ if ($view === 'sheet') {
             }
             if ($dayType === '근무') $tot['work']++;
             $rows[] = [
-                'date' => $d, 'w' => $w, 'type' => $dayType . (isset($hol[$d]) ? ' ' . $hol[$d] : '') . (isset($closed[$d]) ? ' · 휴관 ' . $closed[$d] : ''),
+                'date' => $d, 'w' => $w, 'type' => $dayType . (isset($hol[$d]) ? ' ' . $hol[$d] : ''),
                 'hours' => $dayType === '근무' ? "$ws~$we" : '', 'marks' => implode(', ', $marks), 'ot' => $ot,
                 'note' => implode(' / ', $notes), 'off' => $dayType !== '근무',
             ];
@@ -261,7 +260,6 @@ $today = date('Y-m-d');
 $recs = att_records(['from' => $gs, 'to' => $ge, 'team_id' => $teamId, 'user_id' => $personId]);
 $items = att_calendar_items($recs);
 $hol = holiday_dates($gs, $ge);
-$closed = holiday_dates($gs, $ge, ['closed']);
 $monthRecs = array_filter($recs, fn($r) => $r['start_date'] <= $last->format('Y-m-d') && $r['end_date'] >= $first->format('Y-m-d'));
 $kindCount = array_count_values(array_column($monthRecs, 'kind'));
 $person = $personId ? $workerMap[$personId] : null;
@@ -337,7 +335,7 @@ layout_header('근태관리 ' . $first->format('Y년 n월'), 'attendance');
       <a class="icon-btn" href="<?= e(url($q(['ym' => $first->modify('+1 month')->format('Y-m')]))) ?>" aria-label="다음 달">›</a>
       <h1><?= e($first->format('Y년 n월')) ?> <small class="muted"><?= e($person ? $person['name'] : ($teamId ? $teams[$teamId]['name'] : '전체')) ?></small></h1>
       <div class="actions no-margin no-print" style="margin-left:auto">
-        <?php if (!empty($me['is_admin'])): ?><a class="btn ghost" href="<?= e(url('schedule.php?ym=' . $ym . '&new=' . "$ym-01" . '&cat=holiday')) ?>">+ 공휴일·휴관일</a><?php endif ?>
+        <?php if (!empty($me['is_admin'])): ?><a class="btn ghost" href="<?= e(url('schedule.php?ym=' . $ym . '&new=' . "$ym-01" . '&cat=holiday')) ?>">+ 공휴일</a><?php endif ?>
         <a class="btn ghost" href="<?= e(url('attendance.php?' . http_build_query(['view' => 'sheet', 'user' => $person['id'] ?? null, 'ym' => $ym]))) ?>">월간 근태</a>
         <button class="btn ghost" type="button" onclick="window.print()">인쇄</button>
       </div>
@@ -351,11 +349,10 @@ layout_header('근태관리 ' . $first->format('Y년 n월'), 'attendance');
           <div class="gcal-days">
             <?php for ($i = 0; $i < 7; $i++): $d = $w->modify("+$i days"); $ds = $d->format('Y-m-d');
                 $cls = [$d->format('m') !== $first->format('m') ? 'other' : '', $ds === $today ? 'today' : '', $i === 0 ? 'sun' : ($i === 6 ? 'sat' : ''),
-                    isset($hol[$ds]) ? 'holiday' : '', isset($closed[$ds]) ? 'closed' : '', $person && in_array($i, $personOff, true) ? 'offday' : '']; ?>
+                    isset($hol[$ds]) ? 'holiday' : '', $person && in_array($i, $personOff, true) ? 'offday' : '']; ?>
               <div class="gcal-day <?= implode(' ', array_filter($cls)) ?>" <?= $canCreate ? 'data-create="' . $ds . '"' : '' ?>>
                 <span class="gcal-num" data-day="<?= $ds ?>"><?= $d->format('j') ?></span>
                 <?php if (isset($hol[$ds])): ?><span class="day-tag hol" title="공휴일"><?= e($hol[$ds]) ?></span><?php endif ?>
-                <?php if (isset($closed[$ds])): ?><span class="day-tag closed" title="휴관일"><?= e($closed[$ds]) ?></span><?php endif ?>
                 <?php if ($person && in_array($i, $personOff, true) && !isset($hol[$ds])): ?><span class="day-tag off">휴무</span><?php endif ?>
               </div>
             <?php endfor ?>
@@ -377,7 +374,7 @@ layout_header('근태관리 ' . $first->format('Y년 n월'), 'attendance');
       <?php endfor ?>
     </div>
     <p class="muted small no-print">날짜의 빈 칸을 누르면 그 날짜로 근태를 입력하고, 근태를 누르면 결재 문서를 볼 수 있습니다.
-      공휴일·휴관일은 최고관리자가 <a href="<?= e(url('schedule.php?ym=' . $ym)) ?>">일정표</a>에 등록하며, 공휴일과 각자의 휴무일은 연차·병가 일수에서 빠집니다.</p>
+      공휴일은 최고관리자가 <a href="<?= e(url('schedule.php?ym=' . $ym)) ?>">일정표</a>에 등록하며, 공휴일과 각자의 휴무일은 연차·병가 일수에서 빠집니다.</p>
   </section>
 </div>
 

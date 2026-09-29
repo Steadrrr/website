@@ -113,6 +113,7 @@ function nav_groups(?array $user): array
             'ar'       => ['ar.php', 'AR사용관리'],
         ]],
         'prog'     => ['label' => '프로그램', 'items' => [
+            'prog_sched' => ['program_schedule.php', '프로그램일정'],
             'healing'    => ['journal.php?type=healing', '산림치유센터'],
             'kidsforest' => ['journal.php?type=kidsforest', '유아숲체험원'],
             'kidsdirect' => ['journal.php?type=kidsdirect', '유아숲(직영)'],

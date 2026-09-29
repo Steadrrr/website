@@ -36,9 +36,11 @@ $st->execute([$user['id'], $today]);
 $myToday = (int) $st->fetchColumn();
 $myWaiting = count(waiting_for_user($user));
 // 오늘의 일정 (오늘 진행 중인 여러 날 일정 포함) — 공지사항 아래 카드
-$todayEvents = events_between($today, $today);
+// 프로그램일정(산림치유·유아숲·숲해설)은 프로그램 메뉴 권한이 있는 사람에게만
+$evCats = array_keys(array_filter(EVENT_CATEGORIES, fn($c, $k) => event_calendar($k) === 'main' || can_menu($user, 'prog'), ARRAY_FILTER_USE_BOTH));
+$todayEvents = events_between($today, $today, $evCats);
 // 다가오는 일정: 내일부터 2주 안에 시작하는 일정 (오늘 일정은 위 카드에 있으므로 제외)
-$upcoming = array_slice(events_between(date('Y-m-d', strtotime('+1 day')), date('Y-m-d', strtotime('+14 days'))), 0, 6);
+$upcoming = array_slice(events_between(date('Y-m-d', strtotime('+1 day')), date('Y-m-d', strtotime('+14 days')), $evCats), 0, 6);
 $upcoming = array_values(array_filter($upcoming, fn($ev) => $ev['start_date'] > $today));
 
 layout_header('대시보드', 'home');
@@ -77,7 +79,7 @@ layout_header('대시보드', 'home');
   <div class="upcoming">
     <h4><a href="<?= e(url('schedule.php')) ?>">다가오는 일정 ›</a></h4>
     <?php foreach ($upcoming as $ev): ?>
-      <a class="up-ev" href="<?= e(url('schedule.php?ym=' . substr(max($ev['start_date'], $today), 0, 7))) ?>" style="--c: <?= EVENT_CATEGORIES[$ev['category']][1] ?>">
+      <a class="up-ev" href="<?= e(url(event_page_url($ev, max($ev['start_date'], $today)))) ?>" style="--c: <?= EVENT_CATEGORIES[$ev['category']][1] ?>">
         <i></i><span><b><?= e($ev['title']) ?></b><small><?= e(event_when($ev, true)) ?></small></span>
       </a>
     <?php endforeach ?>
@@ -121,7 +123,7 @@ layout_header('대시보드', 'home');
     <ul class="notice-list">
       <?php foreach ($todayEvents as $ev): [$catLabel, $catColor] = EVENT_CATEGORIES[$ev['category']]; ?>
         <li>
-          <a href="<?= e(url('schedule.php?ym=' . substr($today, 0, 7))) ?>" style="--c: <?= $catColor ?>">
+          <a href="<?= e(url(event_page_url($ev, $today))) ?>" style="--c: <?= $catColor ?>">
             <span class="badge ev-badge"><?= e($catLabel) ?></span> <?= e($ev['title']) ?>
             <?= $ev['location'] ? '<small class="muted"> · ' . e($ev['location']) . '</small>' : '' ?>
           </a>

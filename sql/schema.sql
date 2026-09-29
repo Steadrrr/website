@@ -396,11 +396,11 @@ CREATE TABLE IF NOT EXISTS notices (
   CONSTRAINT fk_notice_author FOREIGN KEY (author_id) REFERENCES users(id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- 일정표 (누구나 작성). category: event 행사 / construction 공사 / program 프로그램 / etc 기타
+-- 일정표·프로그램일정 (누구나 작성). category: event 행사 / construction 공사 / rental 대관 / etc 기타 / holiday 공휴일(관리자) · 프로그램일정 p_healing 산림치유 / p_kids 유아숲 / p_guide 숲해설 (program·closed 는 예전 값, v39 에서 옮김)
 CREATE TABLE IF NOT EXISTS events (
   id          INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   title       VARCHAR(100) NOT NULL,
-  category    ENUM('event','construction','program','rental','etc','holiday','closed') NOT NULL DEFAULT 'etc' COMMENT 'rental 대관, holiday 공휴일, closed 휴관일 (관리자만)',
+  category    ENUM('event','construction','program','rental','etc','holiday','closed','p_healing','p_kids','p_guide') NOT NULL DEFAULT 'etc' COMMENT 'holiday 공휴일(관리자만), p_* 프로그램일정',
   start_date  DATE NOT NULL,
   end_date    DATE NOT NULL,
   all_day     TINYINT(1) NOT NULL DEFAULT 1,

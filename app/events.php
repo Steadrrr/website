@@ -1,18 +1,38 @@
 <?php
 defined('APP_ROOT') || exit;
 
-/* 일정표: 분류와 색 (구글 캘린더 색상 계열) */
+/* 일정표: 분류와 색 (구글 캘린더 색상 계열). 일정표(main)와 프로그램일정(program)이 같은 events 테이블을 분류로 나눠 쓴다 */
 const EVENT_CATEGORIES = [
     'event'        => ['행사', '#3f51b5'],
     'construction' => ['공사', '#e8710a'],
-    'program'      => ['프로그램', '#0b8043'],
     'rental'       => ['대관', '#00897b'],
     'etc'          => ['기타', '#8e24aa'],
     'holiday'      => ['공휴일', '#d50000'],
-    'closed'       => ['휴관일', '#616161'],
+    // 프로그램일정 (메인메뉴 프로그램 › 프로그램일정)
+    'p_healing'    => ['산림치유', '#0b8043'],
+    'p_kids'       => ['유아숲', '#f09300'],
+    'p_guide'      => ['숲해설', '#039be5'],
+];
+// 달력별 분류 (예전 '프로그램'·'휴관일' 분류는 DB v39 에서 프로그램일정·기타로 옮김)
+const EVENT_CALENDARS = [
+    'main'    => ['label' => '일정표', 'page' => 'schedule.php', 'cats' => ['event', 'construction', 'rental', 'etc', 'holiday'], 'default' => 'event'],
+    'program' => ['label' => '프로그램일정', 'page' => 'program_schedule.php', 'cats' => ['p_healing', 'p_kids', 'p_guide'], 'default' => 'p_healing'],
 ];
 // 최고관리자만 등록·수정하는 분류 (근태관리의 근무일 계산에 쓰임: 공휴일은 근무일에서 빠짐)
-const ADMIN_EVENT_CATEGORIES = ['holiday', 'closed'];
+const ADMIN_EVENT_CATEGORIES = ['holiday'];
+
+/** 그 분류가 속한 달력 (main / program) */
+function event_calendar(string $cat): string
+{
+    foreach (EVENT_CALENDARS as $k => $c) if (in_array($cat, $c['cats'], true)) return $k;
+    return 'main';
+}
+
+/** 그 일정을 보는 달력 페이지 주소 (그 달) */
+function event_page_url(array $ev, ?string $date = null): string
+{
+    return EVENT_CALENDARS[event_calendar($ev['category'])]['page'] . '?ym=' . substr($date ?? $ev['start_date'], 0, 7);
+}
 
 /** 이 분류로 일정을 만들 수 있는가 */
 /* ───────────── 반복 일정 ───────────── */
@@ -55,7 +75,7 @@ function can_use_event_category(string $cat, array $user): bool
     return isset(EVENT_CATEGORIES[$cat]) && (!in_array($cat, ADMIN_EVENT_CATEGORIES, true) || !empty($user['is_admin']));
 }
 
-/** 수정·삭제 권한: 작성자, 주무관 이상, 최고관리자 (공휴일·휴관일은 최고관리자만) */
+/** 수정·삭제 권한: 작성자, 주무관 이상, 최고관리자 (공휴일은 최고관리자만) */
 function can_edit_event(array $ev, array $user): bool
 {
     if (in_array($ev['category'], ADMIN_EVENT_CATEGORIES, true)) return !empty($user['is_admin']);
@@ -66,8 +86,7 @@ function can_edit_event(array $ev, array $user): bool
 function holiday_dates(string $from, string $to, array $cats = ['holiday']): array
 {
     $out = [];
-    foreach (events_between($from, $to) as $ev) {
-        if (!in_array($ev['category'], $cats, true)) continue;
+    foreach (events_between($from, $to, $cats) as $ev) {
         for ($d = max($ev['start_date'], $from); $d <= min($ev['end_date'], $to); $d = date('Y-m-d', strtotime("$d +1 day"))) {
             $out[$d] = isset($out[$d]) ? $out[$d] . ', ' . $ev['title'] : $ev['title'];
         }
@@ -75,16 +94,17 @@ function holiday_dates(string $from, string $to, array $cats = ['holiday']): arr
     return $out;
 }
 
-/** 기간과 겹치는 일정 */
-function events_between(string $from, string $to): array
+/** 기간과 겹치는 일정 ($cats: 이 분류만, null 이면 전부) */
+function events_between(string $from, string $to, ?array $cats = null): array
 {
+    $in = $cats ? ' AND e.category IN (' . implode(',', array_fill(0, count($cats), '?')) . ')' : '';
     $st = db()->prepare(
         'SELECT e.*, u.name AS author_name FROM events e JOIN users u ON u.id = e.author_id
-          WHERE e.start_date <= ? AND e.end_date >= ?
+          WHERE e.start_date <= ? AND e.end_date >= ?' . $in . '
           ORDER BY e.start_date, e.all_day DESC, e.start_time, (e.end_date > e.start_date) DESC, e.id'
     );
-    $st->execute([$to, $from]);
-    return $st->fetchAll();
+    $st->execute([$to, $from, ...($cats ?? [])]);
+    return array_values(array_filter($st->fetchAll(), fn($e) => isset(EVENT_CATEGORIES[$e['category']])));
 }
 
 /** "10:00" / "종일" / "9/23 ~ 9/25" 같은 짧은 시간 표시 */
@@ -140,4 +160,39 @@ function month_grid(string $ym): array
     $first = new DateTimeImmutable("$ym-01");
     $last = $first->modify('last day of this month');
     return [$first, $last, $first->modify('-' . (int) $first->format('w') . ' days'), $last->modify('+' . (6 - (int) $last->format('w')) . ' days')];
+}
+
+/**
+ * 시간 격자(일·주 보기)에서 하루의 시간 일정 배치: 겹치는 일정은 나란히 칸을 나눈다.
+ * @return array<int, array{0: array, 1: int, 2: int, 3: int, 4: int}> [일정, 시작분, 끝분, 칸 번호, 칸 수]
+ */
+function timegrid_columns(array $list, callable $mins): array
+{
+    $items = [];
+    foreach ($list as $e) {
+        $s = $mins($e['start_time']);
+        $en = max($mins($e['end_time']) ?? $s + 60, $s + 30); // 종료 시간이 없으면 1시간, 너무 짧으면 30분으로 보여 줌
+        $items[] = [$e, $s, $en];
+    }
+    usort($items, fn($a, $b) => [$a[1], -$a[2]] <=> [$b[1], -$b[2]]);
+    $out = [];
+    $group = [];   // 서로 겹쳐 이어지는 묶음
+    $colsEnd = []; // 칸별 마지막 끝분
+    $groupEnd = -1;
+    $flush = function () use (&$out, &$group, &$colsEnd) {
+        foreach ($group as $g) $out[] = [...$g, count($colsEnd)];
+        $group = [];
+        $colsEnd = [];
+    };
+    foreach ($items as [$e, $s, $en]) {
+        if ($group && $s >= $groupEnd) $flush();
+        $col = null;
+        foreach ($colsEnd as $c => $end) if ($end <= $s) { $col = $c; break; }
+        $col ??= count($colsEnd);
+        $colsEnd[$col] = $en;
+        $group[] = [$e, $s, $en, $col];
+        $groupEnd = max($group ? $groupEnd : -1, $en);
+    }
+    $flush();
+    return $out;
 }

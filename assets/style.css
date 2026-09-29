@@ -514,8 +514,9 @@ a.nav-main:hover, .nav-main:hover, .nav-main.on, .nav-group.on > .nav-main, .nav
 .gcal-more { pointer-events: auto; margin: 0 4px; padding: 0 .45rem; border: 0; background: none; text-align: left; font: inherit; font-size: .75rem;
   font-weight: 600; color: #3c4043; border-radius: 4px; cursor: pointer; }
 .gcal-more:hover { background: #f1f3f4; }
-.gcal.hide-event [data-cat="event"], .gcal.hide-construction [data-cat="construction"],
-.gcal.hide-program [data-cat="program"], .gcal.hide-etc [data-cat="etc"] { display: none !important; }
+.gcal.hide-event [data-cat="event"], .gcal.hide-construction [data-cat="construction"], .gcal.hide-rental [data-cat="rental"],
+.gcal.hide-etc [data-cat="etc"], .gcal.hide-p_healing [data-cat="p_healing"], .gcal.hide-p_kids [data-cat="p_kids"],
+.gcal.hide-p_guide [data-cat="p_guide"] { display: none !important; }
 
 .gcal-agenda { background: #fff; border: 1px solid #dadce0; border-radius: 10px; padding: .5rem 0; }
 .ag-day { display: grid; grid-template-columns: 110px 1fr; gap: .5rem; padding: .5rem 1rem; border-bottom: 1px solid #f1f3f4; }
@@ -558,7 +559,7 @@ a.nav-main:hover, .nav-main:hover, .nav-main.on, .nav-group.on > .nav-main, .nav
 .ev-daylist .ag-ev { grid-template-columns: 12px 110px 1fr; }
 
 @media (max-width: 900px) {
-  .gcal { grid-template-columns: 1fr; }
+  .gcal { grid-template-columns: minmax(0, 1fr); }
   .gcal-side { position: static; display: flex; flex-wrap: wrap; gap: 1rem; align-items: flex-start; }
   .mini-cal { display: none; }
   .gcal-filters { display: flex; flex-wrap: wrap; gap: .25rem; align-items: center; }
@@ -576,7 +577,7 @@ a.nav-main:hover, .nav-main:hover, .nav-main.on, .nav-group.on > .nav-main, .nav
   .ag-ev .ag-cat { display: none; }
 }
 @media print {
-  .gcal { grid-template-columns: 1fr; }
+  .gcal { grid-template-columns: minmax(0, 1fr); }
   .gcal-ev.bar { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 }
 .upcoming { width: 100%; text-align: left; margin-top: .75rem; border-top: 1px solid var(--line); padding-top: .6rem; }
@@ -600,11 +601,9 @@ a.gcal-ev.bar { color: #fff; }
 .att-week { min-height: 136px; }
 .gcal-day.holiday { background: #fdf3f2; }
 .gcal-day.holiday .gcal-num { color: #d93025; }
-.gcal-day.closed { background: #f3f3f3; }
 .gcal-day.offday { background: repeating-linear-gradient(135deg, #fafafa, #fafafa 6px, #f1f3f1 6px, #f1f3f1 12px); }
 .day-tag { display: block; font-size: .66rem; line-height: 1.2; padding: 0 .2rem; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; position: relative; z-index: 1; }
 .day-tag.hol { color: #d93025; font-weight: 700; }
-.day-tag.closed { color: #616161; }
 .day-tag.off { color: #9aa0a6; }
 .att-cal .gcal-events { padding-top: 3.1rem; }
 .att-cal .gcal-day { overflow: hidden; }
@@ -656,7 +655,7 @@ a.gcal-ev.bar { color: #fff; }
 .inline-form { display: flex; flex-wrap: wrap; gap: .5rem; align-items: end; margin: .6rem 0; }
 .inline-form label { margin: 0; }
 .card.narrow { max-width: 760px; }
-.gcal.hide-holiday [data-cat="holiday"], .gcal.hide-closed [data-cat="closed"], .gcal.hide-att [data-cat="att"] { display: none !important; }
+.gcal.hide-holiday [data-cat="holiday"], .gcal.hide-att [data-cat="att"] { display: none !important; }
 .gcal-filters select { width: 100%; margin: .2rem 0 .4rem; font-size: .85rem; }
 .product-table .refund-head { background: #f6f1e3; }
 .product-table .refund-cell { background: #fdfbf5; }
@@ -1106,3 +1105,41 @@ select.need-pick { border-color: var(--red); background: #fff6f5; }
 label .tm-pick { display: flex; margin-top: .25rem; }
 .time-range { display: flex; align-items: center; gap: .3rem; flex-wrap: nowrap; }
 .time-range .tm-pick { display: inline-flex; margin-top: 0; }
+
+/* 일정표 일간·주간 보기 (시간 격자) */
+.tg-scroll { overflow-x: auto; }
+.tg { --hr: 46px; --gut: 3.4rem; background: #fff; border: 1px solid #dadce0; border-radius: 10px; overflow: hidden; }
+.tg-week { min-width: 640px; }
+.tg-row { display: grid; grid-template-columns: var(--gut) repeat(var(--n), minmax(0, 1fr)); }
+.tg-gut { font-size: .7rem; color: #70757a; text-align: right; padding-right: .4rem; }
+.tg-head { border-bottom: 1px solid #dadce0; }
+.tg-dh { display: flex; flex-direction: column; align-items: center; padding: .35rem 0 .3rem; font-size: .72rem; font-weight: 600; color: #70757a; border-left: 1px solid #eceff1; }
+.tg-dh .tg-dnum { display: inline-flex; align-items: center; justify-content: center; min-width: 2.1rem; height: 2.1rem; border-radius: 50%; font-size: 1.2rem; font-weight: 500; color: #3c4043; }
+.tg-dh .tg-dnum:hover { background: #e8eaed; text-decoration: none; }
+.tg-dh small { font-weight: 400; color: #d93025; font-size: .68rem; }
+.tg-dh.sun, .tg-dh.sun .tg-dnum, .tg-dh.holiday .tg-dnum { color: #d93025; }
+.tg-dh.sat, .tg-dh.sat .tg-dnum { color: #1a73e8; }
+.tg-dh.today .tg-dnum { background: var(--green); color: #fff; }
+.tg-allday { border-bottom: 1px solid #dadce0; }
+.tg-allday .tg-gut { padding-top: .35rem; }
+.tg-alld { grid-column: 2 / -1; display: grid; grid-template-columns: repeat(var(--n), minmax(0, 1fr)); row-gap: 2px; padding: 3px 0; min-height: 30px; }
+.tg-alld-cell { border-left: 1px solid #eceff1; cursor: pointer; }
+.tg-alld-cell:hover { background: #f8faf8; }
+.tg-alld .gcal-ev { position: relative; z-index: 1; }
+.tg-body { position: relative; }
+.tg-hours .tg-h { height: var(--hr); position: relative; }
+.tg-hours .tg-h span { position: relative; top: -.5em; }
+.tg-hours .tg-h:first-child span { visibility: hidden; }
+.tg-col { position: relative; border-left: 1px solid #eceff1; }
+.tg-col.today { background: #fbfdfb; }
+.tg-slot { height: var(--hr); border-top: 1px solid #eceff1; cursor: pointer; }
+.tg-slot:first-child { border-top: 0; }
+.tg-slot:hover { background: #f4f8f5; }
+.tg-ev { position: absolute; margin: 0 0 0 2px; padding: .15rem .35rem; display: flex; flex-direction: column; align-items: flex-start; gap: 0; white-space: normal;
+  background: var(--c); color: #fff; border: 1px solid #fff; border-radius: 5px; font-size: .74rem; line-height: 1.25; overflow: hidden; z-index: 1; }
+.tg-ev:hover { filter: brightness(.92); z-index: 2; }
+.tg-ev .n { font-weight: 600; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+.tg-ev .t { opacity: .9; font-size: .7rem; }
+.tg-day .tg-ev { font-size: .82rem; }
+.mini-d.sel { outline: 2px solid var(--green); outline-offset: -2px; }
+@media print { .tg-scroll { overflow: visible; } .tg-week { min-width: 0; } }
