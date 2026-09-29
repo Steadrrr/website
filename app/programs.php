@@ -93,7 +93,7 @@ function program_parse(string $type, string $workDate, int $journalId): array
         if (!is_array($row)) continue;
         $s = program_empty_session();
         $s['id'] = to_int($row['id'] ?? 0) ?: null; // 기존 회차 (사진 유지)
-        $s['form_key'] = (string) $formKey;          // 이 회차의 사진 업로드 칸 sp[form_key][]
+        $s['form_key'] = (string) $formKey;          // 이 회차의 사진 업로드 칸 sp_{form_key}[]
         $s['group_name'] = mb_substr(trim((string) ($row['group_name'] ?? '')), 0, 100);
         $s['staff'] = mb_substr(trim((string) ($row['staff'] ?? '')), 0, 100);
         foreach (program_people_cols() as $c) $s[$c] = min(9999, to_int($row[$c] ?? 0));
@@ -189,14 +189,17 @@ function program_save(int $journalId, array $payload): void
     }
 }
 
-/** 회차 사진 업로드 ($_FILES['sp']['name'][form_key][]) @return string[] 오류 */
+/**
+ * 회차 사진 업로드 ($_FILES['sp_' . form_key][]) @return string[] 오류
+ * 칸 이름은 sp_0[] 처럼 한 단계로 둔다: sp[0][] 처럼 두 단계로 된 파일 칸은 호스팅 서버가 요청을 막아 빈 화면(500)이 된다
+ */
 function program_session_photos_save(string $formKey, int $sessionId, int $userId): array
 {
-    $f = $_FILES['sp'] ?? null;
-    if ($formKey === '' || !$f || !isset($f['name'][$formKey]) || !is_array($f['name'][$formKey])) return [];
+    $f = $_FILES['sp_' . $formKey] ?? null;
+    if ($formKey === '' || !$f || !is_array($f['name'])) return [];
     $errors = [];
-    foreach ($f['name'][$formKey] as $i => $name) {
-        [$path, $error] = store_uploaded_image((string) $name, (string) $f['tmp_name'][$formKey][$i], (int) $f['error'][$formKey][$i], 'program');
+    foreach ($f['name'] as $i => $name) {
+        [$path, $error] = store_uploaded_image((string) $name, (string) $f['tmp_name'][$i], (int) $f['error'][$i], 'program');
         if ($error) $errors[] = $error;
         if ($path) {
             image_downscale(APP_ROOT . '/' . $path, PROGRAM_PHOTO_MAX);
@@ -300,7 +303,7 @@ function program_session_card(string $key, array $s, int $no, array $products): 
     <label>활동내용<textarea name="<?= $n('activity') ?>" rows="3" placeholder="예: 오감 숲체험, 숲길 걷기, 나무 이름 알기"><?= e($s['activity'] ?? '') ?></textarea></label>
     <div class="prog-photos">
       <span class="label-text">이 회차 활동사진</span>
-      <?php render_photo_editor('program_session', !empty($s['id']) ? (int) $s['id'] : null, PROGRAM_PHOTO_MAX, "sp[$key]", '사진 추가') ?>
+      <?php render_photo_editor('program_session', !empty($s['id']) ? (int) $s['id'] : null, PROGRAM_PHOTO_MAX, "sp_$key", '사진 추가') ?>
     </div>
   </div>
     <?php

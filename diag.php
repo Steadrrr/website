@@ -22,8 +22,8 @@ if (is_post()) {
         flash('저장 기록을 비웠습니다.', 'info');
     } elseif (post('act') === 'echo') {
         $files = [];
-        foreach ($_FILES['sp']['name'] ?? [] as $k => $names) foreach ((array) $names as $i => $n) {
-            $files[] = "sp[$k][$i] " . ($n === '' ? '(빈 칸)' : $n . ' · ' . number_format((int) $_FILES['sp']['size'][$k][$i]) . 'B · 오류코드 ' . (int) $_FILES['sp']['error'][$k][$i]);
+        foreach ($_FILES as $k => $f) foreach ((array) $f['name'] as $i => $n) {
+            $files[] = "{$k}[$i] " . (is_array($n) ? '(두 단계)' : ($n === '' ? '(빈 칸)' : $n . ' · ' . number_format((int) ((array) $f['size'])[$i]) . 'B · 오류코드 ' . (int) ((array) $f['error'])[$i]));
         }
         flash('보내기 실험 성공: 서버가 받았습니다 · 입력 ' . count($_POST, COUNT_RECURSIVE) . '개 · 회차 ' . count((array) ($_POST['s'] ?? [])) . '개 · 파일 ' . ($files ? implode(' / ', $files) : '없음'), 'success');
     }
@@ -145,16 +145,31 @@ layout_header('서버 진단');
 
 <section class="card">
   <h2>4. 보내기 실험 <small class="muted">운영보고와 같은 모양의 폼이 서버에 도착하는지</small></h2>
-  <form method="post" enctype="multipart/form-data">
+  <?php foreach (['A' => ['지금 방식 (사진 칸 sp_0[])', 'sp_0', 'sp_n1'], 'B' => ['예전 방식 (사진 칸 sp[0][], 비교용)', 'sp[0]', 'sp[n1]']] as $v => [$title, $f1, $f2]): ?>
+  <form method="post" enctype="multipart/form-data" style="margin-bottom:1rem">
     <?= csrf_field() ?>
     <input type="hidden" name="act" value="echo">
     <input type="hidden" name="s[0][id]" value=""><input type="hidden" name="s[0][group_name]" value="진단반">
     <input type="hidden" name="s[0][m_adult]" value="2"><input type="hidden" name="s[0][start_time]" value="10:00">
     <input type="hidden" name="tk[0][staff]" value="진단"><input type="hidden" name="tk[0][content]" value="진단 업무">
-    <label>사진 (선택, 여러 장 가능)<input type="file" name="sp[0][]" accept="image/*" multiple data-resize="1600"></label>
-    <input type="file" name="sp[n1][]" hidden>
-    <div class="actions"><button class="btn primary">보내기 실험</button></div>
+    <label><b><?= $v ?>. <?= $h($title) ?></b> 사진 (선택, 여러 장 가능)<input type="file" name="<?= $f1 ?>[]" accept="image/*" multiple data-resize="1600"></label>
+    <input type="file" name="<?= $f2 ?>[]" hidden>
+    <div class="actions"><button class="btn <?= $v === 'A' ? 'primary' : '' ?>">보내기 실험 <?= $v ?></button></div>
   </form>
-  <p class="muted small">사진 없이 한 번, 사진을 넣고 한 번 눌러 보세요. '보내기 실험 성공'이 뜨면 서버가 받은 것이고, 빈 화면이면 이런 모양의 요청이 서버(호스팅)에서 막히는 것입니다.</p>
+  <?php endforeach ?>
+  <p class="muted small">A·B 각각 사진 없이 한 번, 사진을 넣고 한 번 눌러 보세요. '보내기 실험 성공'이 뜨면 서버가 받은 것이고, 빈 화면이면 이런 모양의 요청이 서버(호스팅)에서 막히는 것입니다.</p>
+</section>
+<section class="card">
+  <h2>5. 프로그램 상품 요금 <small class="muted">설정 › 상품·요금 › 프로그램 · 운영보고 금액 = 인원 × 이 요금</small></h2>
+  <?php $today = date('Y-m-d'); $at = products_at($today); $pp = price_period_for($today); ?>
+  <table class="table small">
+    <thead><tr><th>번호</th><th>프로그램</th><th>분야</th><th>판매</th><th class="right">기본 유료</th><th class="right">기본 할인</th><th class="right">오늘 적용 유료 / 할인</th></tr></thead>
+    <?php foreach (products_all() as $id => $p): if ($p['grp'] !== 'program') continue; $t = $at[$id]; $types = program_product_types($p); ?>
+      <tr><td><?= (int) $id ?></td><td><?= $h($p['name']) ?></td><td><?= $h($types ? implode(', ', array_map(fn($x) => PROGRAM_TYPES[$x], $types)) : '모든 분야') ?></td><td><?= $p['is_active'] ? '판매' : '중지' ?></td>
+        <td class="right"><?= number_format((int) $p['price']) ?></td><td class="right"><?= number_format((int) $p['price_discount']) ?></td>
+        <td class="right"><?= number_format((int) $t['price']) ?> / <?= number_format((int) $t['price_discount']) ?><?= !empty($t['price_period']) ? ' <small class="muted">(' . $h($t['price_period']) . ')</small>' : '' ?></td></tr>
+    <?php endforeach ?>
+  </table>
+  <p class="muted small">오늘 적용 기간: <?= $pp ? $h($pp['name'] . ' ' . $pp['date_from'] . '~' . $pp['date_to']) : '없음 (기본 요금)' ?></p>
 </section>
 <?php layout_footer();
