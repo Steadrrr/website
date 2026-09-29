@@ -27,7 +27,8 @@ if ($id) {
     $teamId = null;
     if ($type === 'facility') {
         $teamId = (int) ($_GET['team'] ?? 0);
-        if (!isset(teams_all()[$teamId])) $teamId = (int) array_key_first(teams_all());
+        if (!facility_teams()) abort(403, '시설점검을 쓰는 팀이 없습니다. 설정 › 조직 구성에서 팀의 시설점검·시설물 사용을 켜 주세요.');
+        if (!isset(facility_teams()[$teamId])) $teamId = (int) array_key_first(facility_teams());
     }
     if ($type === 'arwork') $workDate = substr($workDate, 0, 7) . '-01'; // AR 사용보고는 월 단위 (그 달 1일)
     $payload = items_default($type, $teamId ?: null);
@@ -143,7 +144,7 @@ layout_header(JOURNAL_TYPES[$type] . ($journal ? ' 수정' : ' 작성'), journal
           <input type="hidden" name="team_id" value="<?= (int) $teamId ?>"><input value="<?= e(team_name($teamId)) ?>" disabled>
         <?php else: ?>
           <select name="team_id" onchange="location.href='?type=facility&date=' + this.form.work_date.value + '&team=' + this.value">
-            <?php foreach (teams_all() as $t): ?><option value="<?= (int) $t['id'] ?>" <?= (int) $t['id'] === (int) ($payload['team_id'] ?? 0) ? 'selected' : '' ?>><?= e($t['name']) ?></option><?php endforeach ?>
+            <?php foreach (facility_teams() as $t): ?><option value="<?= (int) $t['id'] ?>" <?= (int) $t['id'] === (int) ($payload['team_id'] ?? 0) ? 'selected' : '' ?>><?= e($t['name']) ?></option><?php endforeach ?>
           </select>
         <?php endif ?>
       </label>

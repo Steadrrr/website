@@ -56,7 +56,11 @@ settings_nav($kind);
     그 아래에 <?= $kind === 'facility' ? '세부시설' : '장비' ?>을 등록합니다.
     팀 추가·이름 변경은 <a href="<?= e(url('settings.php?tab=org')) ?>">조직 구성</a>에서 합니다.</p>
 
-  <?php foreach (teams_all() as $tid => $team):
+  <?php $kindTeams = $kind === 'facility' ? facility_teams() : teams_all(); // 시설 구역은 시설점검·시설물을 쓰는 팀만
+  if ($off = array_diff_key(teams_all(), $kindTeams)): ?>
+    <p class="muted small">시설점검·시설물을 쓰지 않는 팀(<?= e(implode(', ', array_column($off, 'name'))) ?>)은 여기와 시설관리 화면에 보이지 않습니다. 켜려면 <a href="<?= e(url('settings.php?tab=org')) ?>">조직 구성</a>에서 체크하세요.</p>
+  <?php endif ?>
+  <?php foreach ($kindTeams as $tid => $team):
       $rows = array_filter($groups, fn($g) => (int) $g['team_id'] === $tid); ?>
     <h2 class="team-head"><?= e($team['name']) ?></h2>
     <table class="table product-table">
@@ -67,7 +71,7 @@ settings_nav($kind);
           <td><input form="<?= $fid ?>" name="sort_order" value="<?= e($g['sort_order'] ?? (count($rows) + 1) * 10) ?>" class="num tiny"></td>
           <td><input form="<?= $fid ?>" name="name" value="<?= e($g['name'] ?? '') ?>" placeholder="<?= $g ? '' : '새 ' . e($label) ?>" required></td>
           <td><select form="<?= $fid ?>" name="team_id">
-            <?php foreach (teams_all() as $t2): ?><option value="<?= (int) $t2['id'] ?>" <?= (int) $t2['id'] === $tid ? 'selected' : '' ?>><?= e($t2['name']) ?></option><?php endforeach ?>
+            <?php foreach ($kindTeams as $t2): ?><option value="<?= (int) $t2['id'] ?>" <?= (int) $t2['id'] === $tid ? 'selected' : '' ?>><?= e($t2['name']) ?></option><?php endforeach ?>
           </select></td>
           <td class="right"><?= $g ? (int) ($counts[$g['id']] ?? 0) : '' ?></td>
           <td class="center"><input form="<?= $fid ?>" type="checkbox" name="is_active" value="1" <?= !$g || $g['is_active'] ? 'checked' : '' ?>></td>

@@ -6,7 +6,7 @@ defined('APP_ROOT') || exit;
  * 새 버전 파일을 FTP로 덮어쓰기만 하면, 첫 접속 때 부족한 테이블/컬럼을 만든다.
  * (기존 자료는 그대로 유지)
  */
-const DB_VERSION = 39;
+const DB_VERSION = 40;
 
 function db_version(): int
 {
@@ -383,6 +383,11 @@ function db_migrate(): void
                     ELSE 'etc' END
                  WHERE category = 'program'");
     $pdo->exec("UPDATE events SET category = 'etc' WHERE category = 'closed'");
+
+    // 40) v39 → v40: 팀별 시설점검·시설물 사용 여부 (설정 › 조직 구성). 끄면 시설점검·시설물 화면에서 그 팀이 빠진다
+    if (!column_exists('teams', 'use_facility')) {
+        $pdo->exec("ALTER TABLE teams ADD use_facility TINYINT(1) NOT NULL DEFAULT 1 COMMENT '시설점검·시설물 사용' AFTER sort_order");
+    }
 
     $pdo->prepare("INSERT INTO settings (name, value) VALUES ('db_version', ?) ON DUPLICATE KEY UPDATE value = VALUES(value)")
         ->execute([(string) DB_VERSION]);

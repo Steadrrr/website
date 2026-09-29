@@ -30,6 +30,7 @@ if (is_post()) {
     }
 
     if ($target === 'team') {
+        $useFac = post('use_facility') === '1' ? 1 : 0; // 시설점검·시설물 사용
         if ($del) {
             $used = $count('SELECT COUNT(*) FROM asset_groups WHERE team_id = ?', $id) + $count('SELECT COUNT(*) FROM squads WHERE team_id = ?', $id)
                   + $count('SELECT COUNT(*) FROM users WHERE team_id = ?', $id);
@@ -38,10 +39,10 @@ if (is_post()) {
         } elseif ($name === '') {
             flash('팀 이름을 입력하세요.', 'error');
         } elseif ($id) {
-            $pdo->prepare('UPDATE teams SET name = ?, sort_order = ? WHERE id = ?')->execute([$name, $sort, $id]);
+            $pdo->prepare('UPDATE teams SET name = ?, sort_order = ?, use_facility = ? WHERE id = ?')->execute([$name, $sort, $useFac, $id]);
             flash("'{$name}' 저장했습니다.", 'success');
         } else {
-            $pdo->prepare('INSERT INTO teams (name, sort_order) VALUES (?, ?)')->execute([$name, $sort]);
+            $pdo->prepare('INSERT INTO teams (name, sort_order, use_facility) VALUES (?, ?, ?)')->execute([$name, $sort, $useFac]);
             flash("팀 '{$name}'을(를) 추가했습니다.", 'success');
         }
         redirect('settings.php?tab=org');
@@ -105,6 +106,9 @@ if ($tab === 'general'): ?>
       <tr class="<?= $r ? '' : 'new-row' ?>">
         <td><input form="<?= $fid ?>" name="sort_order" value="<?= e($r['sort_order'] ?? $sort) ?>" class="num tiny"></td>
         <td><input form="<?= $fid ?>" name="name" value="<?= e($r['name'] ?? '') ?>" placeholder="<?= e($placeholder) ?>" required></td>
+        <?php if ($target === 'team'): ?>
+          <td class="center"><label class="inline-check check-cell" title="끄면 시설관리 › 시설점검·시설물에서 이 팀이 보이지 않습니다"><input form="<?= $fid ?>" type="checkbox" name="use_facility" value="1" <?= !$r || (int) ($r['use_facility'] ?? 1) === 1 ? 'checked' : '' ?>> 사용</label></td>
+        <?php endif ?>
         <?php if ($target === 'squad'): ?>
           <td><select form="<?= $fid ?>" name="team_id"><?php foreach (teams_all() as $t): ?><option value="<?= (int) $t['id'] ?>" <?= (int) $t['id'] === $teamId ? 'selected' : '' ?>><?= e($t['name']) ?></option><?php endforeach ?></select></td>
         <?php endif ?>
@@ -129,11 +133,12 @@ if ($tab === 'general'): ?>
     → 팀 (맨 위에 공무직) → 반 (맨 위에 반장, 그 아래 반원)
   </div>
   <p class="muted small">직원을 팀·반에 배치하고 반장을 지정하는 것은 <a href="<?= e(url('admin/users.php')) ?>">회원관리</a>에서 합니다.
-    팀은 시설물·장비의 관리팀으로도 쓰입니다.</p>
+    팀은 시설물·장비의 관리팀으로도 쓰입니다. 시설을 관리하지 않는 팀(프로그램만 운영하는 팀 등)은 <b>시설점검·시설물</b> 체크를 끄면
+    시설관리 › 시설점검·시설물 화면과 설정 › 시설 구역·건물에서 빠집니다 (이미 작성한 점검일지와 등록한 시설은 지워지지 않습니다).</p>
 
   <h2>팀</h2>
   <table class="table product-table">
-    <thead><tr><th>순서</th><th>팀 이름</th><th>현황</th><th></th></tr></thead>
+    <thead><tr><th>순서</th><th>팀 이름</th><th class="center">시설점검·시설물</th><th>현황</th><th></th></tr></thead>
     <tbody>
     <?php foreach (teams_all() as $tid => $t) {
         $n = count(array_filter(squads_all(), fn($s) => (int) $s['team_id'] === $tid));

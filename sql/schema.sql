@@ -283,7 +283,8 @@ CREATE TABLE IF NOT EXISTS voucher_checks (
 CREATE TABLE IF NOT EXISTS teams (
   id         INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   name       VARCHAR(50) NOT NULL,
-  sort_order INT         NOT NULL DEFAULT 0
+  sort_order INT         NOT NULL DEFAULT 0,
+  use_facility TINYINT(1) NOT NULL DEFAULT 1 COMMENT '시설점검·시설물 사용 (끄면 그 화면에서 빠짐)'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- 반: 팀 아래 조직 (반장 + 반원)

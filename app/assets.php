@@ -32,6 +32,12 @@ function teams_all(): array
     return $cache;
 }
 
+/** 시설점검·시설물을 쓰는 팀 (설정 › 조직 구성의 '시설점검·시설물' 체크). 프로그램만 하는 팀 등은 빠진다 */
+function facility_teams(): array
+{
+    return array_filter(teams_all(), fn($t) => !isset($t['use_facility']) || (int) $t['use_facility'] === 1);
+}
+
 function team_name(?int $id): string
 {
     return $id ? (teams_all()[$id]['name'] ?? '') : '';
@@ -82,6 +88,8 @@ function group_options(string $kind, ?int $selected): string
     $html = '';
     $team = null;
     foreach (asset_groups($kind) as $g) {
+        // 시설 구역은 시설점검·시설물을 쓰는 팀 것만 (이미 고른 구역은 그대로 보임)
+        if ($kind === 'facility' && !isset(facility_teams()[(int) $g['team_id']]) && (int) $g['id'] !== $selected) continue;
         if ($team !== $g['team_id']) {
             $html .= ($team === null ? '' : '</optgroup>') . '<optgroup label="' . e($g['team_name']) . '">';
             $team = $g['team_id'];

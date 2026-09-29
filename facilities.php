@@ -4,10 +4,10 @@ require __DIR__ . '/app/bootstrap.php';
 
 $user = require_login();
 $teamId = (int) ($_GET['team'] ?? 0);
-if ($teamId && !isset(teams_all()[$teamId])) $teamId = 0;
+if ($teamId && !isset(facility_teams()[$teamId])) $teamId = 0; // 시설점검·시설물을 쓰지 않는 팀은 빠짐
 $showInactive = !empty($_GET['all']);
 
-$facilities = facilities_list($teamId ?: null, !$showInactive);
+$facilities = array_filter(facilities_list($teamId ?: null, !$showInactive), fn($f) => isset(facility_teams()[(int) $f['team_id']]));
 $thumbs = photo_thumbs('facility');
 $normal = normal_result();
 
@@ -37,12 +37,13 @@ $st = db()->prepare(
       ORDER BY j.work_date DESC, fi.id DESC LIMIT 30"
 );
 $st->execute([$normal, date('Y-m-d', strtotime('-30 days')), ...($teamId ? [$teamId, $teamId] : [])]);
-$recentIssues = $st->fetchAll();
+$recentIssues = array_values(array_filter($st->fetchAll(), fn($r) => isset(facility_teams()[(int) ($r['team_id'] ?? 0)]) || (!$r['team_id'] && !$teamId)));
 
 // 팀 > 구역 으로 묶기 (빈 구역도 표시)
 $tree = [];
 foreach (asset_groups('facility', !$showInactive) as $g) {
     if ($teamId && (int) $g['team_id'] !== $teamId) continue;
+    if (!isset(facility_teams()[(int) $g['team_id']])) continue; // 시설점검·시설물을 쓰지 않는 팀
     $tree[$g['team_name']][$g['id']] = ['group' => $g, 'items' => []];
 }
 foreach ($facilities as $f) {
@@ -65,7 +66,7 @@ layout_header('시설물', 'facilities');
   </div>
   <div class="tabs team-tabs no-print">
     <a href="<?= e(url('facilities.php')) ?>" class="<?= $teamId ? '' : 'on' ?>">전체</a>
-    <?php foreach (teams_all() as $t): ?>
+    <?php foreach (facility_teams() as $t): ?>
       <a href="<?= e(url('facilities.php?team=' . $t['id'])) ?>" class="<?= $teamId === (int) $t['id'] ? 'on' : '' ?>"><?= e($t['name']) ?></a>
     <?php endforeach ?>
   </div>

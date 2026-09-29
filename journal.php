@@ -19,7 +19,10 @@ if ($selected === '' && $ym === date('Y-m')) $selected = date('Y-m-d');
 
 // 시설점검일지는 관리팀별 보기 (team=0 전체)
 $teamId = $type === 'facility' ? (int) ($_GET['team'] ?? 0) : 0;
-if ($teamId && !isset(teams_all()[$teamId])) $teamId = 0;
+if ($teamId && !isset(facility_teams()[$teamId])) $teamId = 0; // 시설점검·시설물을 쓰지 않는 팀은 빠짐
+// '전체'도 시설점검을 쓰는 팀의 일지만 (팀 없는 예전 일지는 보임)
+$facTeamIds = array_keys(facility_teams());
+$facAllSql = $type === 'facility' && !$teamId ? ' AND (j.team_id IS NULL' . ($facTeamIds ? ' OR j.team_id IN (' . implode(',', array_map('intval', $facTeamIds)) . ')' : '') . ')' : '';
 $tq = $teamId ? "&team=$teamId" : '';
 
 $first = new DateTimeImmutable("$ym-01");
@@ -35,7 +38,7 @@ $st = db()->prepare(
             (SELECT COALESCE(SUM(p.total), 0) FROM program_sessions p WHERE p.journal_id = j.id) AS prog_people
        FROM journals j JOIN users u ON u.id = j.author_id
       WHERE j.type = ? AND j.work_date BETWEEN ? AND ?
-        AND (j.status <> 'draft' OR j.author_id = ? OR j.type IN ('" . implode("','", SHARED_DRAFT_TYPES) . "'))" . ($teamId ? ' AND j.team_id = ?' : '') . "
+        AND (j.status <> 'draft' OR j.author_id = ? OR j.type IN ('" . implode("','", SHARED_DRAFT_TYPES) . "'))" . ($teamId ? ' AND j.team_id = ?' : '') . $facAllSql . "
       ORDER BY j.work_date, j.id"
 );
 $st->execute([$type, $first->format('Y-m-d'), $last->format('Y-m-d'), $user['id'], ...($teamId ? [$teamId] : [])]);
@@ -59,7 +62,7 @@ $canWrite = can_write_type($user, $type); // 상품권 입고·금고점검은 �
   <?php if ($type === 'facility'): ?>
   <div class="tabs team-tabs">
     <a href="<?= e(url("journal.php?type=facility&ym=$ym")) ?>" class="<?= $teamId ? '' : 'on' ?>">전체</a>
-    <?php foreach (teams_all() as $t): ?>
+    <?php foreach (facility_teams() as $t): ?>
       <a href="<?= e(url("journal.php?type=facility&team={$t['id']}&ym=$ym")) ?>" class="<?= $teamId === (int) $t['id'] ? 'on' : '' ?>"><?= e($t['name']) ?></a>
     <?php endforeach ?>
     <a href="<?= e(url('facilities.php' . ($teamId ? "?team=$teamId" : ''))) ?>" class="link-tab">시설물 목록 ›</a>
