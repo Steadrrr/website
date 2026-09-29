@@ -6,7 +6,7 @@ define('APP_ROOT', dirname(__DIR__));
 /** 사이트를 열 수 없을 때 빈 500 화면 대신 원인을 보여준다 */
 function setup_error(string $message): never
 {
-    http_response_code(500);
+    http_response_code(200); // 500 이면 호스팅 웹서버가 빈 오류 페이지로 바꿔 안내가 안 보인다
     header('Content-Type: text/plain; charset=utf-8');
     exit($message . "\n\n자세한 점검: 브라우저에서 이 사이트의 check.php 를 열어 보세요.");
 }
@@ -34,8 +34,10 @@ function fatal_page(string $what, string $file, int $line): void
 {
     error_log("forestlog: $what ($file:$line)");
     if (!headers_sent()) {
-        http_response_code(500);
+        // 500 으로 보내면 호스팅 웹서버가 본문을 빈 오류 페이지로 바꿔 버린다 → 200 으로 보내야 이 안내가 보인다
+        http_response_code(200);
         header('Content-Type: text/html; charset=utf-8');
+        header('Cache-Control: no-store');
     }
     $h = fn(string $v) => htmlspecialchars($v, ENT_QUOTES, 'UTF-8');
     $post = ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST';

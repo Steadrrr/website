@@ -287,6 +287,7 @@
 ## 4-0-b. 오류 화면 (빈 화면 방지)
 - 서버는 `display_errors`가 꺼져 있어 PHP 오류가 나면 빈 화면이 됩니다. `app/bootstrap.php`의 예외 처리기·종료 처리기(`fatal_page`)가
   빈 화면 대신 '처리 중 오류가 났습니다' 안내와 오류 내용(종류·메시지·파일:줄·시각)을 보여 주고 `error_log`에도 남깁니다.
+  이 안내(와 `setup_error`)는 **HTTP 200**으로 보냅니다. 호스팅 웹서버가 500 응답의 본문을 빈 오류 페이지로 바꿔 버리기 때문입니다.
 - 보낸 크기가 `post_max_size`를 넘으면 PHP가 입력을 모두 버리므로, `csrf_verify()`가 이를 알아채 '사진이 너무 많거나 큽니다' 안내를 보여 줍니다.
 - 서버에서 사진을 줄일 때(`image_downscale`) 필요한 메모리를 미리 계산해 `memory_limit`을 올리고, 그래도 모자라면 줄이지 않고 원본을 둡니다.
 - `check.php`에 upload_max_filesize · post_max_size · memory_limit · max_file_uploads 값이 나옵니다.
