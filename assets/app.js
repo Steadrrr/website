@@ -353,3 +353,68 @@
   window.addEventListener('beforeprint', () => root.classList.add('printing'));
   window.addEventListener('afterprint', () => root.classList.remove('printing'));
 })();
+
+// 시간 입력: 브라우저 기본 시간 칸(분을 1분 단위로 보여 줌) 대신 '시 : 분' 드롭다운 (분은 step 단위, 보통 10분)
+//  - 원래 <input type="time"> 은 숨겨 두고 값만 맞춘다 → 저장·계산 스크립트는 그대로 동작
+//  - 스크립트가 .value / .required 를 바꿔도 드롭다운이 따라가고, 나중에 추가된 칸(회차·줄 추가)도 자동으로 바뀐다
+(function () {
+  const valueDesc = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value');
+  const pad = (n) => String(n).padStart(2, '0');
+  function enhance(inp) {
+    if (inp.dataset.tmDone) return;
+    inp.dataset.tmDone = '1';
+    const stepSec = parseInt(inp.getAttribute('step'), 10) || 600;
+    const mStep = Math.min(30, Math.max(5, Math.round(stepSec / 60))); // 10분 단위 (step 600)
+    const wrap = document.createElement('span');
+    wrap.className = 'tm-pick';
+    const hs = document.createElement('select');
+    const ms = document.createElement('select');
+    hs.className = 'tm-h'; ms.className = 'tm-m';
+    hs.setAttribute('aria-label', '시'); ms.setAttribute('aria-label', '분');
+    hs.add(new Option('--', ''));
+    for (let h = 0; h < 24; h++) hs.add(new Option(pad(h), pad(h)));
+    ms.add(new Option('--', ''));
+    for (let m = 0; m < 60; m += mStep) ms.add(new Option(pad(m), pad(m)));
+    const colon = document.createElement('span');
+    colon.className = 'tm-colon';
+    colon.textContent = ':';
+    wrap.append(hs, colon, ms);
+    inp.after(wrap);
+    inp.classList.add('tm-native');
+    inp.tabIndex = -1;
+    const fromInput = () => {
+      const m = /^(\d{2}):(\d{2})/.exec(valueDesc.get.call(inp) || '');
+      if (!m) { hs.value = ''; ms.value = ''; return; }
+      if (![...ms.options].some((o) => o.value === m[2])) ms.add(new Option(m[2], m[2])); // 예전에 저장된 10분 단위가 아닌 값도 그대로
+      hs.value = m[1];
+      ms.value = m[2];
+    };
+    const toInput = (ev) => {
+      if (hs.value === '') ms.value = '';
+      else if (ms.value === '') ms.value = '00';
+      if (ev && ev.target === ms && hs.value === '' && ms.value !== '') { hs.value = ''; ms.value = ''; }
+      valueDesc.set.call(inp, hs.value === '' ? '' : `${hs.value}:${ms.value}`);
+      inp.dispatchEvent(new Event('input', { bubbles: true }));
+      inp.dispatchEvent(new Event('change', { bubbles: true }));
+    };
+    hs.addEventListener('change', toInput);
+    ms.addEventListener('change', toInput);
+    // 스크립트가 값을 넣으면 드롭다운도 맞춘다
+    Object.defineProperty(inp, 'value', { configurable: true, get() { return valueDesc.get.call(this); }, set(v) { valueDesc.set.call(this, v); fromInput(); } });
+    // 필수 여부는 드롭다운에 (숨긴 칸에 두면 브라우저가 보이지 않는 칸을 가리키며 막음)
+    let req = inp.hasAttribute('required');
+    inp.removeAttribute('required');
+    const setReq = (v) => { req = !!v; hs.required = req; ms.required = req; };
+    setReq(req);
+    Object.defineProperty(inp, 'required', { configurable: true, get() { return req; }, set: setReq });
+    hs.disabled = ms.disabled = inp.disabled;
+    if (inp.form) inp.form.addEventListener('reset', () => setTimeout(fromInput, 0));
+    fromInput();
+  }
+  const scan = (root) => {
+    if (root.matches && root.matches('input[type=time]')) enhance(root);
+    if (root.querySelectorAll) root.querySelectorAll('input[type=time]').forEach(enhance);
+  };
+  scan(document);
+  new MutationObserver((list) => list.forEach((m) => m.addedNodes.forEach(scan))).observe(document.body, { childList: true, subtree: true });
+})();
