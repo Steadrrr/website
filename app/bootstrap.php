@@ -33,6 +33,7 @@ error_reporting(E_ALL);
 function fatal_page(string $what, string $file, int $line): void
 {
     error_log("forestlog: $what ($file:$line)");
+    diag_trace('ERROR ' . $what . ' (' . basename($file) . ":$line)");
     if (!headers_sent()) {
         // 500 으로 보내면 호스팅 웹서버가 본문을 빈 오류 페이지로 바꿔 버린다 → 200 으로 보내야 이 안내가 보인다
         http_response_code(200);
@@ -62,6 +63,27 @@ register_shutdown_function(function (): void {
         fatal_page($msg, $err['file'], $err['line']);
     }
 });
+
+/** 저장(POST) 진행 기록: 서버가 빈 화면으로 멈출 때 어디까지 갔는지 diag.php 에서 본다 (uploads/_diag/trace.log, 웹 접근 차단) */
+function diag_trace(string $step): void
+{
+    static $id = null;
+    $id ??= substr(bin2hex(random_bytes(3)), 0, 6);
+    $dir = APP_ROOT . '/uploads/_diag';
+    if (!is_dir($dir)) @mkdir($dir, 0755, true);
+    $file = "$dir/trace.log";
+    if (is_file($file) && filesize($file) > 200 * 1024) @rename($file, "$dir/trace.old.log");
+    @file_put_contents($file, date('m-d H:i:s') . " [$id] $step\n", FILE_APPEND | LOCK_EX);
+}
+if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
+    diag_trace('START ' . ($_SERVER['REQUEST_URI'] ?? '') . ' · 크기 ' . (int) ($_SERVER['CONTENT_LENGTH'] ?? 0) . 'B · 입력 ' . count($_POST, COUNT_RECURSIVE)
+        . '개 · 파일칸 ' . count($_FILES) . ' · 메모리 ' . round(memory_get_usage() / 1048576, 1) . 'MB');
+    register_shutdown_function(function (): void {
+        $err = error_get_last();
+        diag_trace('END 상태 ' . http_response_code() . ' · 최대메모리 ' . round(memory_get_peak_usage() / 1048576, 1) . 'MB'
+            . ($err ? ' · 마지막 오류: ' . $err['message'] . ' (' . basename($err['file']) . ':' . $err['line'] . ')' : ''));
+    });
+}
 
 require __DIR__ . '/helpers.php';
 require __DIR__ . '/auth.php';

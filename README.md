@@ -291,6 +291,8 @@
 - 보낸 크기가 `post_max_size`를 넘으면 PHP가 입력을 모두 버리므로, `csrf_verify()`가 이를 알아채 '사진이 너무 많거나 큽니다' 안내를 보여 줍니다.
 - 서버에서 사진을 줄일 때(`image_downscale`) 필요한 메모리를 미리 계산해 `memory_limit`을 올리고, 그래도 모자라면 줄이지 않고 원본을 둡니다.
 - `check.php`에 upload_max_filesize · post_max_size · memory_limit · max_file_uploads 값이 나옵니다.
+- **`diag.php` (최고관리자, 서버 진단)**: 모든 POST 요청은 `diag_trace()`로 `uploads/_diag/trace.log`(웹 접근 차단)에 START·단계·END 를 남깁니다. write.php 는 입력 확인·저장·커밋 단계를 기록합니다.
+  진단 화면은 이 기록, 서버 환경(PHP·확장·한도·opcache·폴더 권한), 운영보고 저장 모의 실험(트랜잭션 되돌림), 운영보고와 같은 모양의 폼 보내기 실험, opcache 비우기를 제공합니다.
 
 ## 4-0-a. 시간 입력 (전체 공통)
 - 모든 `<input type="time">` 칸은 `assets/app.js`가 **시 : 분 드롭다운**으로 바꿔 보여 줍니다 (원래 칸은 숨겨 두고 값만 맞춤, 동적으로 추가되는 칸 포함).

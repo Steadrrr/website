@@ -58,8 +58,10 @@ if (is_post()) {
     if (!valid_date($workDate)) $errors[] = '일자를 확인하세요.';
     if ($type === 'daily' && $content === '') $errors[] = '업무내용을 입력하세요.';
 
+    diag_trace("write $type #$id 입력 확인");
     [$payload, $itemErrors] = items_parse($type, valid_date($workDate) ? $workDate : date('Y-m-d'), $id);
     $errors = [...$errors, ...$itemErrors];
+    diag_trace('입력 확인 끝 · 오류 ' . count($errors) . '건' . ($errors ? ': ' . implode(' / ', array_slice($errors, 0, 3)) : ''));
 
     if (!$errors) {
         $pdo->beginTransaction();
@@ -73,10 +75,13 @@ if (is_post()) {
                     ->execute([$type, $teamId, $workDate, $user['id'], $weather ?: null, $content, $remarks]);
                 $id = (int) $pdo->lastInsertId();
             }
+            diag_trace("문서 #$id 저장 중");
             items_save($id, $type, $payload);
+            diag_trace('내용 저장 끝');
             // 운영보고 날짜를 바꿨으면 원래 날짜의 매출보고 프로그램 판매도 다시 맞춘다
             if ($journal && is_program_type($type) && $journal['work_date'] !== $workDate) sales_sync_programs($journal['work_date'], PROGRAM_TYPES[$type] . " 운영보고 날짜 변경 {$journal['work_date']} → $workDate (문서 $id)");
             $pdo->commit();
+            diag_trace('DB 저장 완료');
         } catch (Throwable $e) {
             $pdo->rollBack();
             throw $e;
@@ -104,6 +109,7 @@ if (is_post()) {
         $notes = array_filter([$revision && $reason !== '' ? "사유: $reason" : '', $type === 'daily' && $cplCount ? "민원 {$cplCount}건" : '']);
         journal_log($id, $user, $revision ? '수정 (결재 다시 올림)' : ($journal ? ($submit ? '수정 후 결재 올리기' : '임시저장 수정') : ($submit ? '작성 · 결재 올리기' : '작성 (임시저장)')),
             implode(' · ', $notes));
+        diag_trace('완료 → 보기 화면으로');
         redirect('view.php?id=' . $id);
     }
 }
