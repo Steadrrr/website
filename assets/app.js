@@ -56,6 +56,14 @@
         setText($(tr, '[data-dc-pct]'), pct + '%');
         dcBox.disabled = pct === 0;
         if (dcBox.disabled) dcBox.checked = false;
+        // 할인사유: 할인에 체크했을 때만 고르고, 비어 있으면 붉게
+        const why = $(tr, '[data-dc-reason]');
+        if (why) {
+          why.disabled = !dcBox.checked;
+          if (!dcBox.checked) why.value = '';
+          why.required = dcBox.checked;
+          why.classList.toggle('invalid', dcBox.checked && !why.value);
+        }
         const base = num(tr.dataset[rate]);
         const unit = dcBox.checked ? Math.floor(base * (100 - pct) / 1000) * 10 : base;
         const g = num($(tr, '[data-guests]').value);
@@ -179,7 +187,7 @@
       recalc();
     });
   });
-  document.querySelectorAll('[data-rate], [data-dc]').forEach((el) => el.addEventListener('change', recalc));
+  document.querySelectorAll('[data-rate], [data-dc], [data-dc-reason]').forEach((el) => el.addEventListener('change', recalc));
   document.querySelectorAll('[data-rent-time], [data-rent-night]').forEach((el) => el.addEventListener('change', recalc));
   document.querySelectorAll('[data-rent-youth]').forEach((el) => el.addEventListener('change', recalc));
 

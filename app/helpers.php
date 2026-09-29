@@ -68,6 +68,7 @@ const RENT_DC_RULES = [
 // 객실 요금구분
 const RATE_TYPES = ['weekday' => '비수기 평일', 'weekend' => '비수기 주말', 'peak' => '성수기'];
 const RATE_DC_DEFAULT = ['weekday' => 30, 'weekend' => 10, 'peak' => 10]; // 할인율(%) 기본값
+const ROOM_DC_REASONS = ['multichild' => '다자녀', 'local' => '지역주민', 'disabled' => '장애인', 'group' => '단체']; // 객실 할인사유 (일일객실판매)
 
 const JOURNAL_STATUS = [
     'draft'    => '임시저장',

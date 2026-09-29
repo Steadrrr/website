@@ -272,6 +272,8 @@ a.kpi:hover { text-decoration: none; border-color: var(--green); }
 .room-table tr.unassigned td { background: #fafafa; font-size: .85rem; }
 .room-table select { min-width: 7.5rem; }
 .dc-check { margin: 0; font-size: .85rem; }
+.dc-reason { width: auto; min-width: 6.2rem; margin: .2rem 0 0; padding: .2rem 1.4rem .2rem .4rem; font-size: .82rem; display: block; }
+.dc-reason:disabled { opacity: .45; }
 .dc-form { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem 1rem; padding: .6rem .8rem; background: #f7f9f7; border-radius: 6px; margin-bottom: .75rem; }
 .dc-form label { display: inline-flex; align-items: center; gap: .3rem; margin: 0; font-weight: 400; }
 .dc-form input { width: 4rem; margin: 0; }

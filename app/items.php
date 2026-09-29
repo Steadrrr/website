@@ -137,6 +137,8 @@ function items_parse(string $type, string $workDate, int $journalId): array
             $rate = isset(RATE_TYPES[$row['rate'] ?? '']) ? $row['rate'] : rate_for_date($workDate);
             $dc = !empty($row['dc']);
             $unit = room_price($p, $rate, $dc);
+            $dcReason = (string) ($row['dc_reason'] ?? '');
+            if ($dc && $unit !== room_price($p, $rate) && !isset(ROOM_DC_REASONS[$dcReason])) $errors[] = "{$p['name']}: 할인사유를 고르세요.";
             $roomSeason = $rate === 'peak' ? season_for('room', $workDate) : null;
             $refund = voucher_amount($vouchers);
             $expected = room_refund($p, $rate);
@@ -146,6 +148,7 @@ function items_parse(string $type, string $workDate, int $journalId): array
             $lines[] = [
                 'product_id' => (int) $p['id'], 'grp' => 'room', 'name' => $p['name'], 'is_free' => 0,
                 'rate' => $rate, 'season' => $roomSeason['name'] ?? null, 'discounted' => (int) ($dc && $unit !== room_price($p, $rate)),
+                'dc_reason' => $dc && isset(ROOM_DC_REASONS[$dcReason]) ? $dcReason : null,
                 'unit_price' => $unit, 'qty' => 1, 'guests' => $guests, 'amount' => $unit,
                 'refund_expected' => $expected, 'vouchers' => $vouchers,
             ];
@@ -350,13 +353,13 @@ function items_save(int $id, string $type, array $payload): void
     if (in_array($type, SALE_DOC_TYPES, true)) {
         $pdo->prepare('DELETE FROM sales_lines WHERE journal_id = ?')->execute([$id]);
         $ins = $pdo->prepare(
-            'INSERT INTO sales_lines (journal_id, product_id, grp, name, is_free, rate, season, discounted, unit_price, qty, guests, refund_expected, rent_time, night, dc_pct, prog_type, sessions, auto, amount)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+            'INSERT INTO sales_lines (journal_id, product_id, grp, name, is_free, rate, season, discounted, unit_price, qty, guests, refund_expected, rent_time, night, dc_pct, dc_reason, prog_type, sessions, auto, amount)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
         );
         foreach ($payload['lines'] as $l) {
             $ins->execute([$id, $l['product_id'], $l['grp'], $l['name'], $l['is_free'], $l['rate'], $l['season'] ?? null,
                 $l['discounted'], $l['unit_price'], $l['qty'], $l['guests'], $l['refund_expected'] ?? null,
-                $l['rent_time'] ?? null, (int) ($l['night'] ?? 0), (int) ($l['dc_pct'] ?? 0), $l['prog_type'] ?? null, (int) ($l['sessions'] ?? 0), (int) ($l['auto'] ?? 0), $l['amount']]);
+                $l['rent_time'] ?? null, (int) ($l['night'] ?? 0), (int) ($l['dc_pct'] ?? 0), $l['dc_reason'] ?? null, $l['prog_type'] ?? null, (int) ($l['sessions'] ?? 0), (int) ($l['auto'] ?? 0), $l['amount']]);
             $lineId = (int) $pdo->lastInsertId();
             foreach ($l['vouchers'] ?? [] as $denom => $qty) {
                 if ($qty > 0) $moveIns->execute([$id, $lineId, 'out', $denom, $qty]);
@@ -495,7 +498,7 @@ function items_form(string $type, array $payload, string $workDate, ?array $jour
   <h3>객실 판매 · 지역상품권 환급</h3>
   <p class="muted small">
     판매한 객실의 <b>입실인원</b>을 입력하세요. 요금구분은 날짜로 자동 선택됩니다(성수기 기간 → 성수기, 금·토 → 비수기 주말).
-    할인 대상이면 '할인'에 체크하세요 (<?= e(implode(', ', array_map(fn($k, $v) => $v . ' ' . room_dc_pct($k) . '%', array_keys(RATE_TYPES), RATE_TYPES))) ?>).
+    할인 대상이면 '할인'에 체크하고 <b>할인사유</b>(<?= e(implode('·', ROOM_DC_REASONS)) ?>)를 고르세요 (<?= e(implode(', ', array_map(fn($k, $v) => $v . ' ' . room_dc_pct($k) . '%', array_keys(RATE_TYPES), RATE_TYPES))) ?>).
     지역상품권은 환급한 권종별 매수를 입력하며, 객실·요금구분별 기준 환급액과 다르면 붉게 표시되고 저장할 때 알려 드립니다.
   </p>
   <div class="table-scroll">
@@ -513,7 +516,10 @@ function items_form(string $type, array $payload, string $workDate, ?array $jour
         <td><select name="room[<?= $pid ?>][rate]" data-rate>
           <?php foreach (RATE_TYPES as $k => $label): ?><option value="<?= $k ?>" <?= $rate === $k ? 'selected' : '' ?>><?= e($label) ?></option><?php endforeach ?>
         </select></td>
-        <td class="nowrap"><label class="inline-check dc-check"><input type="checkbox" name="room[<?= $pid ?>][dc]" value="1" data-dc <?= !empty($l['discounted']) ? 'checked' : '' ?>><span data-dc-pct></span></label></td>
+        <td class="nowrap"><label class="inline-check dc-check"><input type="checkbox" name="room[<?= $pid ?>][dc]" value="1" data-dc <?= !empty($l['discounted']) ? 'checked' : '' ?>><span data-dc-pct></span></label>
+          <select name="room[<?= $pid ?>][dc_reason]" class="dc-reason" data-dc-reason aria-label="할인사유"><option value="">할인사유</option>
+            <?php foreach (ROOM_DC_REASONS as $k => $label): ?><option value="<?= $k ?>" <?= ($l['dc_reason'] ?? '') === $k ? 'selected' : '' ?>><?= e($label) ?></option><?php endforeach ?>
+          </select></td>
         <td class="right" data-unit>0</td>
         <td><input name="room[<?= $pid ?>][guests]" value="<?= e(($l['guests'] ?? 0) ?: '') ?>" inputmode="numeric" class="num tiny" data-money data-guests></td>
         <td class="right" data-line-amount>0</td>
@@ -832,7 +838,7 @@ function items_view(array $journal): void
         $refund = voucher_amount($l['vouchers']);
         $mismatch = $l['refund_expected'] !== null && $refund !== (int) $l['refund_expected']; ?>
       <tr class="<?= $mismatch ? 'issue' : '' ?>"><td><?= e($l['name']) ?></td>
-        <td><?= e(RATE_TYPES[$l['rate']] ?? '') ?><?= $l['season'] ? ' <small class="muted">(' . e($l['season']) . ')</small>' : '' ?><?= $l['discounted'] ? ' <span class="badge st-pending">할인</span>' : '' ?></td>
+        <td><?= e(RATE_TYPES[$l['rate']] ?? '') ?><?= $l['season'] ? ' <small class="muted">(' . e($l['season']) . ')</small>' : '' ?><?= $l['discounted'] ? ' <span class="badge st-pending">할인' . (!empty($l['dc_reason']) ? ' · ' . e(ROOM_DC_REASONS[$l['dc_reason']] ?? $l['dc_reason']) : '') . '</span>' : '' ?></td>
         <td class="right"><?= number_format($l['unit_price']) ?></td>
         <td class="right"><?= number_format($l['guests']) ?></td><td class="right"><?= number_format($l['amount']) ?></td>
         <?php foreach ($denoms as $d): ?><td class="right"><?= $l['vouchers'][$d] ? number_format($l['vouchers'][$d]) : '' ?></td><?php endforeach ?>

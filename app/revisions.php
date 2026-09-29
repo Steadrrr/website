@@ -79,7 +79,7 @@ function journal_snapshot(array $journal): array
                 $lines[] = "{$l['name']} " . number_format($l['qty']) . '매 × ' . number_format($l['unit_price']) . ' = ' . number_format($l['amount']) . '원';
             } else {
                 $refund = $vouchersText($l['vouchers'] ?? []);
-                $lines[] = "{$l['name']} · " . (RATE_TYPES[$l['rate']] ?? '') . ($l['discounted'] ? ' · 할인' : '')
+                $lines[] = "{$l['name']} · " . (RATE_TYPES[$l['rate']] ?? '') . ($l['discounted'] ? ' · 할인' . (!empty($l['dc_reason']) ? '(' . (ROOM_DC_REASONS[$l['dc_reason']] ?? $l['dc_reason']) . ')' : '') : '')
                     . ' · ' . $l['guests'] . '명 · ' . number_format($l['amount']) . '원' . ($refund ? " · 환급 $refund" : '');
             }
         }

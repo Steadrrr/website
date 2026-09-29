@@ -150,6 +150,7 @@ CREATE TABLE IF NOT EXISTS sales_lines (
   rent_time  VARCHAR(10)  NULL COMMENT '시설대관 시간: 2h / 4h / day',
   night      TINYINT(1)   NOT NULL DEFAULT 0 COMMENT '시설대관 야간 사용',
   dc_pct     TINYINT UNSIGNED NOT NULL DEFAULT 0 COMMENT '대관 숙박시설 할인율(%)',
+  dc_reason  VARCHAR(20) NULL COMMENT '객실 할인사유 (ROOM_DC_REASONS 키: multichild·local·disabled·group)',
   prog_type  VARCHAR(20)  NULL COMMENT '프로그램 판매: 분야 (healing 등)',
   sessions   SMALLINT UNSIGNED NOT NULL DEFAULT 0 COMMENT '프로그램 판매: 회차 수',
   auto       TINYINT(1)   NOT NULL DEFAULT 0 COMMENT '프로그램 판매: 1 = 그 날 운영보고에서 자동',
