@@ -1151,3 +1151,5 @@ label .tm-pick { display: flex; margin-top: .25rem; }
 @media print { .tg-scroll { overflow: visible; } .tg-week { min-width: 0; } }
 
 .rs-table tr.rs-closed td { background: #f6f6f6; color: #9aa0a6; }
+.imp-status label { display: flex; align-items: center; gap: .5rem; margin: .3rem 0; font-weight: 400; }
+.imp-status input { width: auto; margin: 0; }
