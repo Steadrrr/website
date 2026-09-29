@@ -32,6 +32,10 @@ foreach (array('pdo_mysql' => '필수 (DB 연결)', 'mbstring' => '필수 (한�
         $required ? '호스팅 업체에 해당 PHP 확장을 켜 달라고 요청하세요.' : '');
 }
 
+// 2-1) 업로드·메모리 한도 (사진 저장)
+add_result($results, true, '업로드·메모리 한도', 'upload_max_filesize ' . ini_get('upload_max_filesize') . ' · post_max_size ' . ini_get('post_max_size')
+    . ' · memory_limit ' . ini_get('memory_limit') . ' · max_file_uploads ' . ini_get('max_file_uploads'), '');
+
 // 3) 필수 파일
 $missing = array();
 foreach (array('index.php', 'login.php', '.htaccess', 'app/bootstrap.php', 'app/helpers.php', 'app/migrate.php',

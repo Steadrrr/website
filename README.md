@@ -284,6 +284,13 @@
   그래서 지난 매출보고를 나중에 입력해도 담당자 보유가 틀어지지 않습니다.
 - 권종은 `config.php`의 `voucher_denoms`에서 바꿀 수 있습니다.
 
+## 4-0-b. 오류 화면 (빈 화면 방지)
+- 서버는 `display_errors`가 꺼져 있어 PHP 오류가 나면 빈 화면이 됩니다. `app/bootstrap.php`의 예외 처리기·종료 처리기(`fatal_page`)가
+  빈 화면 대신 '처리 중 오류가 났습니다' 안내와 오류 내용(종류·메시지·파일:줄·시각)을 보여 주고 `error_log`에도 남깁니다.
+- 보낸 크기가 `post_max_size`를 넘으면 PHP가 입력을 모두 버리므로, `csrf_verify()`가 이를 알아채 '사진이 너무 많거나 큽니다' 안내를 보여 줍니다.
+- 서버에서 사진을 줄일 때(`image_downscale`) 필요한 메모리를 미리 계산해 `memory_limit`을 올리고, 그래도 모자라면 줄이지 않고 원본을 둡니다.
+- `check.php`에 upload_max_filesize · post_max_size · memory_limit · max_file_uploads 값이 나옵니다.
+
 ## 4-0-a. 시간 입력 (전체 공통)
 - 모든 `<input type="time">` 칸은 `assets/app.js`가 **시 : 분 드롭다운**으로 바꿔 보여 줍니다 (원래 칸은 숨겨 두고 값만 맞춤, 동적으로 추가되는 칸 포함).
   분은 칸의 `step`(기본 600초) 단위 = **10분 단위**라서 브라우저의 '유효한 값' 경고가 나오지 않습니다. 시만 고르면 분은 00, `required`도 드롭다운에 옮겨집니다.

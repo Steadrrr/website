@@ -173,6 +173,14 @@ function is_post(): bool
 function csrf_verify(): void
 {
     if (is_post() && !hash_equals(csrf_token(), (string) ($_POST['_csrf'] ?? ''))) {
+        // 보낸 크기가 서버 한도(post_max_size)를 넘으면 PHP 가 입력을 모두 버린다 → 원인을 알려 준다
+        $limit = ini_bytes((string) ini_get('post_max_size'));
+        if (!$_POST && (int) ($_SERVER['CONTENT_LENGTH'] ?? 0) > $limit) {
+            http_response_code(413);
+            header('Content-Type: text/plain; charset=utf-8');
+            exit('사진이 너무 많거나 커서 서버가 받지 못했습니다 (한 번에 ' . ini_get('post_max_size') . ' 까지).'
+                . "\n저장되지 않았습니다. 뒤로 가서 사진을 나눠서 올려 주세요 (먼저 저장한 뒤 수정에서 추가).");
+        }
         http_response_code(400);
         exit('잘못된 요청입니다. 페이지를 새로고침한 뒤 다시 시도하세요.');
     }

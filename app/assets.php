@@ -158,6 +158,13 @@ function image_downscale(string $absPath, int $max, int $quality = 70): void
     if (!function_exists('imagecreatefromstring')) return;
     $info = @getimagesize($absPath);
     if (!$info || ($info[0] <= $max && $info[1] <= $max && filesize($absPath) < 300 * 1024)) return;
+    // 아주 큰 사진(휴대폰 5천만 화소 등)은 GD 가 메모리를 많이 쓴다: 필요하면 한도를 올리고, 그래도 모자라면 줄이지 않고 그대로 둔다
+    $scale0 = min(1, $max / max($info[0], $info[1]));
+    $need = (int) (($info[0] * $info[1] + $info[0] * $scale0 * $info[1] * $scale0) * 5.5) + memory_get_usage() + 16 * 1024 * 1024;
+    if ($need > ini_bytes((string) ini_get('memory_limit'))) {
+        @ini_set('memory_limit', (string) max($need, 256 * 1024 * 1024));
+        if ($need > ini_bytes((string) ini_get('memory_limit'))) return;
+    }
     $src = @imagecreatefromstring((string) file_get_contents($absPath));
     if (!$src) return;
     $scale = min(1, $max / max($info[0], $info[1]));
@@ -169,6 +176,15 @@ function image_downscale(string $absPath, int $max, int $quality = 70): void
     imagejpeg($dst, $absPath, $quality); // 확장자가 png여도 브라우저는 내용으로 표시
     imagedestroy($src);
     imagedestroy($dst);
+}
+
+/** php.ini 크기 값(128M, 1G, -1)을 바이트로 */
+function ini_bytes(string $v): int
+{
+    $v = trim($v);
+    if ($v === '' || $v === '-1') return PHP_INT_MAX;
+    $n = (int) $v;
+    return match (strtolower(substr($v, -1))) { 'g' => $n << 30, 'm' => $n << 20, 'k' => $n << 10, default => $n };
 }
 
 function store_uploaded_image(string $name, string $tmp, int $err, string $type): array
