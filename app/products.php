@@ -196,6 +196,18 @@ function room_dc_pct(string $rate): int
     return (int) setting('room_dc_' . $rate, (string) (RATE_DC_DEFAULT[$rate] ?? 0));
 }
 
+/** 단체 할인율(%) — 설정 › 상품·요금. 0(빈칸)이면 단체도 요금구분별 할인율을 쓴다 */
+function room_dc_group_pct(): int
+{
+    return max(0, min(100, (int) setting('room_dc_group', '0')));
+}
+
+/** 객실 할인에 적용할 할인율: 할인사유가 '단체'이고 단체 할인율이 있으면 그것, 아니면 요금구분별 할인율 */
+function room_dc_pct_for(string $rate, ?string $reason = null): int
+{
+    return $reason === 'group' && room_dc_group_pct() > 0 ? room_dc_group_pct() : room_dc_pct($rate);
+}
+
 /** 요금구분별 정상 요금 */
 function room_base_price(array $p, string $rate): int
 {
@@ -217,10 +229,10 @@ function room_refund(array $p, string $rate): int
 }
 
 /** 객실 단가 (서버에서 항상 다시 계산한다. 화면 입력값은 믿지 않음). 할인가는 10원 단위 버림 */
-function room_price(array $p, string $rate, bool $discount = false): int
+function room_price(array $p, string $rate, bool $discount = false, ?string $reason = null): int
 {
     $base = room_base_price($p, $rate);
-    $pct = room_dc_pct($rate);
+    $pct = room_dc_pct_for($rate, $reason);
     return $discount && $pct > 0 ? intdiv($base * (100 - $pct), 1000) * 10 : $base;
 }
 

@@ -21,6 +21,7 @@ if (is_post()) {
         foreach (array_keys(RATE_TYPES) as $rate) {
             setting_set('room_dc_' . $rate, (string) max(0, min(100, (int) post('dc_' . $rate))));
         }
+        setting_set('room_dc_group', (string) max(0, min(100, (int) post('dc_group')))); // 단체 (0 = 요금구분별)
         flash('객실 할인율을 저장했습니다. (이미 작성된 매출보고의 금액은 바뀌지 않습니다)', 'success');
         redirect('admin/products.php#room');
     }
@@ -294,8 +295,10 @@ settings_nav('products');
     <?php foreach (RATE_TYPES as $rate => $label): ?>
       <label><?= e($label) ?> <input name="dc_<?= $rate ?>" value="<?= room_dc_pct($rate) ?>" class="num tiny" inputmode="numeric"> %</label>
     <?php endforeach ?>
+    <label title="일일객실판매에서 할인사유를 '단체'로 고르면 요금구분과 관계없이 이 할인율을 씁니다. 비워 두면 요금구분별 할인율">단체 <input name="dc_group" value="<?= room_dc_group_pct() ?: '' ?>" class="num tiny" inputmode="numeric" placeholder="-"> %</label>
     <button class="btn small primary">할인율 저장</button>
   </form>
+  <p class="muted small">단체: 일일객실판매에서 할인사유를 <b>단체</b>로 고른 객실에 요금구분과 관계없이 이 할인율을 적용합니다. 비워 두면 단체도 요금구분별 할인율을 씁니다.</p>
 
   <h2 id="room-types">객실 분류 <small class="muted">인원 · 요금 · 환급액</small></h2>
   <div class="table-scroll">

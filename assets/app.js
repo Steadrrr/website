@@ -51,13 +51,14 @@
         const rateSel = $(tr, '[data-rate]');
         if (!rateSel) return; // 객실 미지정 환급 행
         const rate = rateSel.value;
-        const pct = dc[rate] || 0;
+        const group = window.ROOM_DC_GROUP || 0; // 단체 할인율 (0이면 요금구분별)
         const dcBox = $(tr, '[data-dc]');
+        const why = $(tr, '[data-dc-reason]');
+        const pct = dcBox.checked && why && why.value === 'group' && group > 0 ? group : (dc[rate] || 0);
         setText($(tr, '[data-dc-pct]'), pct + '%');
-        dcBox.disabled = pct === 0;
+        dcBox.disabled = !(dc[rate] || 0) && !group;
         if (dcBox.disabled) dcBox.checked = false;
         // 할인사유: 할인에 체크했을 때만 고르고, 비어 있으면 붉게
-        const why = $(tr, '[data-dc-reason]');
         if (why) {
           why.disabled = !dcBox.checked;
           if (!dcBox.checked) why.value = '';

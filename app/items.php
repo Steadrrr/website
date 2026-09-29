@@ -136,8 +136,8 @@ function items_parse(string $type, string $workDate, int $journalId): array
             }
             $rate = isset(RATE_TYPES[$row['rate'] ?? '']) ? $row['rate'] : rate_for_date($workDate);
             $dc = !empty($row['dc']);
-            $unit = room_price($p, $rate, $dc);
             $dcReason = (string) ($row['dc_reason'] ?? '');
+            $unit = room_price($p, $rate, $dc, $dc ? $dcReason : null); // 할인사유가 단체면 단체 할인율
             if ($dc && $unit !== room_price($p, $rate) && !isset(ROOM_DC_REASONS[$dcReason])) $errors[] = "{$p['name']}: 할인사유를 고르세요.";
             $roomSeason = $rate === 'peak' ? season_for('room', $workDate) : null;
             $refund = voucher_amount($vouchers);
@@ -494,11 +494,11 @@ function items_form(string $type, array $payload, string $workDate, ?array $jour
         foreach (journal_vouchers_out((int) $journal['id']) as $d => $q) $stock[$d] += $q;
     }
     $unassigned = array_sum($payload['vouchers'] ?? []) > 0; ?>
-  <script>window.ROOM_DC = <?= json_encode(array_map(fn($k) => room_dc_pct($k), array_combine(array_keys(RATE_TYPES), array_keys(RATE_TYPES)))) ?>;</script>
+  <script>window.ROOM_DC = <?= json_encode(array_map(fn($k) => room_dc_pct($k), array_combine(array_keys(RATE_TYPES), array_keys(RATE_TYPES)))) ?>; window.ROOM_DC_GROUP = <?= room_dc_group_pct() ?>;</script>
   <h3>객실 판매 · 지역상품권 환급</h3>
   <p class="muted small">
     판매한 객실의 <b>입실인원</b>을 입력하세요. 요금구분은 날짜로 자동 선택됩니다(성수기 기간 → 성수기, 금·토 → 비수기 주말).
-    할인 대상이면 '할인'에 체크하고 <b>할인사유</b>(<?= e(implode('·', ROOM_DC_REASONS)) ?>)를 고르세요 (<?= e(implode(', ', array_map(fn($k, $v) => $v . ' ' . room_dc_pct($k) . '%', array_keys(RATE_TYPES), RATE_TYPES))) ?>).
+    할인 대상이면 '할인'에 체크하고 <b>할인사유</b>(<?= e(implode('·', ROOM_DC_REASONS)) ?>)를 고르세요 (<?= e(implode(', ', array_map(fn($k, $v) => $v . ' ' . room_dc_pct($k) . '%', array_keys(RATE_TYPES), RATE_TYPES))) ?><?= room_dc_group_pct() ? ', 할인사유가 단체면 ' . room_dc_group_pct() . '%' : '' ?>).
     지역상품권은 환급한 권종별 매수를 입력하며, 객실·요금구분별 기준 환급액과 다르면 붉게 표시되고 저장할 때 알려 드립니다.
   </p>
   <div class="table-scroll">
