@@ -1,13 +1,13 @@
 <?php
 /**
- * 설정 (최고관리자): settings.php?tab=general (기본 정보) | org (조직 구성: 팀·반)
+ * 설정 (최고관리자): settings.php?tab=general (기본 정보) | org (조직 구성: 팀·반) | closed (휴관일: 정기 휴관 요일·명절 등)
  * 다른 하위 메뉴(회원관리, 상품·요금, 시설 구역, 장비 분류)는 각 페이지에서 같은 설정 메뉴를 보여준다.
  */
 require __DIR__ . '/app/bootstrap.php';
 
 $me = require_admin();
 $pdo = db();
-$tab = ($_GET['tab'] ?? 'general') === 'org' ? 'org' : 'general';
+$tab = in_array($_GET['tab'] ?? '', ['org', 'closed'], true) ? $_GET['tab'] : 'general';
 
 if (is_post()) {
     csrf_verify();
@@ -27,6 +27,36 @@ if (is_post()) {
         setting_set('org_park_name', mb_substr(post('org_park_name'), 0, 100));
         flash('기본 정보를 저장했습니다.', 'success');
         redirect('settings.php?tab=general');
+    }
+
+    // 휴관일: 정기 휴관 요일 / 명절 등 휴관 기간 (객실이용통계 가동률에서 뺀다)
+    if ($target === 'closed_weekdays') {
+        $wds = array_values(array_unique(array_filter(array_map('intval', (array) ($_POST['wd'] ?? [])), fn($w) => $w >= 0 && $w <= 6)));
+        sort($wds);
+        setting_set('closed_weekdays', implode(',', $wds));
+        flash('정기 휴관 요일을 저장했습니다.', 'success');
+        redirect('settings.php?tab=closed');
+    }
+    if ($target === 'closed_day') {
+        if ($del) {
+            $pdo->prepare('DELETE FROM closed_days WHERE id = ?')->execute([$id]);
+            flash('휴관일을 삭제했습니다.', 'success');
+        } else {
+            $cname = mb_substr(post('name'), 0, 100);
+            $df = post('date_from');
+            $dt = post('date_to') ?: $df;
+            if ($cname === '' || !valid_date($df) || !valid_date($dt)) flash('이름과 날짜를 확인하세요.', 'error');
+            elseif ($dt < $df) flash('끝나는 날이 시작일보다 빠릅니다.', 'error');
+            elseif ((strtotime($dt) - strtotime($df)) / 86400 > 31) flash('한 번에 31일까지 등록할 수 있습니다.', 'error');
+            elseif ($id) {
+                $pdo->prepare('UPDATE closed_days SET name = ?, date_from = ?, date_to = ? WHERE id = ?')->execute([$cname, $df, $dt, $id]);
+                flash("'{$cname}' 저장했습니다.", 'success');
+            } else {
+                $pdo->prepare('INSERT INTO closed_days (name, date_from, date_to, created_by) VALUES (?, ?, ?, ?)')->execute([$cname, $df, $dt, $me['id']]);
+                flash("휴관일 '{$cname}'을(를) 추가했습니다.", 'success');
+            }
+        }
+        redirect('settings.php?tab=closed');
     }
 
     if ($target === 'team') {
@@ -69,7 +99,7 @@ if (is_post()) {
     redirect('settings.php');
 }
 
-layout_header('설정', 'settings');
+layout_header($tab === 'closed' ? '휴관일' : '설정', 'settings');
 settings_nav($tab);
 
 if ($tab === 'general'): ?>
@@ -89,11 +119,55 @@ if ($tab === 'general'): ?>
   <h2>설정 메뉴 안내</h2>
   <ul class="list">
     <li><a href="<?= e(url('settings.php?tab=org')) ?>">조직 구성</a><span class="muted">팀과 팀 아래 반을 만들고 이름·순서를 정합니다</span></li>
+    <li><a href="<?= e(url('settings.php?tab=closed')) ?>">휴관일</a><span class="muted">정기 휴관 요일과 명절 등 휴관일 (객실 가동률 계산에서 뺍니다)</span></li>
     <li><a href="<?= e(url('admin/users.php')) ?>">회원관리</a><span class="muted">가입 승인, 직급·팀·반·반장·보직 지정, 전결권한</span></li>
     <li><a href="<?= e(url('admin/products.php')) ?>">상품·요금</a><span class="muted">입장권·객실 상품, 객실 할인율, 기간요금(성수기·동절기)</span></li>
     <li><a href="<?= e(url('groups.php?kind=facility')) ?>">시설 구역·건물</a><span class="muted">팀별 시설 구역·건물 (세부시설은 시설물 메뉴에서 등록)</span></li>
     <li><a href="<?= e(url('groups.php?kind=equipment')) ?>">장비 분류</a><span class="muted">팀별 장비 분류 (장비는 장비 메뉴에서 등록)</span></li>
   </ul>
+</section>
+<?php elseif ($tab === 'closed'):
+    $wds = closed_weekdays();
+    $wdNames = ['일', '월', '화', '수', '목', '금', '토'];
+    $list = closed_days_all();
+    $today = date('Y-m-d');
+    $cRow = function (?array $c) {
+        $fid = 'cd' . ($c['id'] ?? 'new'); ?>
+      <tr class="<?= $c ? ($c['date_to'] < date('Y-m-d') ? 'inactive' : '') : 'new-row' ?>">
+        <td><input form="<?= $fid ?>" name="name" value="<?= e($c['name'] ?? '') ?>" placeholder="예: <?= date('Y') + 1 ?> 설날 휴관" required></td>
+        <td><input form="<?= $fid ?>" type="date" name="date_from" value="<?= e($c['date_from'] ?? '') ?>" required></td>
+        <td><input form="<?= $fid ?>" type="date" name="date_to" value="<?= e($c['date_to'] ?? '') ?>" placeholder="하루면 비움"></td>
+        <td class="small nowrap"><?= $c ? ((int) round((strtotime($c['date_to']) - strtotime($c['date_from'])) / 86400) + 1) . '일 · ' . e(weekday_ko($c['date_from'])) . '~' . e(weekday_ko($c['date_to'])) : '' ?></td>
+        <td class="nowrap">
+          <form method="post" id="<?= $fid ?>">
+            <?= csrf_field() ?><input type="hidden" name="target" value="closed_day"><input type="hidden" name="id" value="<?= (int) ($c['id'] ?? 0) ?>">
+            <button class="btn small primary" name="action" value="save"><?= $c ? '저장' : '추가' ?></button>
+            <?php if ($c): ?><button class="btn small ghost danger" name="action" value="delete" formnovalidate onclick="return confirm('삭제할까요?')">삭제</button><?php endif ?>
+          </form>
+        </td>
+      </tr>
+    <?php }; ?>
+<section class="card">
+  <h1>휴관일</h1>
+  <p class="muted small">여기 등록한 휴관일은 <b>통계 › 객실이용통계</b>의 가동률 계산에서 뺍니다 (가동률 = 판매 객실 ÷ (객실 수 × <b>영업일</b>)).</p>
+  <form method="post" class="dc-form">
+    <?= csrf_field() ?><input type="hidden" name="target" value="closed_weekdays">
+    <b>정기 휴관 요일 (매주)</b>
+    <?php foreach ([1, 2, 3, 4, 5, 6, 0] as $w): ?>
+      <label class="inline-check"><input type="checkbox" name="wd[]" value="<?= $w ?>" <?= in_array($w, $wds, true) ? 'checked' : '' ?>> <?= $wdNames[$w] ?></label>
+    <?php endforeach ?>
+    <button class="btn small primary">저장</button>
+  </form>
+
+  <h2>명절 등 휴관일 <small class="muted">해마다 날짜가 바뀌는 휴관 (설날·추석 등)</small></h2>
+  <table class="table product-table">
+    <thead><tr><th>이름</th><th>시작일</th><th>끝나는 날 <small class="muted">(하루면 비움)</small></th><th>일수</th><th></th></tr></thead>
+    <tbody>
+      <?php $cRow(null); foreach ($list as $c) $cRow($c); ?>
+    </tbody>
+  </table>
+  <?php if (!$list): ?><p class="muted small">등록된 휴관일이 없습니다. 위 첫 줄에 이름과 날짜를 넣고 '추가'를 누르세요.</p><?php endif ?>
+  <p class="muted small">지난 휴관일은 흐리게 보입니다. 지난 기간의 통계에도 계속 쓰이므로 지우지 않아도 됩니다.</p>
 </section>
 <?php else:
     $teamCounts = array_column($pdo->query("SELECT team_id, COUNT(*) AS n FROM users WHERE status = 'active' GROUP BY team_id")->fetchAll(), 'n', 'team_id');

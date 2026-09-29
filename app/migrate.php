@@ -6,7 +6,7 @@ defined('APP_ROOT') || exit;
  * 새 버전 파일을 FTP로 덮어쓰기만 하면, 첫 접속 때 부족한 테이블/컬럼을 만든다.
  * (기존 자료는 그대로 유지)
  */
-const DB_VERSION = 41;
+const DB_VERSION = 42;
 
 function db_version(): int
 {
@@ -393,6 +393,8 @@ function db_migrate(): void
     if (!column_exists('sales_lines', 'dc_reason')) {
         $pdo->exec("ALTER TABLE sales_lines ADD dc_reason VARCHAR(20) NULL COMMENT '객실 할인사유 (ROOM_DC_REASONS 키)' AFTER dc_pct");
     }
+
+    // 42) v41 → v42: 휴관일 (정기 휴관 요일 settings.closed_weekdays 기본 화, 명절 등 closed_days 는 1) 단계에서 생성) — 객실 가동률에서 제외
 
     $pdo->prepare("INSERT INTO settings (name, value) VALUES ('db_version', ?) ON DUPLICATE KEY UPDATE value = VALUES(value)")
         ->execute([(string) DB_VERSION]);

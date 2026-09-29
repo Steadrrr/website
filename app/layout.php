@@ -216,6 +216,7 @@ const SETTINGS_MENU = [
     'users'     => ['admin/users.php', '회원관리'],
     'products'  => ['admin/products.php', '상품·요금'],
     'prices'    => ['admin/prices.php', '기간별 가격'],
+    'closed'    => ['settings.php?tab=closed', '휴관일'],
     'facility'  => ['groups.php?kind=facility', '시설 구역·건물'],
     'equipment' => ['groups.php?kind=equipment', '장비 분류'],
 ];

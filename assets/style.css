@@ -277,6 +277,7 @@ a.kpi:hover { text-decoration: none; border-color: var(--green); }
 .dc-form { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem 1rem; padding: .6rem .8rem; background: #f7f9f7; border-radius: 6px; margin-bottom: .75rem; }
 .dc-form label { display: inline-flex; align-items: center; gap: .3rem; margin: 0; font-weight: 400; }
 .dc-form input { width: 4rem; margin: 0; }
+.dc-form .inline-check input { width: auto; }
 .dc-preview { display: block; font-size: .75rem; text-align: right; margin-top: .15rem; }
 table[data-voucher-summary] tr.issue td { color: var(--red); font-weight: 600; }
 
@@ -1148,3 +1149,5 @@ label .tm-pick { display: flex; margin-top: .25rem; }
 .tg-day .tg-ev { font-size: .82rem; }
 .mini-d.sel { outline: 2px solid var(--green); outline-offset: -2px; }
 @media print { .tg-scroll { overflow: visible; } .tg-week { min-width: 0; } }
+
+.rs-table tr.rs-closed td { background: #f6f6f6; color: #9aa0a6; }

@@ -646,3 +646,15 @@ CREATE TABLE IF NOT EXISTS program_tasks (
   INDEX idx_journal (journal_id, sort_no),
   CONSTRAINT fk_prog_task_journal FOREIGN KEY (journal_id) REFERENCES journals(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 휴관일 (명절 등 해마다 바뀌는 휴관, 설정 › 휴관일). 매주 정기 휴관 요일은 settings.closed_weekdays (기본 2 = 화)
+-- 객실이용통계의 가동률 분모(영업일)에서 뺀다
+CREATE TABLE IF NOT EXISTS closed_days (
+  id         INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  name       VARCHAR(100) NOT NULL COMMENT '예: 2027 설날 휴관',
+  date_from  DATE NOT NULL,
+  date_to    DATE NOT NULL,
+  created_by INT UNSIGNED NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_dates (date_from, date_to)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

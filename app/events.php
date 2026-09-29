@@ -196,3 +196,40 @@ function timegrid_columns(array $list, callable $mins): array
     $flush();
     return $out;
 }
+
+/* ───────────── 휴관일 (설정 › 휴관일) — 객실이용통계의 가동률 계산에서 뺀다 ───────────── */
+
+/** 정기 휴관 요일 [0=일 … 6=토] (기본 화요일) */
+function closed_weekdays(): array
+{
+    $v = trim((string) setting('closed_weekdays', '2'));
+    if ($v === '') return [];
+    return array_values(array_unique(array_filter(array_map('intval', explode(',', $v)), fn($w) => $w >= 0 && $w <= 6)));
+}
+
+/** 명절 등 휴관일 목록 (최근 것이 위) */
+function closed_days_all(): array
+{
+    return db()->query('SELECT * FROM closed_days ORDER BY date_from DESC, id DESC')->fetchAll();
+}
+
+/** 기간 안의 휴관일 ['2026-10-06' => '정기 휴관(화)', '2027-02-07' => '2027 설날 휴관', ...] */
+function closed_dates(string $from, string $to): array
+{
+    $out = [];
+    $wds = closed_weekdays();
+    $wdName = ['일', '월', '화', '수', '목', '금', '토'];
+    if ($wds) {
+        for ($d = $from; $d <= $to; $d = date('Y-m-d', strtotime("$d +1 day"))) {
+            $w = (int) date('w', strtotime($d));
+            if (in_array($w, $wds, true)) $out[$d] = "정기 휴관({$wdName[$w]})";
+        }
+    }
+    $st = db()->prepare('SELECT * FROM closed_days WHERE date_from <= ? AND date_to >= ? ORDER BY date_from, id');
+    $st->execute([$to, $from]);
+    foreach ($st as $c) {
+        for ($d = max($c['date_from'], $from); $d <= min($c['date_to'], $to); $d = date('Y-m-d', strtotime("$d +1 day"))) $out[$d] = $c['name'];
+    }
+    ksort($out);
+    return $out;
+}
