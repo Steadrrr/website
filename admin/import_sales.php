@@ -221,6 +221,12 @@ if (is_post()) {
 
 layout_header('매출 가져오기', 'settings');
 settings_nav('import');
+?>
+<div class="tabs team-tabs no-print">
+  <a href="<?= e(url('admin/import_sales.php')) ?>" class="on">매출보고 (입장권·프로그램)</a>
+  <a href="<?= e(url('admin/import_rooms.php')) ?>">일일객실판매 (객실)</a>
+</div>
+<?php
 
 if (!$imp): ?>
 <section class="card">

@@ -12,53 +12,75 @@ function sheet_read(string $path, string $name = ''): array
     if ($head === "\xD0\xCF\x11\xE0\xA1\xB1\x1A\xE1") return xls_read($path); // 예전 엑셀(.xls, 산림청 통합운영시스템 등)
     if (str_starts_with(ltrim($head), '<')) throw new RuntimeException('이 파일은 엑셀 형식이 아닙니다 (웹 페이지를 .xls 로 저장한 파일). 엑셀에서 열어 "다른 이름으로 저장 › Excel 통합 문서(.xlsx)"로 저장해 올려 주세요.');
     if (preg_match('/\.csv$/i', $name) || !class_exists('ZipArchive')) return csv_read($path);
+    $sheets = xlsx_sheets($path, 1);
+    if (!$sheets) throw new RuntimeException('엑셀 파일에서 시트를 찾지 못했습니다.');
+    return reset($sheets);
+}
+
+/**
+ * 엑셀(.xlsx)의 시트들 읽기: ['시트이름' => 행 목록, ...] (시트 순서대로)
+ * $limit: 앞에서부터 몇 개만 (0 = 전부), $only: 이 이름의 시트만 읽을지 정하는 함수 (선택)
+ */
+function xlsx_sheets(string $path, int $limit = 0, ?callable $only = null): array
+{
+    if (!class_exists('ZipArchive')) throw new RuntimeException('서버에 PHP zip 확장이 없어 엑셀(.xlsx)을 읽을 수 없습니다.');
     $zip = new ZipArchive();
     if ($zip->open($path) !== true) throw new RuntimeException('엑셀(.xlsx) 파일을 열 수 없습니다. 엑셀에서 "다른 이름으로 저장 › Excel 통합 문서(.xlsx)"로 저장해 올려 주세요.');
     $strings = [];
     if (($xml = $zip->getFromName('xl/sharedStrings.xml')) !== false) {
-        $sx = simplexml_load_string($xml);
+        $sx = simplexml_load_string($xml, 'SimpleXMLElement', LIBXML_PARSEHUGE);
         foreach ($sx->si as $si) {
             if (isset($si->t)) $strings[] = (string) $si->t;
             else { $t = ''; foreach ($si->r as $r) $t .= (string) $r->t; $strings[] = $t; }
         }
     }
-    // 첫 번째 시트 파일 찾기 (workbook.xml 의 첫 sheet → rels)
-    $sheetPath = 'xl/worksheets/sheet1.xml';
+    // 시트 목록 (workbook.xml 의 sheet 순서 → rels 로 파일 경로)
+    $list = [];
     $wb = $zip->getFromName('xl/workbook.xml');
     $rels = $zip->getFromName('xl/_rels/workbook.xml.rels');
     if ($wb && $rels) {
-        $w = simplexml_load_string($wb);
-        $first = $w->sheets->sheet[0] ?? null;
-        $rid = $first ? (string) $first->attributes('http://schemas.openxmlformats.org/officeDocument/2006/relationships')['id'] : '';
+        $targets = [];
         foreach (simplexml_load_string($rels)->Relationship as $rel) {
-            if ((string) $rel['Id'] === $rid) { $t = ltrim((string) $rel['Target'], '/'); $sheetPath = str_starts_with($t, 'xl/') ? $t : 'xl/' . $t; }
+            $t = ltrim((string) $rel['Target'], '/');
+            $targets[(string) $rel['Id']] = str_starts_with($t, 'xl/') ? $t : 'xl/' . $t;
+        }
+        foreach (simplexml_load_string($wb)->sheets->sheet as $sh) {
+            $rid = (string) $sh->attributes('http://schemas.openxmlformats.org/officeDocument/2006/relationships')['id'];
+            if (isset($targets[$rid])) $list[(string) $sh['name']] = $targets[$rid];
         }
     }
-    $xml = $zip->getFromName($sheetPath);
+    if (!$list) $list = ['Sheet1' => 'xl/worksheets/sheet1.xml'];
+    $out = [];
+    foreach ($list as $sheetName => $sheetPath) {
+        if ($only && !$only($sheetName)) continue;
+        if ($limit && count($out) >= $limit) break;
+        $xml = $zip->getFromName($sheetPath);
+        if ($xml === false) continue;
+        $sx = simplexml_load_string($xml, 'SimpleXMLElement', LIBXML_COMPACT | LIBXML_PARSEHUGE);
+        $rows = [];
+        foreach ($sx->sheetData->row as $row) {
+            $cells = [];
+            foreach ($row->c as $c) {
+                $col = xlsx_col_index(preg_replace('/\d+/', '', (string) $c['r']));
+                $v = match ((string) $c['t']) {
+                    's'         => $strings[(int) $c->v] ?? '',
+                    'inlineStr' => (string) ($c->is->t ?? ''),
+                    'b'         => (int) $c->v,
+                    'str'       => (string) $c->v,
+                    default     => isset($c->v) ? (is_numeric((string) $c->v) ? (float) $c->v : (string) $c->v) : null,
+                };
+                $cells[$col] = $v;
+            }
+            $ri = max(0, (int) $row['r'] - 1); // 빈 줄도 자리를 지킨다 (행 번호 = 엑셀 행 - 1)
+            if (!$cells) continue;
+            $line = [];
+            for ($i = 0; $i <= max(array_keys($cells)); $i++) $line[] = $cells[$i] ?? null;
+            $rows[$ri] = $line;
+        }
+        $out[$sheetName] = $only ? $rows : array_values($rows);
+    }
     $zip->close();
-    if ($xml === false) throw new RuntimeException('엑셀 파일에서 시트를 찾지 못했습니다.');
-    $sx = simplexml_load_string($xml, 'SimpleXMLElement', LIBXML_COMPACT | LIBXML_PARSEHUGE);
-    $rows = [];
-    foreach ($sx->sheetData->row as $row) {
-        $cells = [];
-        foreach ($row->c as $c) {
-            $col = xlsx_col_index(preg_replace('/\d+/', '', (string) $c['r']));
-            $t = (string) $c['t'];
-            $v = match ($t) {
-                's'         => $strings[(int) $c->v] ?? '',
-                'inlineStr' => (string) ($c->is->t ?? ''),
-                'b'         => (int) $c->v,
-                'str'       => (string) $c->v,
-                default     => isset($c->v) ? (is_numeric((string) $c->v) ? (float) $c->v : (string) $c->v) : null,
-            };
-            $cells[$col] = $v;
-        }
-        if (!$cells) continue;
-        $out = [];
-        for ($i = 0; $i <= max(array_keys($cells)); $i++) $out[] = $cells[$i] ?? null;
-        $rows[] = $out;
-    }
-    return $rows;
+    return $out;
 }
 
 /**
