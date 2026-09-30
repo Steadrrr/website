@@ -243,9 +243,25 @@ function rate_for_date(string $date, array $extraHolidays = []): string
     if (in_array((int) date('w', strtotime($date)), [5, 6], true)) return 'weekend';
     // 공휴일 전날도 주말 요금 (일정표의 '공휴일' 또는 $extraHolidays ['2026-02-16' => '설날', ...])
     $next = date('Y-m-d', strtotime("$date +1 day"));
-    static $cache = [];
+    $cache = &rate_holiday_cache();
     $cache[$next] ??= (bool) holiday_dates($next, $next);
     return $cache[$next] || isset($extraHolidays[$next]) ? 'weekend' : 'weekday';
+}
+
+/** rate_for_date 의 공휴일 여부 캐시 [날짜 => bool] */
+function &rate_holiday_cache(): array
+{
+    static $cache = [];
+    return $cache;
+}
+
+/** 기간의 요금구분을 여러 날 계산하기 전에 공휴일을 한 번에 읽어 둔다 (통계 등) */
+function rate_preload(string $from, string $to): void
+{
+    $cache = &rate_holiday_cache();
+    $to = date('Y-m-d', strtotime("$to +1 day"));
+    $hol = holiday_dates($from, $to);
+    for ($d = $from; $d <= $to; $d = date('Y-m-d', strtotime("$d +1 day"))) $cache[$d] ??= isset($hol[$d]);
 }
 
 /** 시설대관 단가 = 시간 요금 + (야간이면) 야간 추가요금 */

@@ -89,12 +89,19 @@ function rs_period(string $from, string $to, string $unit, array $statuses, int 
     $closed = closed_dates($from, $to); // 휴관일은 영업일(가동률 분모)에서 뺀다
     // 객실운영관리의 미판매(예비객실·공사·업무예약) 객실·날짜도 분모에서 뺀다 — 판매 중 객실만 (객실 수가 판매 중 객실 기준)
     $blocks = room_block_map($from, $to);
+    // 요금구분별: 날짜마다 비수기 평일 / 비수기 주말(금·토·공휴일 전날) / 성수기로 나눠 영업일·미판매·판매를 센다
+    rate_preload($from, $to);
+    $rateOf = [];
+    $rates = array_fill_keys(array_keys(RATE_TYPES), ['days' => 0, 'closed' => 0, 'blocked' => 0, 'sold' => 0, 'guests' => 0, 'amount' => 0]);
+    $roomRate = []; // 객실 id => 요금구분 => ['sold', 'blocked']
     $activeIds = array_flip(array_map('intval', array_keys(array_filter($roomProducts, fn($p) => $p['is_active']))));
     $roomBlocked = [];
     for ($d = $from; $d <= $to; $d = date('Y-m-d', strtotime("$d +1 day"))) {
         $k = rs_key($d, $unit);
         $buckets[$k] ??= $blank + ['label' => rs_label($k, $unit, $from, $to)];
         $m = isset($closed[$d]) ? 'closed' : 'days';
+        $rt = $rateOf[$d] = rate_for_date($d);
+        $rates[$rt][$m]++;
         $buckets[$k][$m]++;
         $weekdays[(int) date('w', strtotime($d))][$m]++;
         if ($m === 'closed' && $unit === 'day') $buckets[$k]['closed_name'] = $closed[$d];
@@ -104,6 +111,8 @@ function rs_period(string $from, string $to, string $unit, array $statuses, int 
             $buckets[$k]["blk_$reason"] = ($buckets[$k]["blk_$reason"] ?? 0) + 1;
             $weekdays[(int) date('w', strtotime($d))]['blocked']++;
             $roomBlocked[$pid] = ($roomBlocked[$pid] ?? 0) + 1;
+            $rates[$rt]['blocked']++;
+            $roomRate[$pid][$rt]['blocked'] = ($roomRate[$pid][$rt]['blocked'] ?? 0) + 1;
         }
     }
     $st = db()->prepare(
@@ -126,6 +135,11 @@ function rs_period(string $from, string $to, string $unit, array $statuses, int 
         if (isset(RATE_TYPES[$r['rate']])) $buckets[$k][$r['rate']] += $q;
         if ($r['discounted']) $buckets[$k]['dc'] += $q;
         $pid = (int) $r['product_id'];
+        $rt = $rateOf[$r['work_date']] ?? rate_for_date($r['work_date']);
+        $rates[$rt]['sold'] += $q;
+        $rates[$rt]['guests'] += (int) $r['guests'];
+        $rates[$rt]['amount'] += (int) $r['amount'];
+        $roomRate[$pid][$rt]['sold'] = ($roomRate[$pid][$rt]['sold'] ?? 0) + $q;
         $rooms[$pid] ??= ['name' => $r['name'], 'active' => 0, 'sold' => 0, 'guests' => 0, 'amount' => 0, 'blocked' => 0];
         $rooms[$pid]['sold'] += $q;
         $rooms[$pid]['guests'] += (int) $r['guests'];
@@ -139,11 +153,20 @@ function rs_period(string $from, string $to, string $unit, array $statuses, int 
     unset($b);
     $total += rs_ratios($total, $roomCount);
     $days = $total['days'];
-    foreach ($rooms as &$rm) $rm['occ'] = $days - $rm['blocked'] > 0 ? $rm['sold'] / ($days - $rm['blocked']) * 100 : 0;
+    foreach ($rooms as $pid => &$rm) {
+        $rm['occ'] = $days - $rm['blocked'] > 0 ? $rm['sold'] / ($days - $rm['blocked']) * 100 : 0;
+        foreach (RATE_TYPES as $rt => $_) { // 객실별 요금구분별 판매·가동률 (그 요금구분 영업일 − 그 객실 미판매일)
+            $s = $roomRate[$pid][$rt]['sold'] ?? 0;
+            $cap = $rates[$rt]['days'] - ($roomRate[$pid][$rt]['blocked'] ?? 0);
+            $rm['rates'][$rt] = ['sold' => $s, 'occ' => $cap > 0 ? $s / $cap * 100 : 0];
+        }
+    }
     unset($rm);
+    foreach ($rates as &$rr) $rr += rs_ratios($rr, $roomCount);
+    unset($rr);
     foreach ($weekdays as &$w) $w += rs_ratios($w, $roomCount);
     unset($w);
-    return ['buckets' => $buckets, 'total' => $total, 'rooms' => $rooms, 'weekdays' => $weekdays, 'days' => $days];
+    return ['buckets' => $buckets, 'total' => $total, 'rooms' => $rooms, 'weekdays' => $weekdays, 'days' => $days, 'rates' => $rates];
 }
 
 /** 가동률(%), 평균 객실단가(ADR), 객실당 매출(RevPAR), 1실 평균 인원 — 분모 = 객실 수 × 영업일 − 미판매 객실·일 */
@@ -248,11 +271,18 @@ if (($_GET['export'] ?? '') === 'xlsx') {
         'rows' => array_map(fn($k, $r) => [$r['name'], $r['rooms'], $r['sold'], round($r['occ'], 1), $r['guests'], round($r['gpr'], 2), $r['amount'], (int) round($r['adr']),
             ...($TB ? [$TB[$k]['sold'] ?? 0, round($TB[$k]['occ'] ?? 0, 1), $TB[$k]['amount'] ?? 0] : [])], array_keys($TA), $TA),
         'widths' => [14, 8, 9, 10, 10, 11, 13, 12, 10, 12, 13]];
+    $sheets[] = ['name' => '요금구분별', 'title' => '요금구분별 (' . $periodLabel($from, $to) . ')', 'subtitle' => $sub . ' · 날짜 기준: 성수기 기간 / 금·토·공휴일 전날 = 비수기 주말 / 그 외 비수기 평일',
+        'header' => ['요금구분', '영업일', '미판매(실·일)', '판매(박)', '가동률(%)', '입실 인원', '매출', '평균 객실단가', 'RevPAR', ...($B ? ['비교 판매', '비교 가동률(%)', '비교 매출'] : [])],
+        'rows' => array_map(fn($rt, $rl) => [$rl, $A['rates'][$rt]['days'], $A['rates'][$rt]['blocked'], $A['rates'][$rt]['sold'], round($A['rates'][$rt]['occ'], 1), $A['rates'][$rt]['guests'], $A['rates'][$rt]['amount'],
+            (int) round($A['rates'][$rt]['adr']), (int) round($A['rates'][$rt]['revpar']), ...($B ? [$B['rates'][$rt]['sold'], round($B['rates'][$rt]['occ'], 1), $B['rates'][$rt]['amount']] : [])], array_keys(RATE_TYPES), RATE_TYPES),
+        'footer' => [['합계', $A['total']['days'], $A['total']['blocked'], $A['total']['sold'], round($A['total']['occ'], 1), $A['total']['guests'], $A['total']['amount'], (int) round($A['total']['adr']), (int) round($A['total']['revpar'])]],
+        'widths' => [14, 8, 12, 10, 10, 10, 13, 12, 11, 10, 12, 13]];
     $sheets[] = ['name' => '객실별', 'title' => '객실별 이용 (' . $periodLabel($from, $to) . ')', 'subtitle' => $sub,
-        'header' => ['객실', '미판매(일)', '판매(박)', '가동률(%)', '입실 인원', '매출', ...($B ? ['비교 판매', '비교 가동률(%)', '비교 매출'] : [])],
-        'rows' => array_map(fn($id, $r) => [$r['name'] . ($r['active'] ? '' : ' (판매중지)'), $r['blocked'], $r['sold'], round($r['occ'], 1), $r['guests'], $r['amount'],
+        'header' => ['객실', '미판매(일)', '판매(박)', '가동률(%)', ...array_merge(...array_map(fn($rl) => ["$rl 판매", "$rl 가동률(%)"], array_values(RATE_TYPES))), '입실 인원', '매출', ...($B ? ['비교 판매', '비교 가동률(%)', '비교 매출'] : [])],
+        'rows' => array_map(fn($id, $r) => [$r['name'] . ($r['active'] ? '' : ' (판매중지)'), $r['blocked'], $r['sold'], round($r['occ'], 1),
+            ...array_merge(...array_map(fn($rt) => [$r['rates'][$rt]['sold'] ?? 0, round($r['rates'][$rt]['occ'] ?? 0, 1)], array_keys(RATE_TYPES))), $r['guests'], $r['amount'],
             ...($B ? [$B['rooms'][$id]['sold'] ?? 0, round($B['rooms'][$id]['occ'] ?? 0, 1), $B['rooms'][$id]['amount'] ?? 0] : [])], array_keys($A['rooms']), $A['rooms']),
-        'widths' => [24, 10, 10, 10, 10, 13, 10, 12, 13]];
+        'widths' => [24, 10, 10, 10, 11, 12, 11, 12, 11, 12, 10, 13, 10, 12, 13]];
     $wd = ['일', '월', '화', '수', '목', '금', '토'];
     $sheets[] = ['name' => '요일별', 'title' => '요일별 가동률', 'subtitle' => $sub,
         'header' => ['요일', '영업일', '판매', '가동률(%)', '입실 인원', '매출', ...($B ? ['비교 판매', '비교 가동률(%)'] : [])],
@@ -439,22 +469,23 @@ stat_chart('roomChart', '판매 객실 추이 (' . ($cg === 'day' ? '일별' : '
   </div>
 </section>
 
-<div class="grid2">
-  <section class="card">
-    <h2>객실별 가동률</h2>
+<section class="card">
+    <h2>요금구분별 <small class="muted">날짜 기준: 성수기 기간 / 금·토·공휴일 전날 = 비수기 주말 / 그 외 비수기 평일</small></h2>
     <div class="table-scroll">
-    <table class="table">
-      <thead><tr><th>객실</th><th class="right">판매(박)</th><th>가동률</th><th class="right">인원</th><th class="right">매출</th><?php if ($B): ?><th class="right">B 가동률</th><th class="right">증감</th><?php endif ?></tr></thead>
+    <table class="table rs-rates">
+      <thead><tr><th>요금구분</th><th class="right">영업일</th><th class="right">판매</th><th>가동률</th><th class="right">인원</th><th class="right">매출</th><th class="right">평균 객실단가</th><th class="right">RevPAR</th><?php if ($B): ?><th class="right">B 가동률</th><th class="right">증감</th><?php endif ?></tr></thead>
       <tbody>
-      <?php $rooms = $A['rooms']; uasort($rooms, fn($x, $y) => $y['sold'] <=> $x['sold']);
-      foreach ($rooms as $id => $r): $rb = $B['rooms'][$id] ?? null; ?>
-        <tr class="<?= $r['active'] ? '' : 'zero' ?>"><td class="rs-room"><?= e($r['name']) ?><?= $r['active'] ? '' : ' <small class="muted">(판매중지)</small>' ?><?= $r['blocked'] ? ' <small class="muted">(미판매 ' . $r['blocked'] . '일 제외)</small>' : '' ?></td>
-          <td class="right"><?= number_format($r['sold']) ?></td><td class="nowrap"><?= $occBar($r['occ']) ?> <?= $pct($r['occ']) ?></td>
+      <?php foreach (RATE_TYPES as $rt => $rl): $r = $A['rates'][$rt]; $rb = $B['rates'][$rt] ?? null; ?>
+        <tr class="<?= $r['days'] || $r['sold'] ? '' : 'zero' ?>"><td class="nowrap"><?= e($rl) ?></td>
+          <td class="right nowrap"><?= $r['days'] ?>일<?= $r['blocked'] ? '<br><small class="muted">미판매 ' . number_format($r['blocked']) . '실·일</small>' : '' ?></td>
+          <td class="right"><?= number_format($r['sold']) ?></td><td class="nowrap"><?= $r['days'] ? $occBar($r['occ']) . ' ' . $pct($r['occ']) : '<span class="muted">-</span>' ?></td>
           <td class="right"><?= number_format($r['guests']) ?></td><td class="right"><?= number_format($r['amount']) ?></td>
-          <?php if ($B): ?><td class="right"><?= $pct($rb['occ'] ?? 0) ?></td><td class="right rs-diff <?= $r['occ'] > ($rb['occ'] ?? 0) ? 'up' : ($r['occ'] < ($rb['occ'] ?? 0) ? 'down' : '') ?>"><?= e($diffTxt($r['occ'], $rb['occ'] ?? 0, true)) ?></td><?php endif ?></tr>
+          <td class="right"><?= number_format(round($r['adr'])) ?></td><td class="right"><?= number_format(round($r['revpar'])) ?></td>
+          <?php if ($B): ?><td class="right"><?= $pct($rb['occ']) ?></td><td class="right rs-diff <?= $r['occ'] > $rb['occ'] ? 'up' : ($r['occ'] < $rb['occ'] ? 'down' : '') ?>"><?= e($diffTxt($r['occ'], $rb['occ'], true)) ?></td><?php endif ?></tr>
       <?php endforeach ?>
-      <?php if (!$rooms): ?><tr><td colspan="7" class="center muted">등록된 객실이 없습니다.</td></tr><?php endif ?>
       </tbody>
+      <tfoot><tr><th>합계</th><th class="right"><?= $T['days'] ?>일</th><th class="right"><?= number_format($T['sold']) ?></th><th><?= $pct($T['occ']) ?></th><th class="right"><?= number_format($T['guests']) ?></th>
+        <th class="right"><?= number_format($T['amount']) ?></th><th class="right"><?= number_format(round($T['adr'])) ?></th><th class="right"><?= number_format(round($T['revpar'])) ?></th><?php if ($B): ?><th class="right"><?= $pct($B['total']['occ']) ?></th><th></th><?php endif ?></tr></tfoot>
     </table>
     </div>
   </section>
@@ -472,7 +503,25 @@ stat_chart('roomChart', '판매 객실 추이 (' . ($cg === 'day' ? '일별' : '
       </tbody>
     </table>
   </section>
-</div>
+  <section class="card">
+    <h2>객실별 가동률 <small class="muted">요금구분별 가동률 = 판매 ÷ (그 요금구분 영업일 − 그 객실 미판매일)</small></h2>
+    <div class="table-scroll">
+    <table class="table">
+      <thead><tr><th>객실</th><th class="right">판매(박)</th><th>가동률</th><?php foreach (RATE_TYPES as $rl): ?><th class="right"><?= e($rl) ?><br><small class="muted">판매 · 가동률</small></th><?php endforeach ?><th class="right">인원</th><th class="right">매출</th><?php if ($B): ?><th class="right">B 가동률</th><th class="right">증감</th><?php endif ?></tr></thead>
+      <tbody>
+      <?php $rooms = $A['rooms']; uasort($rooms, fn($x, $y) => $y['sold'] <=> $x['sold']);
+      foreach ($rooms as $id => $r): $rb = $B['rooms'][$id] ?? null; ?>
+        <tr class="<?= $r['active'] ? '' : 'zero' ?>"><td class="rs-room"><?= e($r['name']) ?><?= $r['active'] ? '' : ' <small class="muted">(판매중지)</small>' ?><?= $r['blocked'] ? ' <small class="muted">(미판매 ' . $r['blocked'] . '일 제외)</small>' : '' ?></td>
+          <td class="right"><?= number_format($r['sold']) ?></td><td class="nowrap"><?= $occBar($r['occ']) ?> <?= $pct($r['occ']) ?></td>
+          <?php foreach (RATE_TYPES as $rt => $_): $x = $r['rates'][$rt] ?? ['sold' => 0, 'occ' => 0]; ?><td class="right nowrap"><?= $A['rates'][$rt]['days'] ? number_format($x['sold']) . ' · ' . $pct($x['occ']) : '<span class="muted">-</span>' ?></td><?php endforeach ?>
+          <td class="right"><?= number_format($r['guests']) ?></td><td class="right"><?= number_format($r['amount']) ?></td>
+          <?php if ($B): ?><td class="right"><?= $pct($rb['occ'] ?? 0) ?></td><td class="right rs-diff <?= $r['occ'] > ($rb['occ'] ?? 0) ? 'up' : ($r['occ'] < ($rb['occ'] ?? 0) ? 'down' : '') ?>"><?= e($diffTxt($r['occ'], $rb['occ'] ?? 0, true)) ?></td><?php endif ?></tr>
+      <?php endforeach ?>
+      <?php if (!$rooms): ?><tr><td colspan="10" class="center muted">등록된 객실이 없습니다.</td></tr><?php endif ?>
+      </tbody>
+    </table>
+    </div>
+  </section>
 <p class="muted small">가동률 = 판매 객실(실·박) ÷ (객실 수 <?= $roomCount ?>실 × <b>영업일</b> − <b>미판매 객실·일</b>). 미판매는 <a href="<?= e(url('room_ops.php')) ?>">객실관리 › 객실운영관리</a>에 등록한 예비객실·공사·업무예약 객실과 기간입니다. 영업일은 기간의 날 수에서 <b>휴관일</b>(정기 휴관 요일<?= closed_weekdays() ? ' ' . e(implode('·', array_map(fn($w) => ['일', '월', '화', '수', '목', '금', '토'][$w], closed_weekdays()))) : '' ?> + 명절 등)을 뺀 날입니다<?= $user['is_admin'] ? ' (<a href="' . e(url('settings.php?tab=closed')) . '">설정 › 휴관일</a>)' : ' (설정 › 휴관일, 최고관리자)' ?>. 객실 수는 상품관리에서 '판매' 중인 객실 기준입니다.
   평균 객실단가 = 객실 매출 ÷ 판매 객실, RevPAR(객실당 1일 매출) = 객실 매출 ÷ (객실 수 × 영업일 − 미판매 객실·일). 임시저장·반려된 매출보고는 집계하지 않고, 대관 숙박시설은 제외합니다.</p>
 <?php layout_footer();
