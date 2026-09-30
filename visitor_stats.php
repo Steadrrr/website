@@ -4,7 +4,7 @@
  *   visitor_stats.php?unit=range&from=2026-09-01&to=2026-09-30
  *   visitor_stats.php?unit=week|month|year&date=2026-09-25     (그 날이 속한 주·달·해, 이전·다음 이동)
  *   + &approved=1 (결재완료만) &export=xlsx
- * 그래프: 유료·무료·합계 꺾은선 (주간·월간·3개월 이하 기간은 일별, 연간·긴 기간은 월별)
+ * 그래프: 유료·무료 누적 막대 + 합계·유료·무료 보기 버튼 (주간·월간·3개월 이하 기간은 일별, 연간·긴 기간은 월별)
  */
 require __DIR__ . '/app/bootstrap.php';
 require __DIR__ . '/app/xlsx.php';
@@ -148,11 +148,11 @@ layout_header('입장객통계', 'visit_stats');
     <?php if ($busiestKey): ?>가장 많은 <?= $gran === 'day' ? '날' : '달' ?>: <b><?= e($buckets[$busiestKey]) ?></b> <?= number_format($data[$busiestKey]['total']) ?>명.<?php endif ?></p>
 </section>
 
-<?php stat_chart('visitChart', '입장객 추이 (' . ($gran === 'day' ? '일별' : '월별') . ')', array_values($buckets), [
-    ['label' => '합계', 'data' => array_column($data, 'total'), 'color' => '#1b5e20', 'type' => 'line'],
-    ['label' => '유료', 'data' => array_column($data, 'paid'), 'color' => '#1a73e8', 'type' => 'line'],
-    ['label' => '무료', 'data' => array_column($data, 'free'), 'color' => '#e8710a', 'type' => 'line'],
-], '명') ?>
+<?php // 유료·무료를 한 기둥에 쌓고 (기둥 높이 = 합계), 합계·유료·무료 보기 버튼
+stat_chart('visitChart', '입장객 추이 (' . ($gran === 'day' ? '일별' : '월별') . ')', array_values($buckets), [
+    ['label' => '유료', 'data' => array_column($data, 'paid'), 'color' => '#1a73e8'],
+    ['label' => '무료', 'data' => array_column($data, 'free'), 'color' => '#e8710a'],
+], '명', '유료 + 무료', ['stacked' => true, 'views' => ['합계' => [0, 1], '유료' => [0], '무료' => [1]]]) ?>
 
 <section class="card">
   <h2><?= $gran === 'day' ? '일별' : '월별' ?> 입장객</h2>
