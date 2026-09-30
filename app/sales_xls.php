@@ -61,11 +61,12 @@ function imp_map_saved(): array
 function imp_map_remember(array $map): void
 {
     $saved = imp_map_saved();
-    foreach ($map as $name => $to) if ((string) $name !== '' && !imp_is_rental((string) $name)) $saved[(string) $name] = (string) $to;
+    foreach ($map as $name => $to) if ((string) $name !== '') $saved[(string) $name] = (string) $to;
     setting_set('sales_xls_map', json_encode($saved, JSON_UNESCAPED_UNICODE));
 }
 
-/** 시설대관 줄 (매출보고 자동 입력에서 늘 제외 — 시설대관은 매출보고의 시설대관 칸에 직접 입력) */
+/** 시설대관 줄 (상품명·구분에 '대관'): 매표 엑셀에서는 대관 행사 입장 인원(행사참석, 보통 0원)이라 다른 상품처럼 가져올 곳을 골라 넣는다.
+ *  대관 요금(대관 시간·건수)은 엑셀에 없으므로 매출보고의 시설대관 칸에 직접 입력 — 화면에 안내만 한다. */
 function imp_is_rental(string $name, string $cat = ''): bool
 {
     return str_contains($name, '대관') || str_contains($cat, '대관');
@@ -137,7 +138,8 @@ const SALES_FILL_KEY = 'sales_fill';
 
 /**
  * 올린 엑셀의 그 날 판매를 매출보고 입력값에 채운다 (저장은 작성자가 확인 후 직접).
- * 입장권·프로그램 판매·입장권 현금만 바꾸고 시설대관·대관 숙박·메모 등은 그대로. 시설대관 줄은 늘 제외.
+ * 입장권·프로그램 판매·입장권 현금만 바꾸고 시설대관·대관 숙박·메모 등은 그대로.
+ * 엑셀의 '시설대관(행사참석)' 줄도 다른 상품처럼 가져올 곳(예: 무료 입장권)을 고르면 들어간다 (대관 요금은 시설대관 칸에 직접).
  * @return array{0: array, 1: array} [$payload, $report]
  */
 function sales_fill_apply(array $payload, array $fill, string $workDate): array
@@ -151,7 +153,7 @@ function sales_fill_apply(array $payload, array $fill, string $workDate): array
         $q = array_sum(array_column($groups, 'qty'));
         $a = array_sum(array_column($groups, 'amount'));
         $row = ['name' => $name, 'cat' => $cat, 'qty' => $q, 'amount' => $a];
-        if (imp_is_rental($name, $cat)) { $rep['rental'][] = $row; continue; }
+        if (imp_is_rental($name, $cat)) $rep['rental'][] = $row; // 안내용 (가져올 곳은 아래에서 다른 상품과 같이)
         $to = imp_guess($name, $targets);
         $rep['map'][$name] = $to;
         if (str_starts_with($to, 'p:') && ($p = $products[(int) substr($to, 2)] ?? null)) {
@@ -212,14 +214,14 @@ function sales_fill_panel(string $workDate, ?array $journal, ?array $rep): void
     <button class="btn">올려서 채우기</button>
   </form>
   <p class="muted small">그 날의 판매 내역 엑셀을 올리면 <b>입장권</b>과 <b>프로그램 판매</b>, 입장권 <b>현금</b>이 아래 칸에 채워집니다. 확인한 뒤 저장(결재 올리기)해야 반영됩니다.<br>
-    <b>시설대관은 제외</b>됩니다 — 시설대관은 아래 시설대관 칸에 직접 입력하세요. 엑셀의 예약자·판매자 정보는 저장하지 않습니다.</p>
+    엑셀의 <b>'시설대관'(행사참석)</b>은 대관 행사로 들어온 <b>입장 인원</b>이라, 가져올 곳(예: 무료 입장권)을 고르면 입장권으로 들어갑니다. <b>대관 요금</b>(대관 시간·건수)은 엑셀에 없으니 아래 시설대관 칸에 직접 입력하세요. 엑셀의 예약자·판매자 정보는 저장하지 않습니다.</p>
   <?php if ($rep && $fill): ?>
   <div class="flash flash-success"><b><?= e(date('Y.n.j', strtotime($fill['date']))) ?></b> 판매 내역(<?= e($fill['file']) ?>)으로 채웠습니다. <b>아직 저장되지 않았습니다</b> — 아래 내용을 확인하고 저장하세요.
     <?php if ($fill['others']): ?><br>엑셀의 다른 날짜(<?= e(implode(', ', array_map(fn($d) => date('n.j', strtotime($d)), $fill['others']))) ?>)는 쓰지 않았습니다.<?php endif ?></div>
   <ul class="small sales-fill-list">
     <?php if ($rep['tickets']): ?><li>입장권: <?= implode(' / ', array_map(fn($r) => $row($r) . ' → ' . e($r['to']), $rep['tickets'])) ?> · 현금 <?= number_format($rep['cash']) ?>원</li><?php endif ?>
     <?php if ($rep['progs']): ?><li>프로그램 판매: <?= implode(' / ', array_map(fn($r) => $row($r) . ' → ' . e($r['to']), $rep['progs'])) ?></li><?php endif ?>
-    <?php if ($rep['rental']): ?><li class="warn">시설대관 제외: <?= implode(' / ', array_map($row, $rep['rental'])) ?> — 시설대관 칸에 직접 입력하세요.</li><?php endif ?>
+    <?php if ($rep['rental']): ?><li>시설대관(행사 입장 인원): <?= implode(' / ', array_map(fn($r) => $row($r) . (($rep['map'][$r['name']] ?? '') === '' ? ' → <b class="warn">가져올 곳을 고르세요</b>' : ''), $rep['rental'])) ?> — 대관 요금은 시설대관 칸에 직접 입력하세요.</li><?php endif ?>
     <?php foreach ($rep['warn'] as $w): ?><li class="warn"><?= e($w) ?></li><?php endforeach ?>
   </ul>
   <?php if ($rep['skip'] || $rep['tickets'] || $rep['progs']): $targets = imp_targets(); ?>
