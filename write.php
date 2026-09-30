@@ -5,6 +5,7 @@
  */
 require __DIR__ . '/app/bootstrap.php';
 require __DIR__ . '/app/sales_xls.php';
+require __DIR__ . '/app/rooms_xls.php';
 
 $user = require_login();
 $pdo = db();
@@ -45,6 +46,10 @@ if (!can_write_type($user, $type)) abort(403, match ($type) {
 $fillRep = null;
 if ($type === 'sales' && !is_post() && !empty($_GET['fill']) && ($fill = $_SESSION[SALES_FILL_KEY] ?? null) && $fill['date'] === $workDate) {
     [$payload, $fillRep] = sales_fill_apply($payload, $fill, $workDate);
+}
+// 일일객실판매: '예약 엑셀로 채우기' (개인정보 없이 객실별 인원·할인만)
+if ($type === 'rooms' && !is_post() && !empty($_GET['fill']) && ($fill = $_SESSION[ROOMS_FILL_KEY] ?? null) && $fill['date'] === $workDate) {
+    [$payload, $fillRep] = rooms_fill_apply($payload, $fill, $workDate);
 }
 $revision = $journal && is_revision_edit($journal); // 상신된 적 있는 일지 수정 → 이력 + 결재 초기화
 $errors = [];
@@ -117,6 +122,7 @@ if (is_post()) {
         journal_log($id, $user, $revision ? '수정 (결재 다시 올림)' : ($journal ? ($submit ? '수정 후 결재 올리기' : '임시저장 수정') : ($submit ? '작성 · 결재 올리기' : '작성 (임시저장)')),
             implode(' · ', $notes));
         if ($type === 'sales') unset($_SESSION[SALES_FILL_KEY]);
+        if ($type === 'rooms') unset($_SESSION[ROOMS_FILL_KEY]);
         diag_trace('완료 → 보기 화면으로');
         redirect('view.php?id=' . $id);
     }
@@ -127,6 +133,7 @@ $line = approval_line_for((int) $user['rank_level'], $type);
 
 layout_header(JOURNAL_TYPES[$type] . ($journal ? ' 수정' : ' 작성'), journal_nav_key($type));
 if ($type === 'sales') sales_fill_panel($workDate, $journal, $fillRep);
+if ($type === 'rooms') rooms_fill_panel($workDate, $journal, $fillRep);
 ?>
 <form method="post" class="card" enctype="multipart/form-data">
   <?= csrf_field() ?>
