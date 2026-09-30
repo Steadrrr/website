@@ -91,7 +91,7 @@ CREATE TABLE IF NOT EXISTS facility_items (
 
 CREATE TABLE IF NOT EXISTS settings (
   name  VARCHAR(50)  NOT NULL PRIMARY KEY,
-  value VARCHAR(255) NOT NULL
+  value TEXT NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- 판매 상품 (관리자 상품관리 페이지에서 편집)

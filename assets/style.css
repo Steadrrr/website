@@ -1157,3 +1157,9 @@ label .tm-pick { display: flex; margin-top: .25rem; }
 .rs-table tr.rs-closed td { background: #f6f6f6; color: #9aa0a6; }
 .imp-status label { display: flex; align-items: center; gap: .5rem; margin: .3rem 0; font-weight: 400; }
 .imp-status input { width: auto; margin: 0; }
+
+/* 매출보고 작성: 매표 엑셀로 채우기 */
+.sales-fill form[data-sales-fill] { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.sales-fill form[data-sales-fill] input[type=file] { width: auto; flex: 1 1 260px; max-width: 460px; }
+.sales-fill .sales-fill-list li { margin: 2px 0; }
+.sales-fill .sales-fill-list .warn { color: var(--danger, #c0392b); }

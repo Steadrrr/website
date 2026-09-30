@@ -7,52 +7,12 @@
  * 그 날 프로그램 운영보고가 있는 분야는 (매출보고 직접 입력과 같이) 운영보고 값을 쓴다.
  */
 require __DIR__ . '/../app/bootstrap.php';
-require __DIR__ . '/../app/xlsx_read.php';
+require __DIR__ . '/../app/sales_xls.php';
 
 $user = require_admin();
 $pdo = db();
 const IMP_KEY = 'sales_import';
 $imp = $_SESSION[IMP_KEY] ?? null;
-
-/** 엑셀 머리글에서 열 찾기 */
-function imp_columns(array $head): array
-{
-    // 머리글 이름 → 항목 (공백·"(원)" 같은 단위는 빼고 비교). 산림청 통합운영시스템: 사용일자·상품구분·상품명·결제수단·단가(원)·수량·금액(원)
-    $want = ['date' => ['날짜', '일자', '판매일', '사용일자', '이용일자', '판매일자'], 'name' => ['상품명', '상품', '권종'], 'cat' => ['상품구분', '구분'],
-             'pay' => ['지불방법', '결제', '결제방법', '결제수단', '지불'], 'price' => ['단가'], 'qty' => ['수량', '매수'], 'amount' => ['판매금액', '판매액', '합계금액']];
-    $cols = [];
-    $gold = null; // '금액': 판매금액 열이 따로 있으면 단가, 없으면 판매금액
-    foreach ($head as $i => $h) {
-        $h = preg_replace('/\s+|\((원|개|매|명)\)/u', '', (string) $h);
-        if ($h === '금액' && $gold === null) { $gold = $i; continue; }
-        foreach ($want as $k => $names) if (!isset($cols[$k]) && in_array($h, $names, true)) { $cols[$k] = $i; break; }
-    }
-    if ($gold !== null) {
-        if (isset($cols['amount'])) $cols['price'] ??= $gold;
-        else $cols['amount'] = $gold;
-    }
-    return $cols;
-}
-
-/** 가져올 곳 선택지: 'p:상품id' (입장권) / 'g:분야' (프로그램 판매) / '' (가져오지 않음) */
-function imp_targets(): array
-{
-    $t = [];
-    foreach (products_all() as $p) if ($p['grp'] === 'ticket' && empty($p['sys_key'])) $t['p:' . $p['id']] = '입장권 · ' . $p['name'] . ($p['is_free'] ? ' (무료)' : ' (' . number_format((int) $p['price']) . '원)') . ($p['is_active'] ? '' : ' · 판매중지');
-    foreach (PROGRAM_TYPES as $k => $label) $t['g:' . $k] = '프로그램 판매 · ' . $label;
-    return $t;
-}
-
-/** 상품명으로 가져올 곳 짐작: 같은 이름의 입장권 → 이름에 분야가 들어 있으면 프로그램 → 없음 */
-function imp_guess(string $name, array $targets): string
-{
-    $norm = fn(string $s) => preg_replace('/[\s()（）]/u', '', $s);
-    foreach (products_all() as $p) if ($p['grp'] === 'ticket' && empty($p['sys_key']) && $norm($p['name']) === $norm($name)) return 'p:' . $p['id'];
-    foreach ([['숲해설(용문산)', 'guide2'], ['용문산', 'guide2'], ['숲해설', 'guide'], ['유아숲(직영)', 'kidsdirect'], ['유아숲', 'kidsforest'], ['산림치유', 'healing']] as [$kw, $pt]) {
-        if (str_contains($norm($name), $norm($kw)) && isset($targets["g:$pt"])) return "g:$pt";
-    }
-    return '';
-}
 
 /** 한 날의 매출보고 내용 만들기 (가져오기·미리보기 공용) */
 function imp_day_lines(string $date, array $byName, array $map): array
@@ -118,63 +78,13 @@ if (is_post()) {
         $f = $_FILES['file'] ?? null;
         if (!$f || $f['error'] !== UPLOAD_ERR_OK) { flash('파일을 올리지 못했습니다. 다시 골라 주세요.', 'error'); redirect('admin/import_sales.php'); }
         try {
-            $rows = sheet_read($f['tmp_name'], (string) $f['name']);
+            ['agg' => $agg, 'names' => $names, 'bad' => $bad, 'rows' => $dataRows] = imp_parse($f['tmp_name'], (string) $f['name']);
         } catch (Throwable $e) {
             flash($e->getMessage(), 'error');
             redirect('admin/import_sales.php');
         }
-        // 머리글 줄 찾기: 위쪽 10줄 안에서 날짜·상품명·수량·금액 열이 모두 있는 줄 (제목·출력일시 줄이 위에 있어도 됨)
-        $start = 1;
-        $cols = imp_columns($rows[0] ?? []);
-        $missing = array_diff(['date', 'name', 'qty', 'amount'], array_keys($cols));
-        for ($h = 1; $missing && $h < min(10, count($rows)); $h++) {
-            $try = imp_columns($rows[$h]);
-            if (!array_diff(['date', 'name', 'qty', 'amount'], array_keys($try))) { $cols = $try; $missing = []; $start = $h + 1; }
-        }
-        // 머리글 없이 첫 줄부터 판매 내역이면 기본 열 순서(날짜·상품명·지불방법·금액·수량·판매금액)로 읽는다
-        if ($missing && count($rows[0] ?? []) >= 6 && sheet_date($rows[0][0] ?? null)) {
-            $cols = ['date' => 0, 'name' => 1, 'pay' => 2, 'price' => 3, 'qty' => 4, 'amount' => 5];
-            $missing = [];
-            $start = 0;
-        }
-        if ($missing) {
-            flash('엑셀 위쪽(머리글)에서 ' . implode(', ', array_map(fn($k) => ['date' => '날짜', 'name' => '상품명', 'qty' => '수량', 'amount' => '판매금액'][$k], $missing)) . ' 열을 찾지 못했습니다. 머리글이 없으면 A~F열이 날짜·상품명·지불방법·금액·수량·판매금액 순서여야 합니다.', 'error');
-            redirect('admin/import_sales.php');
-        }
-        $agg = [];    // 날짜 => 상품명 => 지불|단가 => 합계
-        $names = [];  // 상품명 => 합계
-        $bad = [];
-        $dataRows = 0;
-        foreach (array_slice($rows, $start) as $i => $r) {
-            if (array_filter($r, fn($v) => is_string($v) && in_array(trim($v), ['합계', '소계', '총계', '총합계'], true))) continue; // 합계 줄
-            $date = sheet_date($r[$cols['date']] ?? null);
-            $name = trim((string) ($r[$cols['name']] ?? ''));
-            $qty = (int) round((float) ($r[$cols['qty']] ?? 0));
-            $amt = (int) round((float) ($r[$cols['amount']] ?? 0));
-            if (!$date && $name === '' && !$qty && !$amt) continue; // 빈 줄
-            if (!$date || $name === '') { if (count($bad) < 20) $bad[] = ($i + $start + 1) . '행'; continue; }
-            $dataRows++;
-            $cat = isset($cols['cat']) ? trim((string) ($r[$cols['cat']] ?? '')) : '';
-            $pay = isset($cols['pay']) && str_contains((string) ($r[$cols['pay']] ?? ''), '현금') ? '현금' : (isset($cols['pay']) ? '카드' : '카드');
-            $price = isset($cols['price']) ? (int) round((float) ($r[$cols['price']] ?? 0)) : ($qty ? intdiv($amt, $qty) : 0);
-            $k = "$pay|$price";
-            $agg[$date][$name][$k] ??= ['pay' => $pay, 'price' => $price, 'qty' => 0, 'amount' => 0, 'rows' => 0];
-            $agg[$date][$name][$k]['qty'] += $qty;
-            $agg[$date][$name][$k]['amount'] += $amt;
-            $agg[$date][$name][$k]['rows']++;
-            $names[$name] ??= ['rows' => 0, 'qty' => 0, 'amount' => 0, 'cash' => 0, 'prices' => [], 'cats' => []];
-            if ($cat !== '') $names[$name]['cats'][$cat] = true;
-            $names[$name]['rows']++;
-            $names[$name]['qty'] += $qty;
-            $names[$name]['amount'] += $amt;
-            if ($pay === '현금') $names[$name]['cash'] += $amt;
-            $names[$name]['prices'][$price] = true;
-        }
-        if (!$agg) { flash('가져올 판매 내역이 없습니다. 파일을 확인하세요.', 'error'); redirect('admin/import_sales.php'); }
-        ksort($agg);
-        uasort($names, fn($a, $b) => $b['amount'] <=> $a['amount'] ?: $b['qty'] <=> $a['qty']);
         $targets = imp_targets();
-        $_SESSION[IMP_KEY] = ['file' => (string) $f['name'], 'rows' => $dataRows, 'bad' => $bad, 'agg' => array_map(fn($d) => array_map('array_values', $d), $agg),
+        $_SESSION[IMP_KEY] = ['file' => (string) $f['name'], 'rows' => $dataRows, 'bad' => $bad, 'agg' => $agg,
             'names' => $names, 'map' => array_combine(array_keys($names), array_map(fn($n) => imp_guess($n, $targets), array_keys($names))), 'status' => 'approved'];
         redirect('admin/import_sales.php');
     }
@@ -188,6 +98,7 @@ if (is_post()) {
     $imp['status'] = post('status') === 'draft' ? 'draft' : 'approved';
     $_SESSION[IMP_KEY] = $imp;
     if ($act === 'run') {
+        imp_map_remember($imp['map']); // 매출보고 작성 화면의 '매표 엑셀로 채우기'도 같은 가져올 곳을 쓴다
         $existing = array_flip($pdo->query("SELECT work_date FROM journals WHERE type = 'sales'")->fetchAll(PDO::FETCH_COLUMN));
         $made = $skipped = $empty = 0;
         $ins = $pdo->prepare("INSERT INTO journals (type, team_id, work_date, author_id, weather, content, remarks, status) VALUES ('sales', NULL, ?, ?, NULL, '', ?, 'draft')");

@@ -4,6 +4,7 @@
  * 상신된 일지는 모든 직원이 수정할 수 있고, 수정하면 이력이 남고 결재가 처음부터 다시 진행된다.
  */
 require __DIR__ . '/app/bootstrap.php';
+require __DIR__ . '/app/sales_xls.php';
 
 $user = require_login();
 $pdo = db();
@@ -40,6 +41,11 @@ if (!can_write_type($user, $type)) abort(403, match ($type) {
     'arwork' => 'AR 사용보고는 공무직 이상이 작성합니다.',
     default  => '상품권 입고 등록·수정은 공무직 이상이 합니다.',
 });
+// 매출보고: '매표 엑셀로 채우기'로 올린 그 날 판매를 입력칸에 채움 (저장 전)
+$fillRep = null;
+if ($type === 'sales' && !is_post() && !empty($_GET['fill']) && ($fill = $_SESSION[SALES_FILL_KEY] ?? null) && $fill['date'] === $workDate) {
+    [$payload, $fillRep] = sales_fill_apply($payload, $fill, $workDate);
+}
 $revision = $journal && is_revision_edit($journal); // 상신된 적 있는 일지 수정 → 이력 + 결재 초기화
 $errors = [];
 
@@ -110,6 +116,7 @@ if (is_post()) {
         $notes = array_filter([$revision && $reason !== '' ? "사유: $reason" : '', $type === 'daily' && $cplCount ? "민원 {$cplCount}건" : '']);
         journal_log($id, $user, $revision ? '수정 (결재 다시 올림)' : ($journal ? ($submit ? '수정 후 결재 올리기' : '임시저장 수정') : ($submit ? '작성 · 결재 올리기' : '작성 (임시저장)')),
             implode(' · ', $notes));
+        if ($type === 'sales') unset($_SESSION[SALES_FILL_KEY]);
         diag_trace('완료 → 보기 화면으로');
         redirect('view.php?id=' . $id);
     }
@@ -119,6 +126,7 @@ $v = fn(string $k) => e(is_post() ? post($k) : ($journal[$k] ?? ''));
 $line = approval_line_for((int) $user['rank_level'], $type);
 
 layout_header(JOURNAL_TYPES[$type] . ($journal ? ' 수정' : ' 작성'), journal_nav_key($type));
+if ($type === 'sales') sales_fill_panel($workDate, $journal, $fillRep);
 ?>
 <form method="post" class="card" enctype="multipart/form-data">
   <?= csrf_field() ?>
