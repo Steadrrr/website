@@ -125,6 +125,7 @@ function nav_groups(?array $user): array
             'stats'      => ['stats.php', '매출통계'],
             'visit_stats' => ['visitor_stats.php', '입장객통계'],
             'room_stats' => ['room_stats.php', '객실이용통계'],
+            'product_sales' => ['product_sales.php', '상품판매현황'],
             'cpl_stats'  => ['complaint_stats.php', '민원통계'],
             'prog_stats' => ['program_stats.php', '프로그램 통계'],
         ]],

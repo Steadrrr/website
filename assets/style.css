@@ -1172,3 +1172,10 @@ label .tm-pick { display: flex; margin-top: .25rem; }
 .badge.rb-spare { background: #e8f0fb; color: #2b5ea8; }
 .badge.rb-construction { background: #fdeee4; color: #b3541e; }
 .badge.rb-business { background: #efe9f8; color: #6a4c9c; }
+
+/* 상품판매현황 */
+.ps-quick { margin-top: 8px; }
+.ps-pager { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; margin: 10px 0; }
+.ps-pager > a:not(.btn) { min-width: 30px; text-align: center; padding: 4px 8px; border: 1px solid var(--line, #ddd); border-radius: 6px; text-decoration: none; }
+.ps-pager > a.on { background: var(--primary, #2f7d4f); color: #fff; border-color: var(--primary, #2f7d4f); }
+.ps-pager .disabled { opacity: .45; pointer-events: none; }
