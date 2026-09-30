@@ -118,20 +118,27 @@ if (is_post()) {
         }
         $cols = imp_columns($rows[0] ?? []);
         $missing = array_diff(['date', 'name', 'qty', 'amount'], array_keys($cols));
+        $start = 1; // 첫 행 = 머리글
+        // 머리글 없이 첫 줄부터 판매 내역이면 기본 열 순서(날짜·상품명·지불방법·금액·수량·판매금액)로 읽는다
+        if ($missing && count($rows[0] ?? []) >= 6 && sheet_date($rows[0][0] ?? null)) {
+            $cols = ['date' => 0, 'name' => 1, 'pay' => 2, 'price' => 3, 'qty' => 4, 'amount' => 5];
+            $missing = [];
+            $start = 0;
+        }
         if ($missing) {
-            flash('엑셀 첫 줄(머리글)에서 ' . implode(', ', array_map(fn($k) => ['date' => '날짜', 'name' => '상품명', 'qty' => '수량', 'amount' => '판매금액'][$k], $missing)) . ' 열을 찾지 못했습니다.', 'error');
+            flash('엑셀 첫 줄(머리글)에서 ' . implode(', ', array_map(fn($k) => ['date' => '날짜', 'name' => '상품명', 'qty' => '수량', 'amount' => '판매금액'][$k], $missing)) . ' 열을 찾지 못했습니다. 머리글이 없으면 A~F열이 날짜·상품명·지불방법·금액·수량·판매금액 순서여야 합니다.', 'error');
             redirect('admin/import_sales.php');
         }
         $agg = [];    // 날짜 => 상품명 => 지불|단가 => 합계
         $names = [];  // 상품명 => 합계
         $bad = [];
-        foreach (array_slice($rows, 1) as $i => $r) {
+        foreach (array_slice($rows, $start) as $i => $r) {
             $date = sheet_date($r[$cols['date']] ?? null);
             $name = trim((string) ($r[$cols['name']] ?? ''));
             $qty = (int) round((float) ($r[$cols['qty']] ?? 0));
             $amt = (int) round((float) ($r[$cols['amount']] ?? 0));
             if (!$date && $name === '' && !$qty && !$amt) continue; // 빈 줄
-            if (!$date || $name === '') { if (count($bad) < 20) $bad[] = ($i + 2) . '행'; continue; }
+            if (!$date || $name === '') { if (count($bad) < 20) $bad[] = ($i + $start + 1) . '행'; continue; }
             $pay = isset($cols['pay']) && str_contains((string) ($r[$cols['pay']] ?? ''), '현금') ? '현금' : (isset($cols['pay']) ? '카드' : '카드');
             $price = isset($cols['price']) ? (int) round((float) ($r[$cols['price']] ?? 0)) : ($qty ? intdiv($amt, $qty) : 0);
             $k = "$pay|$price";
@@ -150,7 +157,7 @@ if (is_post()) {
         ksort($agg);
         uasort($names, fn($a, $b) => $b['amount'] <=> $a['amount'] ?: $b['qty'] <=> $a['qty']);
         $targets = imp_targets();
-        $_SESSION[IMP_KEY] = ['file' => (string) $f['name'], 'rows' => count($rows) - 1, 'bad' => $bad, 'agg' => array_map(fn($d) => array_map('array_values', $d), $agg),
+        $_SESSION[IMP_KEY] = ['file' => (string) $f['name'], 'rows' => count($rows) - $start, 'bad' => $bad, 'agg' => array_map(fn($d) => array_map('array_values', $d), $agg),
             'names' => $names, 'map' => array_combine(array_keys($names), array_map(fn($n) => imp_guess($n, $targets), array_keys($names))), 'status' => 'approved'];
         redirect('admin/import_sales.php');
     }
@@ -203,7 +210,8 @@ if (!$imp): ?>
   <h1>매출 가져오기 <small class="muted">엑셀 → 날짜별 매출보고</small></h1>
   <p>매표 프로그램에서 내려받은 <b>판매 내역 엑셀</b>을 올리면 날짜별로 묶어 <b>매출보고</b>를 한꺼번에 만듭니다.</p>
   <ul class="small">
-    <li>첫 줄(머리글)에 <b>날짜 · 상품명 · 지불방법 · 금액 · 수량 · 판매금액</b> 열이 있어야 합니다 (한 줄 = 판매 1건). .xlsx 또는 .csv</li>
+    <li>첫 줄(머리글)에 <b>날짜 · 상품명 · 지불방법 · 금액 · 수량 · 판매금액</b> 열이 있어야 합니다 (한 줄 = 판매 1건). .xlsx 또는 .csv<br>
+      머리글이 없으면 A~F열을 이 순서(날짜·상품명·지불방법·금액·수량·판매금액)로 읽습니다.</li>
     <li>올린 뒤 상품명마다 <b>가져올 곳</b>(입장권 상품 / 프로그램 판매 / 가져오지 않음)을 확인하고, 미리보기를 본 다음 가져옵니다. 올리기만 해서는 아무것도 저장되지 않습니다.</li>
     <li><b>이미 매출보고가 있는 날은 건너뜁니다</b> (덮어쓰지 않음). 객실·시설대관은 가져오지 않습니다.</li>
   </ul>
