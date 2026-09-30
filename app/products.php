@@ -236,11 +236,16 @@ function room_price(array $p, string $rate, bool $discount = false, ?string $rea
     return $discount && $pct > 0 ? intdiv($base * (100 - $pct), 1000) * 10 : $base;
 }
 
-/** 해당 날짜 숙박의 기본 요금구분: 객실 성수기 기간 → 성수기, 금·토요일 → 비수기 주말, 그 외 → 비수기 평일 */
-function rate_for_date(string $date): string
+/** 해당 날짜 숙박의 기본 요금구분: 객실 성수기 기간 → 성수기, 금·토요일·공휴일 전날 → 비수기 주말, 그 외 → 비수기 평일 */
+function rate_for_date(string $date, array $extraHolidays = []): string
 {
     if (season_for('room', $date)) return 'peak';
-    return in_array((int) date('w', strtotime($date)), [5, 6], true) ? 'weekend' : 'weekday';
+    if (in_array((int) date('w', strtotime($date)), [5, 6], true)) return 'weekend';
+    // 공휴일 전날도 주말 요금 (일정표의 '공휴일' 또는 $extraHolidays ['2026-02-16' => '설날', ...])
+    $next = date('Y-m-d', strtotime("$date +1 day"));
+    static $cache = [];
+    $cache[$next] ??= (bool) holiday_dates($next, $next);
+    return $cache[$next] || isset($extraHolidays[$next]) ? 'weekend' : 'weekday';
 }
 
 /** 시설대관 단가 = 시간 요금 + (야간이면) 야간 추가요금 */

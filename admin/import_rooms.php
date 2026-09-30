@@ -4,7 +4,8 @@
  *   엑셀: 시트 이름 '1월'~'12월', B1 = 연도, C1 = 월, '객실명' 머리글 줄에 날짜(1~31) 열, 그 아래 객실마다 한 줄 —
  *   날짜 칸의 숫자 = 그 날 입실 인원 (비어 있으면 판매 안 함). 아래쪽 합계·평균 표는 읽지 않는다.
  *   1) 올리기 → 2) 엑셀 객실명마다 사이트 객실 확인 → 3) 미리보기 → 4) 가져오기
- * 요금구분은 날짜로 자동(성수기 기간 → 성수기, 금·토 → 비수기 주말, 그 외 비수기 평일), 금액은 그 날의 사이트 객실 요금(할인 없음).
+ * 요금구분은 날짜로 자동(성수기 기간 → 성수기, 금·토·공휴일 전날 → 비수기 주말, 그 외 비수기 평일), 금액은 그 날의 사이트 객실 요금(할인 없음).
+ * 공휴일은 사이트 일정표의 '공휴일'과 엑셀의 '공휴일' 시트(B열 날짜·C열 이름, E열 매년 같은 날 MMDD)를 함께 쓴다.
  * 이미 일일객실판매가 있는 날은 건너뛴다. 저장하면 평소처럼 그 날 매출보고의 쉬자파크숙박(입실·퇴실)이 맞춰진다.
  */
 require __DIR__ . '/../app/bootstrap.php';
@@ -71,11 +72,27 @@ function imr_parse(array $sheets): array
     return [$agg, $names, $warn];
 }
 
+/** 엑셀 '공휴일' 시트 → ['2026-02-16' => '구정', ...] (B열 날짜·C열 이름, E열 'MMDD' 는 $years 의 해마다) */
+function imr_holidays(array $rows, array $years): array
+{
+    $out = [];
+    foreach ($rows as $r) {
+        if (($d = sheet_date($r[1] ?? null)) && in_array((int) substr($d, 0, 4), $years, true)) $out[$d] = trim((string) ($r[2] ?? '공휴일')) ?: '공휴일';
+        $md = trim((string) ($r[4] ?? ''));
+        if (preg_match('/^\d{3,4}$/', $md)) {
+            $md = str_pad($md, 4, '0', STR_PAD_LEFT);
+            foreach ($years as $y) if (checkdate((int) substr($md, 0, 2), (int) substr($md, 2), $y)) $out[sprintf('%d-%s-%s', $y, substr($md, 0, 2), substr($md, 2))] ??= '공휴일';
+        }
+    }
+    ksort($out);
+    return $out;
+}
+
 /** 한 날의 객실 판매 줄 */
-function imr_day_lines(string $date, array $byName, array $map): array
+function imr_day_lines(string $date, array $byName, array $map, array $holidays = []): array
 {
     $products = products_at($date);
-    $rate = rate_for_date($date);
+    $rate = rate_for_date($date, $holidays); // 공휴일 전날은 주말 요금
     $season = $rate === 'peak' ? (season_for('room', $date)['name'] ?? null) : null;
     $lines = [];
     foreach ($byName as $name => $guests) {
@@ -100,15 +117,17 @@ if (is_post()) {
         $f = $_FILES['file'] ?? null;
         if (!$f || $f['error'] !== UPLOAD_ERR_OK) { flash('파일을 올리지 못했습니다. 다시 골라 주세요.', 'error'); redirect('admin/import_rooms.php'); }
         try {
-            $sheets = xlsx_sheets($f['tmp_name'], 0, fn($n) => (bool) preg_match('/^\d{1,2}월$/u', trim($n)));
+            $sheets = xlsx_sheets($f['tmp_name'], 0, fn($n) => (bool) preg_match('/^(\d{1,2}월|공휴일)$/u', trim($n)));
         } catch (Throwable $e) {
             flash($e->getMessage(), 'error');
             redirect('admin/import_rooms.php');
         }
         [$agg, $names, $warn] = imr_parse($sheets);
+        $years = array_values(array_unique(array_map(fn($d) => (int) substr($d, 0, 4), array_keys($agg))));
+        $holidays = isset($sheets['공휴일']) ? imr_holidays($sheets['공휴일'], $years) : [];
         if (!$agg) { flash("가져올 객실 판매가 없습니다. 시트 이름이 '1월'~'12월'이고, '객실명' 머리글 아래에 객실마다 날짜별 입실 인원이 있는지 확인하세요.", 'error'); redirect('admin/import_rooms.php'); }
         $_SESSION[IMR_KEY] = ['file' => (string) $f['name'], 'sheets' => count($sheets), 'agg' => $agg, 'names' => $names, 'warn' => $warn,
-            'map' => array_combine(array_keys($names), array_map('imr_guess', array_keys($names))), 'status' => 'approved'];
+            'map' => array_combine(array_keys($names), array_map('imr_guess', array_keys($names))), 'status' => 'approved', 'holidays' => $holidays];
         redirect('admin/import_rooms.php');
     }
     if (!$imp) redirect('admin/import_rooms.php');
@@ -128,7 +147,7 @@ if (is_post()) {
         try {
             foreach ($imp['agg'] as $date => $byName) {
                 if (isset($existing[$date])) { $skipped++; continue; }
-                $lines = imr_day_lines($date, $byName, $imp['map']);
+                $lines = imr_day_lines($date, $byName, $imp['map'], $imp['holidays'] ?? []);
                 if (!$lines) { $empty++; continue; }
                 $ins->execute([$date, $user['id'], $note]);
                 $id = (int) $pdo->lastInsertId();
@@ -165,7 +184,8 @@ settings_nav('import');
     <li>시트 이름이 <b>1월 ~ 12월</b>이고, 각 시트의 B1에 연도, C1에 월, <b>'객실명'</b> 머리글 줄에 날짜(1~31) 열이 있는 엑셀(.xlsx)입니다.</li>
     <li>객실마다 한 줄, 날짜 칸의 숫자를 그 날 <b>입실 인원</b>으로 읽습니다 (비어 있으면 판매 안 함). 아래쪽 합계·판매율·평균 표는 읽지 않습니다.</li>
     <li>올린 뒤 엑셀 객실명마다 <b>사이트 객실</b>을 확인하고, 미리보기를 본 다음 가져옵니다. 올리기만 해서는 저장되지 않습니다.</li>
-    <li>요금구분은 날짜로 자동(성수기 기간 → 성수기, 금·토 → 비수기 주말, 그 외 평일), 금액은 그 날의 객실 요금입니다 (할인·지역상품권 환급은 없음).
+    <li>요금구분은 날짜로 자동(성수기 기간 → 성수기, 금·토·<b>공휴일 전날</b> → 비수기 주말, 그 외 평일), 금액은 그 날의 객실 요금입니다 (할인·지역상품권 환급은 없음).
+      공휴일은 사이트 일정표의 공휴일과 엑셀의 <b>'공휴일' 시트</b>를 함께 씁니다.
       <b>이미 일일객실판매가 있는 날은 건너뜁니다.</b></li>
   </ul>
   <form method="post" enctype="multipart/form-data" class="actions" style="justify-content:flex-start">
@@ -182,13 +202,15 @@ $existing = [];
 $st = $pdo->prepare("SELECT work_date, id FROM journals WHERE type = 'rooms' AND work_date BETWEEN ? AND ?");
 $st->execute([reset($dates), end($dates)]);
 foreach ($st as $r) $existing[$r['work_date']] = $r['id'];
-$sum = ['days' => 0, 'skip' => 0, 'empty' => 0, 'nights' => 0, 'guests' => 0, 'amount' => 0, 'weekday' => 0, 'weekend' => 0, 'peak' => 0];
+$sum = ['days' => 0, 'skip' => 0, 'empty' => 0, 'nights' => 0, 'guests' => 0, 'amount' => 0, 'weekday' => 0, 'weekend' => 0, 'peak' => 0, 'eve' => 0];
+$eves = []; // 공휴일 전날이라 주말 요금이 된 날
 $byMonth = [];
 foreach ($imp['agg'] as $date => $byName) {
     if (isset($existing[$date])) { $sum['skip']++; continue; }
-    $lines = imr_day_lines($date, $byName, $imp['map']);
+    $lines = imr_day_lines($date, $byName, $imp['map'], $imp['holidays'] ?? []);
     if (!$lines) { $sum['empty']++; continue; }
     $sum['days']++;
+    if ($lines[0]['rate'] === 'weekend' && !in_array((int) date('w', strtotime($date)), [5, 6], true)) { $eves[] = $date; $sum['eve'] += count($lines); }
     $mk = substr($date, 0, 7);
     $byMonth[$mk] ??= ['days' => 0, 'nights' => 0, 'guests' => 0, 'amount' => 0];
     $byMonth[$mk]['days']++;
@@ -245,6 +267,8 @@ $unmapped = array_keys(array_filter($imp['map'], fn($v) => !$v));
   <ul class="small">
     <li>새로 만들 일일객실판매 <b><?= $sum['days'] ?>일</b> · <?= number_format($sum['nights']) ?>박 · 입실 <?= number_format($sum['guests']) ?>명 · <?= e(won($sum['amount'])) ?><?= $sum['skip'] ? ' · 이미 있어 건너뛸 날 <b>' . $sum['skip'] . '일</b>' : '' ?></li>
     <?php if ($unmapped): ?><li class="warn">가져오지 않을 객실: <?= e(implode(', ', $unmapped)) ?></li><?php endif ?>
+    <li>공휴일 전날은 주말 요금: <?= $eves ? count($eves) . '일 ' . $sum['eve'] . '박 (' . e(implode(', ', array_map(fn($d) => date('n/j', strtotime($d)) . '(' . weekday_ko($d) . ')', $eves))) . ')' : '해당 없음' ?>
+      <small class="muted">— 공휴일은 사이트 일정표의 공휴일<?= !empty($imp['holidays']) ? '과 엑셀 공휴일 시트(' . count($imp['holidays']) . '일)' : '' ?></small></li>
     <li>저장하면 그 날 매출보고(있으면)의 쉬자파크숙박(입실)과 다음 날 (퇴실)이 입실 인원으로 맞춰집니다.</li>
   </ul>
   <?php if ($byMonth): ?>
