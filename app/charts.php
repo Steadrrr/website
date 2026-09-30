@@ -34,8 +34,10 @@ function chart_key(string $date, string $gran): string
 /**
  * 그래프 카드 하나
  * $datasets = [['label' => '합계', 'data' => [..], 'color' => '#2f7d4f', 'type' => 'bar'|'line'], ...]
+ * $opts = ['stacked' => true,                         // 막대를 한 기둥에 쌓기 (마우스를 올리면 항목별과 합계)
+ *          'views' => ['합계' => [0, 1, 2], '입장권' => [0], ...]]  // 보기 버튼: 누르면 그 항목(데이터셋 번호)만
  */
-function stat_chart(string $id, string $title, array $labels, array $datasets, string $unit = '', string $note = ''): void
+function stat_chart(string $id, string $title, array $labels, array $datasets, string $unit = '', string $note = '', array $opts = []): void
 {
     static $loaded = false;
     if (!$loaded) {
@@ -49,7 +51,14 @@ function stat_chart(string $id, string $title, array $labels, array $datasets, s
     ], $datasets);
     ?>
 <section class="card stat-chart-card">
-  <h2><?= e($title) ?><?php if ($note): ?> <small class="muted"><?= e($note) ?></small><?php endif ?></h2>
+  <div class="card-head">
+    <h2><?= e($title) ?><?php if ($note): ?> <small class="muted"><?= e($note) ?></small><?php endif ?></h2>
+    <?php if (!empty($opts['views'])): ?>
+      <div class="stat-units chart-views no-print" data-chart-views="<?= e($id) ?>">
+        <?php $vi = 0; foreach ($opts['views'] as $vlabel => $idx): ?><button type="button" class="<?= $vi++ === 0 ? 'on' : '' ?>" data-show="<?= e(json_encode(array_values($idx))) ?>"><?= e($vlabel) ?></button><?php endforeach ?>
+      </div>
+    <?php endif ?>
+  </div>
   <div class="stat-chart"><canvas id="<?= e($id) ?>"></canvas></div>
 </section>
 <script>
@@ -57,15 +66,30 @@ function stat_chart(string $id, string $title, array $labels, array $datasets, s
   const el = document.getElementById(<?= json_encode($id) ?>);
   if (!el || !window.Chart) { if (el) el.closest('.stat-chart').innerHTML = '<p class="muted small">그래프를 불러오지 못했습니다 (인터넷 연결 확인).</p>'; return; }
   const unit = <?= json_encode($unit, JSON_UNESCAPED_UNICODE) ?>;
-  new Chart(el, {
+  const stacked = <?= !empty($opts['stacked']) ? 'true' : 'false' ?>;
+  const fmt = (v) => Number(v).toLocaleString('ko-KR');
+  const chart = new Chart(el, {
     data: { labels: <?= json_encode(array_values($labels), JSON_UNESCAPED_UNICODE) ?>, datasets: <?= json_encode($ds, JSON_UNESCAPED_UNICODE) ?> },
     options: {
       responsive: true, maintainAspectRatio: false, animation: false,
       interaction: { mode: 'index', intersect: false },
-      scales: { y: { beginAtZero: true, ticks: { precision: 0, callback: (v) => Number(v).toLocaleString('ko-KR') } }, x: { ticks: { autoSkip: true, maxRotation: 0 } } },
+      scales: { y: { stacked, beginAtZero: true, ticks: { precision: 0, callback: (v) => fmt(v) } }, x: { stacked, ticks: { autoSkip: true, maxRotation: 0 } } },
       plugins: { legend: { position: 'bottom', display: <?= count($datasets) > 1 ? 'true' : 'false' ?> },
-        tooltip: { callbacks: { label: (c) => `${c.dataset.label}: ${Number(c.parsed.y).toLocaleString('ko-KR')}${unit}` } } },
+        tooltip: { callbacks: {
+          label: (c) => `${c.dataset.label}: ${fmt(c.parsed.y)}${unit}`,
+          footer: (items) => stacked && items.length > 1 ? `합계: ${fmt(items.reduce((s, i) => s + i.parsed.y, 0))}${unit}` : '',
+        } } },
     },
+  });
+  // 보기 버튼 (합계 / 항목별)
+  const views = document.querySelector('[data-chart-views="' + el.id + '"]');
+  if (views) views.addEventListener('click', (ev) => {
+    const b = ev.target.closest('button[data-show]');
+    if (!b) return;
+    const show = JSON.parse(b.dataset.show);
+    chart.data.datasets.forEach((_, i) => chart.setDatasetVisibility(i, show.includes(i)));
+    chart.update();
+    views.querySelectorAll('button').forEach((x) => x.classList.toggle('on', x === b));
   });
 })();
 </script>

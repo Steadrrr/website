@@ -1,11 +1,12 @@
 <?php
 /**
- * 통계: 매출(기간별/월별/연간), 업무일지 목록. 엑셀 다운로드·인쇄(PDF 저장)
- *   stats.php?tab=sales&mode=range&from=2026-09-01&to=2026-09-30
- *   stats.php?tab=sales&mode=month&year=2026
- *   stats.php?tab=sales&mode=year
- *   stats.php?tab=daily&from=..&to=..
+ * 통계 › 매출통계: 기간별(일자별)·주간(월~일)·월별·연간. 엑셀 다운로드·인쇄(PDF 저장)
+ *   stats.php?mode=range&from=2026-09-01&to=2026-09-30
+ *   stats.php?mode=week&from=2026-07-06&to=2026-09-27
+ *   stats.php?mode=month&year=2026
+ *   stats.php?mode=year
  *   + &export=xlsx
+ * 매출 합계 추이 그래프는 입장권·프로그램·숙박(객실+대관 숙박시설)·시설대관을 한 기둥에 쌓고, 버튼으로 항목별로 본다.
  */
 require __DIR__ . '/app/bootstrap.php';
 require __DIR__ . '/app/xlsx.php';
@@ -14,11 +15,11 @@ $user = require_login();
 require_menu($user, 'stat');
 $pdo = db();
 
-$tab = ($_GET['tab'] ?? 'sales') === 'daily' ? 'daily' : 'sales';
-$mode = in_array($_GET['mode'] ?? '', ['range', 'month', 'year'], true) ? $_GET['mode'] : 'month';
+$tab = 'sales'; // (예전 '업무일지' 탭은 없앰)
+$mode = in_array($_GET['mode'] ?? '', ['range', 'week', 'month', 'year'], true) ? $_GET['mode'] : 'month';
 $year = (int) ($_GET['year'] ?? date('Y'));
 if ($year < 2000 || $year > 2100) $year = (int) date('Y');
-$from = valid_date($_GET['from'] ?? '') ? $_GET['from'] : date('Y-m-01');
+$from = valid_date($_GET['from'] ?? '') ? $_GET['from'] : ($mode === 'week' ? date('Y-m-d', strtotime('monday this week -11 weeks')) : date('Y-m-01'));
 $to = valid_date($_GET['to'] ?? '') ? $_GET['to'] : date('Y-m-d');
 if ($from > $to) [$from, $to] = [$to, $from];
 $approvedOnly = !empty($_GET['approved']);
@@ -40,6 +41,19 @@ if ($tab === 'sales') {
         }
         $title = "매출 통계 (기간별) {$from} ~ {$to}";
         $keyHead = '일자';
+    } elseif ($mode === 'week') {
+        // 주간: 월요일~일요일 (기간 첫 주·마지막 주는 기간 안의 날만)
+        if ((strtotime($to) - strtotime($from)) / 86400 > 366 * 2) $from = date('Y-m-d', strtotime($to . ' -' . (366 * 2) . ' days'));
+        $keySql = "DATE_FORMAT(DATE_SUB(j.work_date, INTERVAL WEEKDAY(j.work_date) DAY), '%Y-%m-%d')";
+        $rangeFrom = $from; $rangeTo = $to;
+        $labels = [];
+        for ($w = new DateTimeImmutable(date('Y-m-d', strtotime('monday this week', strtotime($from)))); $w->format('Y-m-d') <= $to; $w = $w->modify('+7 days')) {
+            $ws = max($w->format('Y-m-d'), $from);
+            $we = min($w->modify('+6 days')->format('Y-m-d'), $to);
+            $labels[$w->format('Y-m-d')] = date('y.n/j', strtotime($ws)) . '~' . date('n/j', strtotime($we));
+        }
+        $title = "매출 통계 (주간) {$from} ~ {$to}";
+        $keyHead = '주 (월~일)';
     } elseif ($mode === 'year') {
         $minYear = (int) ($pdo->query("SELECT MIN(YEAR(work_date)) FROM journals WHERE type IN ('sales', 'rooms')")->fetchColumn() ?: date('Y'));
         $keySql = "DATE_FORMAT(j.work_date, '%Y')";
@@ -62,7 +76,7 @@ if ($tab === 'sales') {
         $st->execute([...$statuses, $rangeFrom, $rangeTo]);
         return $st->fetchAll();
     };
-    $metrics = ['paid' => 0, 'free' => 0, 'ticket_amt' => 0, 'cash' => 0, 'card' => 0, 'rooms' => 0, 'guests' => 0, 'room_amt' => 0, 'rent_qty' => 0, 'rent_amt' => 0, 'prog_qty' => 0, 'prog_amt' => 0, 'voucher' => 0, 'total' => 0];
+    $metrics = ['paid' => 0, 'free' => 0, 'ticket_amt' => 0, 'cash' => 0, 'card' => 0, 'rooms' => 0, 'guests' => 0, 'room_amt' => 0, 'rent_qty' => 0, 'rent_amt' => 0, 'lodge_amt' => 0, 'prog_qty' => 0, 'prog_amt' => 0, 'voucher' => 0, 'total' => 0];
     $data = array_fill_keys(array_keys($labels), $metrics);
 
     foreach ($run("SELECT $keySql AS k,
@@ -74,12 +88,13 @@ if ($tab === 'sales') {
                 SUM(IF(l.grp = 'room', l.amount, 0)) AS room_amt,
                 SUM(IF(l.grp IN ('rental', 'lodge'), l.qty, 0)) AS rent_qty,
                 SUM(IF(l.grp IN ('rental', 'lodge'), l.amount, 0)) AS rent_amt,
+                SUM(IF(l.grp = 'lodge', l.amount, 0)) AS lodge_amt,
                 SUM(IF(l.grp = 'program', l.qty + l.guests, 0)) AS prog_qty,
                 SUM(IF(l.grp = 'program', l.amount, 0)) AS prog_amt
            FROM journals j JOIN sales_lines l ON l.journal_id = j.id
           WHERE " . SALE_DOC_SQL . " AND $statusSql AND j.work_date BETWEEN ? AND ? GROUP BY k") as $r) {
         if (!isset($data[$r['k']])) continue;
-        foreach (['paid', 'free', 'ticket_amt', 'rooms', 'guests', 'room_amt', 'rent_qty', 'rent_amt', 'prog_qty', 'prog_amt'] as $m) $data[$r['k']][$m] = (int) $r[$m];
+        foreach (['paid', 'free', 'ticket_amt', 'rooms', 'guests', 'room_amt', 'rent_qty', 'rent_amt', 'lodge_amt', 'prog_qty', 'prog_amt'] as $m) $data[$r['k']][$m] = (int) $r[$m];
     }
     foreach ($run("SELECT $keySql AS k, SUM(m.ticket_cash) AS cash FROM journals j JOIN sales_meta m ON m.journal_id = j.id
           WHERE " . SALE_DOC_SQL . " AND $statusSql AND j.work_date BETWEEN ? AND ? GROUP BY k") as $r) {
@@ -151,33 +166,8 @@ if ($tab === 'sales') {
     }
 }
 
-/* ───────────── 업무일지 목록 ───────────── */
-
-if ($tab === 'daily') {
-    if ((strtotime($to) - strtotime($from)) / 86400 > 366) $from = date('Y-m-d', strtotime($to . ' -366 days'));
-    $st = $pdo->prepare(
-        "SELECT j.*, u.name AS author_name FROM journals j JOIN users u ON u.id = j.author_id
-          WHERE j.type = 'daily' AND $statusSql AND j.work_date BETWEEN ? AND ?
-          ORDER BY j.work_date, j.id"
-    );
-    $st->execute([...$statuses, $from, $to]);
-    $journals = $st->fetchAll();
-    $title = "업무일지 {$from} ~ {$to}";
-
-    if (($_GET['export'] ?? '') === 'xlsx') {
-        xlsx_send(str_replace(' ', '_', $title) . '.xlsx', [[
-            'name' => '업무일지', 'title' => config('site_name') . ' ' . $title,
-            'subtitle' => $statusLabel . ' · ' . count($journals) . '건 · 출력 ' . date('Y-m-d H:i') . ' · ' . $user['name'],
-            'header' => ['일자', '요일', '작성자', '날씨', '업무내용', '특이사항', '결재상태'],
-            'rows' => array_map(fn($j) => [$j['work_date'], weekday_ko($j['work_date']), $j['author_name'], (string) $j['weather'],
-                (string) $j['content'], (string) $j['remarks'], JOURNAL_STATUS[$j['status']]], $journals),
-            'widths' => [12, 5, 10, 10, 60, 40, 10],
-        ]]);
-    }
-}
-
 $query = fn(array $over) => 'stats.php?' . http_build_query(array_filter([
-    'tab' => $tab, 'mode' => $mode, 'year' => $year, 'from' => $from, 'to' => $to, 'approved' => $approvedOnly ? 1 : null, ...$over,
+    'mode' => $mode, 'year' => $year, 'from' => $from, 'to' => $to, 'approved' => $approvedOnly ? 1 : null, ...$over,
 ], fn($v) => $v !== null && $v !== ''));
 
 layout_header($title, 'stats');
@@ -191,21 +181,14 @@ layout_header($title, 'stats');
       <button class="btn primary" onclick="window.print()">인쇄 / PDF 저장</button>
     </div>
   </div>
-  <div class="tabs team-tabs no-print">
-    <a href="<?= e(url('stats.php?tab=sales')) ?>" class="<?= $tab === 'sales' ? 'on' : '' ?>">매출 통계</a>
-    <a href="<?= e(url('stats.php?tab=daily')) ?>" class="<?= $tab === 'daily' ? 'on' : '' ?>">업무일지</a>
-  </div>
-
   <form class="filter no-print" method="get">
-    <input type="hidden" name="tab" value="<?= $tab ?>">
-    <?php if ($tab === 'sales'): ?>
-      <select name="mode" onchange="this.form.submit()">
+      <select name="mode" onchange="this.form.querySelectorAll('input[type=date]').forEach((i) => i.disabled = true); this.form.submit()">
         <option value="range" <?= $mode === 'range' ? 'selected' : '' ?>>기간별 (일자별)</option>
+        <option value="week" <?= $mode === 'week' ? 'selected' : '' ?>>주간 (월~일)</option>
         <option value="month" <?= $mode === 'month' ? 'selected' : '' ?>>월별</option>
         <option value="year" <?= $mode === 'year' ? 'selected' : '' ?>>연간</option>
       </select>
-    <?php endif ?>
-    <?php if ($tab === 'daily' || $mode === 'range'): ?>
+    <?php if ($mode === 'range' || $mode === 'week'): ?>
       <input type="date" name="from" value="<?= e($from) ?>"> ~ <input type="date" name="to" value="<?= e($to) ?>">
     <?php elseif ($mode === 'month'): ?>
       <select name="year"><?php for ($y = (int) date('Y') + 1; $y >= (int) date('Y') - 9; $y--): ?><option <?= $y === $year ? 'selected' : '' ?>><?= $y ?></option><?php endfor ?></select>년
@@ -215,17 +198,30 @@ layout_header($title, 'stats');
   </form>
 </section>
 
-<?php if ($tab === 'sales'):
-    // 그래프: 매출 합계 (기간별은 3개월 이하 일별·그보다 길면 월별, 월별 보기는 월별, 연간은 연도별)
+<?php
+    // 그래프: 매출 추이 — 입장권·프로그램·숙박(객실+대관 숙박시설)·시설대관을 한 기둥에 쌓는다
+    // (기간별은 3개월 이하 일별·그보다 길면 월별, 주간은 주별, 월별 보기는 월별, 연간은 연도별)
+    $parts = ['ticket' => fn($r) => $r['ticket_amt'], 'prog' => fn($r) => $r['prog_amt'], 'stay' => fn($r) => $r['room_amt'] + $r['lodge_amt'], 'rental' => fn($r) => $r['rent_amt'] - $r['lodge_amt']];
     if ($mode === 'range' && chart_gran($from, $to) === 'month') {
         $cLabels = chart_buckets($from, $to, 'month');
-        $cData = array_fill_keys(array_keys($cLabels), 0);
-        foreach ($data as $k => $r) $cData[substr($k, 0, 7)] += $r['total'];
+        $cData = array_fill_keys(array_keys($parts), array_fill_keys(array_keys($cLabels), 0));
+        foreach ($data as $k => $r) foreach ($parts as $pk => $fnp) $cData[$pk][substr($k, 0, 7)] += $fnp($r);
     } else {
         $cLabels = $mode === 'range' ? array_map(fn($k) => date('n/j', strtotime($k)), array_combine(array_keys($data), array_keys($data))) : $labels;
-        $cData = array_column($data, 'total');
+        $cData = array_map(fn($fnp) => array_map($fnp, $data), $parts);
     }
-    stat_chart('salesChart', '매출 합계 추이', array_values($cLabels), [['label' => '매출 합계', 'data' => array_values($cData), 'color' => '#2f7d4f']], '원');
+    $sets = [
+        ['label' => '입장권', 'data' => array_values($cData['ticket']), 'color' => '#2f7d4f'],
+        ['label' => '프로그램', 'data' => array_values($cData['prog']), 'color' => '#c9a227'],
+        ['label' => '숙박', 'data' => array_values($cData['stay']), 'color' => '#4a7fb5'],
+    ];
+    $views = ['합계' => [0, 1, 2], '입장권' => [0], '프로그램' => [1], '숙박' => [2]];
+    if (array_sum($cData['rental'])) { // 시설대관 매출이 있으면 기둥에 함께 (합계가 맞도록)
+        $sets[] = ['label' => '시설대관', 'data' => array_values($cData['rental']), 'color' => '#8e7cc3'];
+        $views['합계'][] = 3;
+        $views['시설대관'] = [3];
+    }
+    stat_chart('salesChart', '매출 합계 추이', array_values($cLabels), $sets, '원', '숙박 = 객실 + 대관 숙박시설', ['stacked' => true, 'views' => $views]);
 ?>
 <section class="card">
   <h2><?= e($title) ?> <small class="muted"><?= e($statusLabel) ?> 집계</small></h2>
@@ -302,25 +298,4 @@ layout_header($title, 'stats');
 <?php endif ?>
 <p class="muted small no-print">현금·카드는 입장권 기준입니다(카드 = 입장권 금액 − 현금). 이전 형식으로 작성된 매출보고는 통계에 포함되지 않습니다.</p>
 
-<?php else: ?>
-<section class="card">
-  <h2><?= e($title) ?> <small class="muted"><?= count($journals) ?>건 · <?= e($statusLabel) ?></small></h2>
-  <table class="table daily-list">
-    <thead><tr><th>일자</th><th>작성자</th><th>날씨</th><th>업무내용</th><th>특이사항</th><th>상태</th></tr></thead>
-    <tbody>
-    <?php foreach ($journals as $j): ?>
-      <tr>
-        <td class="nowrap"><a href="<?= e(url('view.php?id=' . $j['id'])) ?>"><?= e($j['work_date']) ?></a> (<?= weekday_ko($j['work_date']) ?>)</td>
-        <td class="nowrap"><?= e($j['author_name']) ?></td>
-        <td class="nowrap"><?= e($j['weather']) ?></td>
-        <td class="pre-cell"><?= e($j['content']) ?></td>
-        <td class="pre-cell"><?= e($j['remarks']) ?></td>
-        <td><?= journal_badges($j) ?></td>
-      </tr>
-    <?php endforeach ?>
-    <?php if (!$journals): ?><tr><td colspan="6" class="center muted">해당 기간의 업무일지가 없습니다.</td></tr><?php endif ?>
-    </tbody>
-  </table>
-</section>
-<?php endif ?>
 <?php layout_footer();
