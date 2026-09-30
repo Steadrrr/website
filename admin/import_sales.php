@@ -85,7 +85,7 @@ if (is_post()) {
         }
         $targets = imp_targets();
         $_SESSION[IMP_KEY] = ['file' => (string) $f['name'], 'rows' => $dataRows, 'bad' => $bad, 'agg' => $agg,
-            'names' => $names, 'map' => array_combine(array_keys($names), array_map(fn($n) => imp_guess($n, $targets), array_keys($names))), 'status' => 'approved'];
+            'names' => $names, 'map' => array_combine(array_keys($names), array_map(fn($n) => imp_guess($n, $targets, array_keys($names[$n]['cats'] ?? [])), array_keys($names))), 'status' => 'approved'];
         redirect('admin/import_sales.php');
     }
     if (!$imp) redirect('admin/import_sales.php');
@@ -94,6 +94,7 @@ if (is_post()) {
     foreach (array_keys($imp['names']) as $i => $n) {
         $v = (string) ($_POST['map'][$i] ?? '');
         $imp['map'][$n] = isset($targets[$v]) ? $v : '';
+        if (imp_is_rental_entry($n, array_keys($imp['names'][$n]['cats'] ?? [])) && ($rid = imp_rental_ticket_id())) $imp['map'][$n] = "p:$rid"; // 행사참석·시설대관 = 입장권 시설대관 (고정)
     }
     $imp['status'] = post('status') === 'draft' ? 'draft' : 'approved';
     $_SESSION[IMP_KEY] = $imp;
