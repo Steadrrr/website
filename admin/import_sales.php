@@ -17,12 +17,19 @@ $imp = $_SESSION[IMP_KEY] ?? null;
 /** 엑셀 머리글에서 열 찾기 */
 function imp_columns(array $head): array
 {
-    $want = ['date' => ['날짜', '일자', '판매일'], 'name' => ['상품명', '상품', '권종'], 'pay' => ['지불방법', '결제', '결제방법', '지불'],
-             'price' => ['금액', '단가'], 'qty' => ['수량', '매수'], 'amount' => ['판매금액', '합계', '판매액']];
+    // 머리글 이름 → 항목 (공백·"(원)" 같은 단위는 빼고 비교). 산림청 통합운영시스템: 사용일자·상품구분·상품명·결제수단·단가(원)·수량·금액(원)
+    $want = ['date' => ['날짜', '일자', '판매일', '사용일자', '이용일자', '판매일자'], 'name' => ['상품명', '상품', '권종'], 'cat' => ['상품구분', '구분'],
+             'pay' => ['지불방법', '결제', '결제방법', '결제수단', '지불'], 'price' => ['단가'], 'qty' => ['수량', '매수'], 'amount' => ['판매금액', '판매액', '합계금액']];
     $cols = [];
+    $gold = null; // '금액': 판매금액 열이 따로 있으면 단가, 없으면 판매금액
     foreach ($head as $i => $h) {
-        $h = preg_replace('/\s+/u', '', (string) $h);
+        $h = preg_replace('/\s+|\((원|개|매|명)\)/u', '', (string) $h);
+        if ($h === '금액' && $gold === null) { $gold = $i; continue; }
         foreach ($want as $k => $names) if (!isset($cols[$k]) && in_array($h, $names, true)) { $cols[$k] = $i; break; }
+    }
+    if ($gold !== null) {
+        if (isset($cols['amount'])) $cols['price'] ??= $gold;
+        else $cols['amount'] = $gold;
     }
     return $cols;
 }
@@ -116,9 +123,14 @@ if (is_post()) {
             flash($e->getMessage(), 'error');
             redirect('admin/import_sales.php');
         }
+        // 머리글 줄 찾기: 위쪽 10줄 안에서 날짜·상품명·수량·금액 열이 모두 있는 줄 (제목·출력일시 줄이 위에 있어도 됨)
+        $start = 1;
         $cols = imp_columns($rows[0] ?? []);
         $missing = array_diff(['date', 'name', 'qty', 'amount'], array_keys($cols));
-        $start = 1; // 첫 행 = 머리글
+        for ($h = 1; $missing && $h < min(10, count($rows)); $h++) {
+            $try = imp_columns($rows[$h]);
+            if (!array_diff(['date', 'name', 'qty', 'amount'], array_keys($try))) { $cols = $try; $missing = []; $start = $h + 1; }
+        }
         // 머리글 없이 첫 줄부터 판매 내역이면 기본 열 순서(날짜·상품명·지불방법·금액·수량·판매금액)로 읽는다
         if ($missing && count($rows[0] ?? []) >= 6 && sheet_date($rows[0][0] ?? null)) {
             $cols = ['date' => 0, 'name' => 1, 'pay' => 2, 'price' => 3, 'qty' => 4, 'amount' => 5];
@@ -126,19 +138,23 @@ if (is_post()) {
             $start = 0;
         }
         if ($missing) {
-            flash('엑셀 첫 줄(머리글)에서 ' . implode(', ', array_map(fn($k) => ['date' => '날짜', 'name' => '상품명', 'qty' => '수량', 'amount' => '판매금액'][$k], $missing)) . ' 열을 찾지 못했습니다. 머리글이 없으면 A~F열이 날짜·상품명·지불방법·금액·수량·판매금액 순서여야 합니다.', 'error');
+            flash('엑셀 위쪽(머리글)에서 ' . implode(', ', array_map(fn($k) => ['date' => '날짜', 'name' => '상품명', 'qty' => '수량', 'amount' => '판매금액'][$k], $missing)) . ' 열을 찾지 못했습니다. 머리글이 없으면 A~F열이 날짜·상품명·지불방법·금액·수량·판매금액 순서여야 합니다.', 'error');
             redirect('admin/import_sales.php');
         }
         $agg = [];    // 날짜 => 상품명 => 지불|단가 => 합계
         $names = [];  // 상품명 => 합계
         $bad = [];
+        $dataRows = 0;
         foreach (array_slice($rows, $start) as $i => $r) {
+            if (array_filter($r, fn($v) => is_string($v) && in_array(trim($v), ['합계', '소계', '총계', '총합계'], true))) continue; // 합계 줄
             $date = sheet_date($r[$cols['date']] ?? null);
             $name = trim((string) ($r[$cols['name']] ?? ''));
             $qty = (int) round((float) ($r[$cols['qty']] ?? 0));
             $amt = (int) round((float) ($r[$cols['amount']] ?? 0));
             if (!$date && $name === '' && !$qty && !$amt) continue; // 빈 줄
             if (!$date || $name === '') { if (count($bad) < 20) $bad[] = ($i + $start + 1) . '행'; continue; }
+            $dataRows++;
+            $cat = isset($cols['cat']) ? trim((string) ($r[$cols['cat']] ?? '')) : '';
             $pay = isset($cols['pay']) && str_contains((string) ($r[$cols['pay']] ?? ''), '현금') ? '현금' : (isset($cols['pay']) ? '카드' : '카드');
             $price = isset($cols['price']) ? (int) round((float) ($r[$cols['price']] ?? 0)) : ($qty ? intdiv($amt, $qty) : 0);
             $k = "$pay|$price";
@@ -146,7 +162,8 @@ if (is_post()) {
             $agg[$date][$name][$k]['qty'] += $qty;
             $agg[$date][$name][$k]['amount'] += $amt;
             $agg[$date][$name][$k]['rows']++;
-            $names[$name] ??= ['rows' => 0, 'qty' => 0, 'amount' => 0, 'cash' => 0, 'prices' => []];
+            $names[$name] ??= ['rows' => 0, 'qty' => 0, 'amount' => 0, 'cash' => 0, 'prices' => [], 'cats' => []];
+            if ($cat !== '') $names[$name]['cats'][$cat] = true;
             $names[$name]['rows']++;
             $names[$name]['qty'] += $qty;
             $names[$name]['amount'] += $amt;
@@ -157,7 +174,7 @@ if (is_post()) {
         ksort($agg);
         uasort($names, fn($a, $b) => $b['amount'] <=> $a['amount'] ?: $b['qty'] <=> $a['qty']);
         $targets = imp_targets();
-        $_SESSION[IMP_KEY] = ['file' => (string) $f['name'], 'rows' => count($rows) - $start, 'bad' => $bad, 'agg' => array_map(fn($d) => array_map('array_values', $d), $agg),
+        $_SESSION[IMP_KEY] = ['file' => (string) $f['name'], 'rows' => $dataRows, 'bad' => $bad, 'agg' => array_map(fn($d) => array_map('array_values', $d), $agg),
             'names' => $names, 'map' => array_combine(array_keys($names), array_map(fn($n) => imp_guess($n, $targets), array_keys($names))), 'status' => 'approved'];
         redirect('admin/import_sales.php');
     }
@@ -210,14 +227,15 @@ if (!$imp): ?>
   <h1>매출 가져오기 <small class="muted">엑셀 → 날짜별 매출보고</small></h1>
   <p>매표 프로그램에서 내려받은 <b>판매 내역 엑셀</b>을 올리면 날짜별로 묶어 <b>매출보고</b>를 한꺼번에 만듭니다.</p>
   <ul class="small">
-    <li>첫 줄(머리글)에 <b>날짜 · 상품명 · 지불방법 · 금액 · 수량 · 판매금액</b> 열이 있어야 합니다 (한 줄 = 판매 1건). .xlsx 또는 .csv<br>
-      머리글이 없으면 A~F열을 이 순서(날짜·상품명·지불방법·금액·수량·판매금액)로 읽습니다.</li>
+    <li><b>산림청 통합운영시스템의 '상품판매현황' 엑셀(.xls)을 그대로</b> 올리면 됩니다 (제목 줄·합계 줄·쪽 번호는 알아서 건너뜀).</li>
+    <li>다른 엑셀(.xlsx/.xls/.csv)도 머리글에 <b>날짜(사용일자) · 상품명 · 지불방법(결제수단) · 단가 · 수량 · 금액</b> 열이 있으면 됩니다 (한 줄 = 판매 1건).
+      머리글이 없으면 A~F열을 날짜·상품명·지불방법·단가·수량·판매금액 순서로 읽습니다.</li>
     <li>올린 뒤 상품명마다 <b>가져올 곳</b>(입장권 상품 / 프로그램 판매 / 가져오지 않음)을 확인하고, 미리보기를 본 다음 가져옵니다. 올리기만 해서는 아무것도 저장되지 않습니다.</li>
     <li><b>이미 매출보고가 있는 날은 건너뜁니다</b> (덮어쓰지 않음). 객실·시설대관은 가져오지 않습니다.</li>
   </ul>
   <form method="post" enctype="multipart/form-data" class="actions" style="justify-content:flex-start">
     <?= csrf_field() ?><input type="hidden" name="act" value="upload">
-    <input type="file" name="file" accept=".xlsx,.csv" required>
+    <input type="file" name="file" accept=".xlsx,.xls,.csv" required>
     <button class="btn primary">올리기</button>
   </form>
 </section>
@@ -278,7 +296,7 @@ $unmapped = array_filter($imp['map'], fn($v) => $v === '');
     <tbody>
     <?php $i = 0; foreach ($imp['names'] as $name => $n): $cur = $imp['map'][$name] ?? ''; ?>
       <tr class="<?= $cur === '' ? 'inactive' : '' ?>">
-        <td><b><?= e($name) ?></b></td><td class="right"><?= number_format($n['rows']) ?></td><td class="right"><?= number_format($n['qty']) ?></td>
+        <td><b><?= e($name) ?></b><?= !empty($n['cats']) ? '<br><small class="muted">' . e(implode(', ', array_keys($n['cats']))) . '</small>' : '' ?></td><td class="right"><?= number_format($n['rows']) ?></td><td class="right"><?= number_format($n['qty']) ?></td>
         <td class="right"><?= number_format($n['amount']) ?><?= $n['cash'] ? '<br><small class="muted">현금 ' . number_format($n['cash']) . '</small>' : '' ?></td>
         <td class="small"><?= e(implode(' · ', array_map('number_format', array_keys($n['prices'])))) ?></td>
         <td><select name="map[<?= $i ?>]">
