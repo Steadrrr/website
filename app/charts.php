@@ -31,6 +31,27 @@ function chart_key(string $date, string $gran): string
     return $gran === 'day' ? substr($date, 0, 10) : substr($date, 0, 7);
 }
 
+const CHART_COLORS = ['#2f7d4f', '#4a7fb5', '#c9a227', '#c0392b', '#8e7cc3', '#e67e22', '#16a085', '#7f8c8d', '#d35d8f', '#5d6d7e'];
+
+/**
+ * 항목별로 한 기둥에 쌓는 그래프 데이터 (+ 합계·항목별 보기 버튼)
+ *   $groups = [항목 이름 => [구간 키 => 값]], $keys = 구간 키 순서
+ *   기간 안에 값이 없는 항목은 뺀다 (모두 0이면 그대로). 항목이 하나면 보기 버튼 없음.
+ * @return array{0: array, 1: array} [$datasets, $opts] — stat_chart() 에 그대로
+ */
+function chart_stack(array $groups, array $keys, array $colors = []): array
+{
+    $nonzero = array_filter($groups, fn($g) => array_sum($g) != 0);
+    if ($nonzero) $groups = $nonzero;
+    $sets = $views = [];
+    $i = 0;
+    foreach ($groups as $name => $g) {
+        $sets[] = ['label' => (string) $name, 'data' => array_map(fn($k) => $g[$k] ?? 0, $keys), 'color' => $colors[$name] ?? CHART_COLORS[$i % count(CHART_COLORS)]];
+        $views[(string) $name] = [$i++];
+    }
+    return [$sets, count($sets) > 1 ? ['stacked' => true, 'views' => ['합계' => range(0, count($sets) - 1)] + $views] : []];
+}
+
 /**
  * 그래프 카드 하나
  * $datasets = [['label' => '합계', 'data' => [..], 'color' => '#2f7d4f', 'type' => 'bar'|'line'], ...]

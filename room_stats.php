@@ -296,9 +296,27 @@ layout_header('객실이용통계', 'room_stats');
 // 그래프: 판매 객실 (3개월 이하 일별, 그보다 길면 월별)
 $cg = chart_gran($from, $to);
 $cLabels = chart_buckets($from, $to, $cg);
-$CP = rs_period($from, $to, $cg, $statuses, $roomCount, $roomProducts, (bool) $typeId);
+// 객실 분류별로 기둥을 나눠 쌓고, 분류 보기 버튼 (분류를 골랐으면 그 분류만)
+$st = db()->prepare(
+    "SELECT j.work_date, l.product_id, SUM(l.qty) AS q
+       FROM journals j JOIN sales_lines l ON l.journal_id = j.id
+      WHERE " . SALE_DOC_SQL . " AND l.grp = 'room' AND j.work_date BETWEEN ? AND ?
+        AND j.status IN (" . implode(',', array_fill(0, count($statuses), '?')) . ')
+      GROUP BY j.work_date, l.product_id'
+);
+$st->execute([$from, $to, ...$statuses]);
+$cGroups = [];
+foreach ($typeId ? [$typeId => $types[$typeId]] : $types as $t) $cGroups[$t['name']] = [];
+foreach ($st as $r) {
+    $p = $allRooms[(int) $r['product_id']] ?? null;
+    if ($typeId && (!$p || (int) $p['room_type_id'] !== $typeId)) continue;
+    $g = room_type_name($p ? (int) $p['room_type_id'] : null);
+    $k = chart_key($r['work_date'], $cg);
+    $cGroups[$g][$k] = ($cGroups[$g][$k] ?? 0) + (int) $r['q'];
+}
+[$cSets, $cOpts] = chart_stack($cGroups, array_keys($cLabels));
 stat_chart('roomChart', '판매 객실 추이 (' . ($cg === 'day' ? '일별' : '월별') . ')' . ($typeId ? ' · ' . room_type_name($typeId) : ''), array_values($cLabels),
-    [['label' => '판매 객실', 'data' => array_map(fn($k) => $CP['buckets'][$k]['sold'] ?? 0, array_keys($cLabels)), 'color' => '#4a7fb5']], '실');
+    $cSets, '실', $typeId ? '' : '객실 분류별', $cOpts);
 ?>
 <section class="card">
   <h2><?= e($title) ?> <small class="muted"><?= e($statusLabel) ?></small></h2>

@@ -122,16 +122,24 @@ $monthUrl = fn($m) => url(sprintf('complaint_stats.php?ym=%04d-%02d', $y, $m));
 
 <?php
 // 그래프: 민원 건수 (월별 보기는 일별, 연간은 월별)
+// 대분류별로 기둥을 나눠 쌓고, 대분류 보기 버튼
+$cGroups = [];
+foreach ($tree['tree'] as $c1 => $x) $cGroups["$c1. {$x['name']}"] = [];
 if ($unit === 'year') {
-    $cLabels = array_map(fn($m) => "{$m}월", range(1, 12));
-    $cData = array_map(fn($m) => $byM1[$m]['all'] ?? 0, range(1, 12));
+    $cKeys = range(1, 12);
+    $cLabels = array_map(fn($m) => "{$m}월", $cKeys);
 } else {
     $cB = chart_buckets($from, $to, 'day');
-    $cData = array_fill_keys(array_keys($cB), 0);
-    foreach ($rows as $c) $cData[$c['work_date']] = ($cData[$c['work_date']] ?? 0) + (int) $c['qty'];
+    $cKeys = array_keys($cB);
     $cLabels = array_values($cB);
 }
-stat_chart('cplChart', '민원 건수 추이 (' . ($unit === 'year' ? '월별' : '일별') . ')', $cLabels, [['label' => '민원 건수', 'data' => array_values($cData), 'color' => '#c0392b']], '건');
+foreach ($rows as $c) {
+    $g = isset($tree['tree'][$c['cat1']]) ? "{$c['cat1']}. {$tree['tree'][$c['cat1']]['name']}" : cpl_name($c['cat1']);
+    $k = $unit === 'year' ? (int) substr($c['work_date'], 5, 2) : $c['work_date'];
+    $cGroups[$g][$k] = ($cGroups[$g][$k] ?? 0) + (int) $c['qty'];
+}
+[$cSets, $cOpts] = chart_stack($cGroups, $cKeys);
+stat_chart('cplChart', '민원 건수 추이 (' . ($unit === 'year' ? '월별' : '일별') . ')', $cLabels, $cSets, '건', '대분류별', $cOpts);
 ?>
 
 <?php if ($unit === 'year'): ?>
