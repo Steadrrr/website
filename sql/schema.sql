@@ -658,3 +658,20 @@ CREATE TABLE IF NOT EXISTS closed_days (
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   INDEX idx_dates (date_from, date_to)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 객실 미판매 기간 (객실관리 › 객실운영관리): 예비객실·공사·업무예약으로 판매하지 않는 객실과 기간.
+-- 객실이용통계의 가동률 분모(객실 수 × 영업일)에서 뺀다. date_to 가 NULL 이면 해제할 때까지 계속.
+CREATE TABLE IF NOT EXISTS room_blocks (
+  id         INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  product_id INT UNSIGNED NOT NULL COMMENT '객실 (products.grp = room)',
+  reason     VARCHAR(20) NOT NULL COMMENT 'ROOM_BLOCK_REASONS 키: spare 예비객실 / construction 공사 / business 업무예약',
+  date_from  DATE NOT NULL,
+  date_to    DATE NULL COMMENT 'NULL = 해제할 때까지',
+  note       VARCHAR(200) NULL,
+  created_by INT UNSIGNED NULL,
+  updated_by INT UNSIGNED NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NULL ON UPDATE CURRENT_TIMESTAMP,
+  INDEX idx_room (product_id, date_from),
+  INDEX idx_dates (date_from, date_to)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

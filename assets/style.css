@@ -1163,3 +1163,12 @@ label .tm-pick { display: flex; margin-top: .25rem; }
 .sales-fill form[data-sales-fill] input[type=file] { width: auto; flex: 1 1 260px; max-width: 460px; }
 .sales-fill .sales-fill-list li { margin: 2px 0; }
 .sales-fill .sales-fill-list .warn { color: var(--danger, #c0392b); }
+
+/* 객실운영관리 */
+.rb-rooms { margin: 8px 0 12px; }
+.rb-rooms .label { display: block; font-weight: 600; margin-bottom: 4px; }
+.rb-type { display: flex; flex-wrap: wrap; gap: 4px 14px; align-items: center; padding: 4px 0; border-bottom: 1px dashed var(--line, #e5e5e5); }
+.rb-type > b { min-width: 64px; }
+.badge.rb-spare { background: #e8f0fb; color: #2b5ea8; }
+.badge.rb-construction { background: #fdeee4; color: #b3541e; }
+.badge.rb-business { background: #efe9f8; color: #6a4c9c; }

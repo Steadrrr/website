@@ -373,3 +373,24 @@ function voucher_amount(array $byDenom): int
     foreach ($byDenom as $denom => $qty) $sum += (int) $denom * (int) $qty;
     return $sum;
 }
+
+/* ───────────── 객실 미판매 기간 (객실운영관리: 예비객실·공사·업무예약) ───────────── */
+
+/** 기간과 겹치는 미판매 등록 (date_to NULL = 계속) */
+function room_blocks_between(string $from, string $to): array
+{
+    $st = db()->prepare('SELECT * FROM room_blocks WHERE date_from <= ? AND (date_to IS NULL OR date_to >= ?) ORDER BY date_from, id');
+    $st->execute([$to, $from]);
+    return $st->fetchAll();
+}
+
+/** 날짜별 미판매 객실 ['2026-10-01' => [객실 id => 사유 키, ...], ...] (기간 안만) */
+function room_block_map(string $from, string $to): array
+{
+    $out = [];
+    foreach (room_blocks_between($from, $to) as $b) {
+        $end = $b['date_to'] === null ? $to : min($b['date_to'], $to);
+        for ($d = max($b['date_from'], $from); $d <= $end; $d = date('Y-m-d', strtotime("$d +1 day"))) $out[$d][(int) $b['product_id']] = $b['reason'];
+    }
+    return $out;
+}

@@ -6,7 +6,7 @@ defined('APP_ROOT') || exit;
  * 새 버전 파일을 FTP로 덮어쓰기만 하면, 첫 접속 때 부족한 테이블/컬럼을 만든다.
  * (기존 자료는 그대로 유지)
  */
-const DB_VERSION = 43;
+const DB_VERSION = 44;
 
 function db_version(): int
 {
@@ -399,6 +399,8 @@ function db_migrate(): void
     // 43) v42 → v43: settings.value 를 TEXT 로 (매표 엑셀 상품명 → 가져올 곳 기억 sales_xls_map 은 255자를 넘는다)
     $st = $pdo->query("SELECT DATA_TYPE FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'settings' AND COLUMN_NAME = 'value'");
     if (strtolower((string) $st->fetchColumn()) !== 'text') $pdo->exec('ALTER TABLE settings MODIFY value TEXT NOT NULL');
+
+    // 44) v43 → v44: 객실 미판매 기간 room_blocks (예비객실·공사·업무예약, 1) 단계에서 생성) — 객실관리 › 객실운영관리, 객실 가동률에서 제외
 
     $pdo->prepare("INSERT INTO settings (name, value) VALUES ('db_version', ?) ON DUPLICATE KEY UPDATE value = VALUES(value)")
         ->execute([(string) DB_VERSION]);

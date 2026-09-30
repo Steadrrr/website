@@ -509,10 +509,11 @@ function items_form(string $type, array $payload, string $workDate, ?array $jour
       <tr><?php foreach ($denoms as $d): ?><th class="refund-head"><?= e(denom_label($d)) ?></th><?php endforeach ?><th class="right refund-head">환급액 / 기준</th></tr>
     </thead>
     <tbody>
-    <?php foreach ($rooms as $pid => $p): $l = $byProduct[$pid] ?? null; $rate = $l['rate'] ?? rate_for_date($workDate); ?>
+    <?php $blockedToday = room_block_map($workDate, $workDate)[$workDate] ?? []; // 객실운영관리의 미판매 (예비객실·공사·업무예약)
+    foreach ($rooms as $pid => $p): $l = $byProduct[$pid] ?? null; $rate = $l['rate'] ?? rate_for_date($workDate); ?>
       <tr data-weekday="<?= (int) $p['price'] ?>" data-weekend="<?= (int) $p['price_weekend'] ?>" data-peak="<?= (int) $p['price_peak'] ?>"
           data-max="<?= (int) $p['max_people'] ?>" data-refund-weekday="<?= room_refund($p, 'weekday') ?>" data-refund-weekend="<?= room_refund($p, 'weekend') ?>" data-refund-peak="<?= room_refund($p, 'peak') ?>" data-name="<?= e($p['name']) ?>">
-        <td><?= e($p['name']) ?> <small class="muted"><?= $p['base_people'] ?? 0 ? '기준 ' . (int) $p['base_people'] . '·' : '' ?>최대 <?= (int) $p['max_people'] ?>인</small><?= $p['is_active'] ? '' : ' <small class="muted">(판매중지)</small>' ?></td>
+        <td><?= e($p['name']) ?> <small class="muted"><?= $p['base_people'] ?? 0 ? '기준 ' . (int) $p['base_people'] . '·' : '' ?>최대 <?= (int) $p['max_people'] ?>인</small><?= $p['is_active'] ? '' : ' <small class="muted">(판매중지)</small>' ?><?= isset($blockedToday[$pid]) ? ' <span class="badge rb-' . e($blockedToday[$pid]) . '" title="객실관리 › 객실운영관리">' . e(ROOM_BLOCK_REASONS[$blockedToday[$pid]] ?? '') . '</span>' : '' ?></td>
         <td><select name="room[<?= $pid ?>][rate]" data-rate>
           <?php foreach (RATE_TYPES as $k => $label): ?><option value="<?= $k ?>" <?= $rate === $k ? 'selected' : '' ?>><?= e($label) ?></option><?php endforeach ?>
         </select></td>
