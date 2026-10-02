@@ -95,6 +95,7 @@ if (is_post()) {
         $v = (string) ($_POST['map'][$i] ?? '');
         $imp['map'][$n] = isset($targets[$v]) ? $v : '';
         if (imp_is_rental_entry($n, array_keys($imp['names'][$n]['cats'] ?? [])) && ($rid = imp_rental_ticket_id())) $imp['map'][$n] = "p:$rid"; // 행사참석·시설대관 = 입장권 시설대관 (고정)
+        if (imp_is_stay($n)) $imp['map'][$n] = ''; // 쉬자파크숙박은 일일객실판매에서 자동 (가져오지 않음)
     }
     $imp['status'] = post('status') === 'draft' ? 'draft' : 'approved';
     $_SESSION[IMP_KEY] = $imp;

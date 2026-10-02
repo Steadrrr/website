@@ -40,6 +40,7 @@ function imp_targets(): array
 /** 상품명으로 가져올 곳 짐작: 전에 고른 곳(imp_map_remember) → 같은 이름의 입장권 → 이름에 분야가 들어 있으면 프로그램 → 없음 */
 function imp_guess(string $name, array $targets, array $cats = []): string
 {
+    if (imp_is_stay($name)) return ''; // 쉬자파크숙박은 일일객실판매에서 자동 (가져오지 않음, 고르지 않음)
     if (imp_is_rental_entry($name, $cats)) return ($id = imp_rental_ticket_id()) ? "p:$id" : ''; // 정해진 규칙 (고르지 않음)
     $saved = imp_map_saved();
     if (array_key_exists($name, $saved) && ($saved[$name] === '' || isset($targets[$saved[$name]]))) return $saved[$name];
@@ -62,8 +63,14 @@ function imp_map_saved(): array
 function imp_map_remember(array $map): void
 {
     $saved = imp_map_saved();
-    foreach ($map as $name => $to) if ((string) $name !== '') $saved[(string) $name] = (string) $to;
+    foreach ($map as $name => $to) if ((string) $name !== '' && !imp_is_stay((string) $name)) $saved[(string) $name] = (string) $to;
     setting_set('sales_xls_map', json_encode($saved, JSON_UNESCAPED_UNICODE));
+}
+
+/** 엑셀의 '쉬자파크숙박'(입실·퇴실 포함): 매출보고의 쉬자파크숙박 입장권은 일일객실판매 입실인원으로 자동이라 늘 무시 */
+function imp_is_stay(string $name): bool
+{
+    return str_starts_with(preg_replace('/\s+/u', '', $name), '쉬자파크숙박');
 }
 
 /** 상품구분 '행사참석' + 상품명 '시설대관' = 시설대관을 한 사람들의 무료 입장 → 늘 입장권 '시설대관'으로 (가져올 곳을 고르지 않음) */
@@ -154,13 +161,14 @@ function sales_fill_apply(array $payload, array $fill, string $workDate): array
 {
     $targets = imp_targets();
     $products = products_at($workDate);
-    $rep = ['tickets' => [], 'progs' => [], 'rental' => [], 'skip' => [], 'warn' => [], 'cash' => 0, 'map' => []];
+    $rep = ['tickets' => [], 'progs' => [], 'rental' => [], 'skip' => [], 'warn' => [], 'cash' => 0, 'map' => [], 'stay' => []];
     $qty = $prog = [];
     foreach ($fill['byName'] as $name => $groups) {
         $cat = implode(', ', $fill['cats'][$name] ?? []);
         $q = array_sum(array_column($groups, 'qty'));
         $a = array_sum(array_column($groups, 'amount'));
         $row = ['name' => $name, 'cat' => $cat, 'qty' => $q, 'amount' => $a];
+        if (imp_is_stay($name)) { $rep['stay'][] = $row; continue; } // 객실판매관리에서 자동 — 묻지 않고 무시
         $forced = imp_is_rental_entry($name, $fill['cats'][$name] ?? []);
         $to = imp_guess($name, $targets, $fill['cats'][$name] ?? []);
         if ($forced) {
@@ -234,6 +242,7 @@ function sales_fill_panel(string $workDate, ?array $journal, ?array $rep): void
   <ul class="small sales-fill-list">
     <?php if ($rep['tickets']): ?><li>입장권: <?= implode(' / ', array_map(fn($r) => $row($r) . ' → ' . e($r['to']), $rep['tickets'])) ?> · 현금 <?= number_format($rep['cash']) ?>원</li><?php endif ?>
     <?php if ($rep['progs']): ?><li>프로그램 판매: <?= implode(' / ', array_map(fn($r) => $row($r) . ' → ' . e($r['to']), $rep['progs'])) ?></li><?php endif ?>
+    <?php if ($rep['stay']): ?><li class="muted">무시: <?= implode(' / ', array_map($row, $rep['stay'])) ?> — 쉬자파크숙박(입실·퇴실)은 객실관리 › 객실판매관리의 입실인원으로 자동 입력됩니다.</li><?php endif ?>
     <?php if ($rep['rental']): ?><li>시설대관 입장 인원: <?= implode(' / ', array_map(fn($r) => $row($r) . ' → 입장권 시설대관', $rep['rental'])) ?> — 대관 요금은 시설대관 칸에 직접 입력하세요.</li><?php endif ?>
     <?php foreach ($rep['warn'] as $w): ?><li class="warn"><?= e($w) ?></li><?php endforeach ?>
   </ul>
