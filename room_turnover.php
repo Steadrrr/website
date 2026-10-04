@@ -130,21 +130,32 @@ layout_header('입퇴실현황', 'turnover');
     <?php foreach (['out' => '퇴실예정', 'in' => '입실예정'] as $side => $label): ?>
     <section class="card rt-<?= $side ?>">
       <h2><?= $label ?> <small class="muted"><?= $side === 'out' ? $md($prev) . ' 묵은 객실' : $md($date) . ' 묵는 객실' ?> · <?= count($lists[$side]) ?>실</small></h2>
-      <div class="table-scroll">
-      <table class="table rt-table">
-        <thead><tr><th>객실구분</th><th>객실명</th><th>연박</th><th>비고</th></tr></thead>
-        <tbody>
-        <?php foreach ($lists[$side] as $pid => $r): ?>
-          <tr class="<?= $r['stay'] ? 'rt-stay' : '' ?>">
-            <td class="small nowrap"><?= e(room_type_name($r['p']['room_type_id'] ? (int) $r['p']['room_type_id'] : null)) ?></td>
-            <td class="nowrap"><b><?= e($r['p']['name']) ?></b> <small class="muted"><?= (int) $r['guests'] ?>명</small></td>
-            <td class="nowrap"><?= $r['nights'] > 1 ? '<span class="badge rt-badge">연박</span>' . ($r['stay'] ? ' <small class="muted">' . ($side === 'out' ? '오늘 퇴실 없음' : '오늘 입실 없음') . '</small>' : '') : '' ?></td>
-            <td><input name="note[<?= $side ?>][<?= (int) $pid ?>]" value="<?= e($notes[$side][$pid] ?? '') ?>" maxlength="300" placeholder="비고"></td>
-          </tr>
-        <?php endforeach ?>
-        <?php if (!$lists[$side]): ?><tr><td colspan="4" class="center muted"><?= $label ?> 객실이 없습니다.</td></tr><?php endif ?>
-        </tbody>
-      </table>
+      <?php // 왼쪽 4인실·독채 등, 오른쪽 2인실 (객실 분류 이름에 '2인'이 있으면 오른쪽)
+        $halves = ['L' => [], 'R' => []];
+        foreach ($lists[$side] as $pid => $r) {
+            $tn = room_type_name($r['p']['room_type_id'] ? (int) $r['p']['room_type_id'] : null);
+            $halves[str_contains($tn, '2인') ? 'R' : 'L'][$pid] = $r + ['tn' => $tn];
+        }
+        $halves = array_filter($halves); ?>
+      <?php if (!$halves): ?><p class="center muted"><?= $label ?> 객실이 없습니다.</p><?php endif ?>
+      <div class="rt-split <?= count($halves) > 1 ? 'two' : '' ?>">
+      <?php foreach ($halves as $rowsH): ?>
+        <div class="rt-half">
+          <h3 class="rt-half-title"><?= e(implode(' · ', array_unique(array_column($rowsH, 'tn')))) ?> <small class="muted"><?= count($rowsH) ?>실</small></h3>
+          <table class="table rt-table">
+            <thead><tr><th>객실명</th><th>연박</th><th>비고</th></tr></thead>
+            <tbody>
+            <?php foreach ($rowsH as $pid => $r): ?>
+              <tr class="<?= $r['stay'] ? 'rt-stay' : '' ?>">
+                <td class="nowrap"><b><?= e($r['p']['name']) ?></b> <small class="muted"><?= (int) $r['guests'] ?>명</small></td>
+                <td class="nowrap"><?= $r['nights'] > 1 ? '<span class="badge rt-badge">연박</span>' . ($r['stay'] ? '<br><small class="muted">' . ($side === 'out' ? '퇴실 없음' : '입실 없음') . '</small>' : '') : '' ?></td>
+                <td><input name="note[<?= $side ?>][<?= (int) $pid ?>]" value="<?= e($notes[$side][$pid] ?? '') ?>" maxlength="300" placeholder="비고"></td>
+              </tr>
+            <?php endforeach ?>
+            </tbody>
+          </table>
+        </div>
+      <?php endforeach ?>
       </div>
     </section>
     <?php endforeach ?>
