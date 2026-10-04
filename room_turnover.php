@@ -103,18 +103,20 @@ $count = fn(string $side, bool $stay) => count(array_filter($lists[$side], fn($r
 
 layout_header('입퇴실현황', 'turnover');
 ?>
-<section class="card no-print rt-page">
-  <div class="card-head">
-    <h1>입퇴실현황 <small class="muted"><?= e(date('Y년 n월 j일', strtotime($date))) ?> (<?= e(weekday_ko($date)) ?>)<?= $date === date('Y-m-d') ? ' · 오늘' : '' ?></small></h1>
-    <div class="actions no-margin">
-      <a class="btn small" href="<?= e(url('room_turnover.php?date=' . $prev)) ?>">‹ 전날</a>
-      <form method="get" class="inline"><input type="date" name="date" value="<?= e($date) ?>" onchange="this.form.submit()"></form>
-      <a class="btn small" href="<?= e(url('room_turnover.php?date=' . date('Y-m-d', strtotime("$date +1 day")))) ?>">다음날 ›</a>
-      <?php if ($date !== date('Y-m-d')): ?><a class="btn small ghost" href="<?= e(url('room_turnover.php')) ?>">오늘</a><?php endif ?>
-      <button class="btn small" type="button" onclick="window.print()">인쇄</button>
-    </div>
+<div class="rt-layout">
+<section class="card no-print rt-page rt-side">
+  <h1>입퇴실현황</h1>
+  <div class="rt-date"><b><?= e(date('Y년 n월 j일', strtotime($date))) ?> (<?= e(weekday_ko($date)) ?>)</b><?= $date === date('Y-m-d') ? ' <span class="badge st-approved">오늘</span>' : '' ?></div>
+  <form method="get" class="rt-date-pick"><input type="date" name="date" value="<?= e($date) ?>" onchange="this.form.submit()" aria-label="날짜"></form>
+  <div class="rt-nav">
+    <a class="btn small" href="<?= e(url('room_turnover.php?date=' . $prev)) ?>">‹ 전날</a>
+    <a class="btn small" href="<?= e(url('room_turnover.php?date=' . date('Y-m-d', strtotime("$date +1 day")))) ?>">다음날 ›</a>
   </div>
-  <div class="kpis k4 rt-kpis">
+  <div class="rt-nav">
+    <?php if ($date !== date('Y-m-d')): ?><a class="btn small ghost" href="<?= e(url('room_turnover.php')) ?>">오늘</a><?php endif ?>
+    <button class="btn small" type="button" onclick="window.print()">인쇄</button>
+  </div>
+  <div class="rt-kpis">
     <div class="kpi"><span>퇴실예정</span><b><?= $count('out', false) ?>실</b></div>
     <div class="kpi total"><span>입실예정</span><b><?= $count('in', false) ?>실</b></div>
     <div class="kpi"><span>오늘 묵는 객실</span><b><?= count($lists['in']) ?>실</b></div>
@@ -168,6 +170,7 @@ layout_header('입퇴실현황', 'turnover');
     <div class="actions no-print"><button class="btn primary">비고·중점정비사항 저장</button></div>
   </section>
 </form>
+</div>
 <p class="muted small no-print">입실·퇴실은 <a href="<?= e(url('journal.php?type=rooms')) ?>">객실관리 › 객실판매관리</a>의 일일객실판매(임시저장 포함, 반려 제외)로 계산합니다. 퇴실예정 = 전날 묵은 객실, 입실예정 = 이 날 묵는 객실이며,
   <b>연박</b>은 일일객실판매에서 고른 '연박 2·3박'(예약 엑셀로 채우면 숙박기간으로 자동)을 기준으로 한 손님이 이어서 묵는 것으로 봅니다.</p>
 <style>@page { size: A4 landscape; margin: 8mm; }</style>
