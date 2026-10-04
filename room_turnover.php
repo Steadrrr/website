@@ -115,10 +115,10 @@ layout_header('입퇴실현황', 'turnover');
     </div>
   </div>
   <div class="kpis k4 rt-kpis">
-    <div class="kpi"><span>퇴실예정</span> <b><?= $count('out', false) ?>실</b></div>
-    <div class="kpi total"><span>입실예정</span> <b><?= $count('in', false) ?>실</b></div>
-    <div class="kpi"><span>오늘 묵는 객실</span> <b><?= count($lists['in']) ?>실</b></div>
-    <div class="kpi"><span>미판매 객실</span> <b><?= count($blocked) ?>실</b></div>
+    <div class="kpi"><span>퇴실예정</span><b><?= $count('out', false) ?>실</b></div>
+    <div class="kpi total"><span>입실예정</span><b><?= $count('in', false) ?>실</b></div>
+    <div class="kpi"><span>오늘 묵는 객실</span><b><?= count($lists['in']) ?>실</b></div>
+    <div class="kpi"><span>미판매 객실</span><b><?= count($blocked) ?>실</b></div>
   </div>
   <?php if (!$todayDoc): ?><p class="small warn">이 날 일일객실판매가 아직 없어 입실예정이 비어 있을 수 있습니다. <a href="<?= e(url('write.php?type=rooms&date=' . $date)) ?>">객실판매관리에서 작성</a>(입실예정 엑셀로 채우기)하면 여기에 나옵니다.</p><?php endif ?>
 </section>
@@ -148,7 +148,7 @@ layout_header('입퇴실현황', 'turnover');
             <tbody>
             <?php foreach ($rowsH as $pid => $r): ?>
               <tr class="<?= $r['stay'] ? 'rt-stay' : '' ?>">
-                <td class="nowrap"><b><?= e($r['p']['name']) ?></b> <small class="muted"><?= (int) $r['guests'] ?>명</small></td>
+                <td class="nowrap"><b><?= e($r['p']['name']) ?></b></td>
                 <td class="nowrap"><?= $r['nights'] > 1 ? '<span class="badge rt-badge">연박</span>' . ($r['stay'] ? '<br><small class="muted">' . ($side === 'out' ? '퇴실 없음' : '입실 없음') . '</small>' : '') : '' ?></td>
                 <td><input name="note[<?= $side ?>][<?= (int) $pid ?>]" value="<?= e($notes[$side][$pid] ?? '') ?>" maxlength="300" placeholder="비고"></td>
               </tr>

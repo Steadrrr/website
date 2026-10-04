@@ -1219,9 +1219,11 @@ body:has(.rt-page) main.container { max-width: 1680px; }
 .rt-page .badge.rt-badge { font-size: 1rem; padding: 3px 10px; }
 .rt-page textarea { font-size: 1.15rem; line-height: 1.6; }
 .rt-page .btn { font-size: 1.05rem; }
-.rt-kpis .kpi { display: flex; align-items: baseline; justify-content: center; gap: 10px; padding: 12px 14px; }
-.rt-kpis .kpi span { font-size: 1.2rem; font-weight: 600; }
-.rt-kpis .kpi b { font-size: 1.7rem; }
+/* 상단 요약칸: 왼쪽으로 모아 작게, 이름 아래 줄에 실 수 */
+.kpis.rt-kpis { display: flex; flex-wrap: wrap; justify-content: flex-start; gap: 10px; }
+.rt-kpis .kpi { flex: 0 0 auto; min-width: 130px; padding: 10px 16px; text-align: left; }
+.rt-kpis .kpi span { display: block; font-size: 1.05rem; font-weight: 600; }
+.rt-kpis .kpi b { display: block; font-size: 1.7rem; line-height: 1.2; }
 /* 입퇴실현황: 위쪽 날짜 이동 버튼 한 줄 정렬 */
 .rt-page .card-head .actions { display: flex; flex-wrap: nowrap; align-items: center; gap: 6px; }
 .rt-page .card-head .actions .btn { white-space: nowrap; display: inline-flex; align-items: center; height: 38px; padding: 0 12px; line-height: 1; }
