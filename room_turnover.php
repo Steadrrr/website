@@ -114,11 +114,11 @@ layout_header('입퇴실현황', 'turnover');
       <button class="btn small" type="button" onclick="window.print()">인쇄</button>
     </div>
   </div>
-  <div class="kpis k4">
-    <div class="kpi"><span>퇴실예정</span><b><?= $count('out', false) ?>실</b><small class="muted"><?= $count('out', true) ? '연박 ' . $count('out', true) . '실 (퇴실 없음)' : '전날 묵은 객실' ?></small></div>
-    <div class="kpi total"><span>입실예정</span><b><?= $count('in', false) ?>실</b><small class="muted"><?= $count('in', true) ? '연박 ' . $count('in', true) . '실 (입실 없음)' : '오늘 묵는 객실' ?></small></div>
-    <div class="kpi"><span>오늘 묵는 객실</span><b><?= count($lists['in']) ?>실</b><small class="muted">입실 인원 <?= number_format(array_sum(array_column($lists['in'], 'guests'))) ?>명</small></div>
-    <div class="kpi"><span>미판매 객실</span><b><?= count($blocked) ?>실</b><small class="muted"><?= e(implode(', ', array_map(fn($pid, $r) => ($rooms[$pid]['name'] ?? '') . ' ' . (ROOM_BLOCK_REASONS[$r] ?? ''), array_keys($blocked), $blocked)) ?: '예비·공사·업무예약 없음') ?></small></div>
+  <div class="kpis k4 rt-kpis">
+    <div class="kpi"><span>퇴실예정</span> <b><?= $count('out', false) ?>실</b></div>
+    <div class="kpi total"><span>입실예정</span> <b><?= $count('in', false) ?>실</b></div>
+    <div class="kpi"><span>오늘 묵는 객실</span> <b><?= count($lists['in']) ?>실</b></div>
+    <div class="kpi"><span>미판매 객실</span> <b><?= count($blocked) ?>실</b></div>
   </div>
   <?php if (!$todayDoc): ?><p class="small warn">이 날 일일객실판매가 아직 없어 입실예정이 비어 있을 수 있습니다. <a href="<?= e(url('write.php?type=rooms&date=' . $date)) ?>">객실판매관리에서 작성</a>(입실예정 엑셀로 채우기)하면 여기에 나옵니다.</p><?php endif ?>
 </section>
