@@ -1179,3 +1179,21 @@ label .tm-pick { display: flex; margin-top: .25rem; }
 .ps-pager > a:not(.btn) { min-width: 30px; text-align: center; padding: 4px 8px; border: 1px solid var(--line, #ddd); border-radius: 6px; text-decoration: none; }
 .ps-pager > a.on { background: var(--primary, #2f7d4f); color: #fff; border-color: var(--primary, #2f7d4f); }
 .ps-pager .disabled { opacity: .45; pointer-events: none; }
+
+/* 입퇴실현황 */
+.rt-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; }
+@media (max-width: 1000px) { .rt-grid { grid-template-columns: 1fr; } }
+.rt-grid > .card { margin: 0; min-width: 0; }
+.rt-out h2 { border-left: 4px solid #c0392b; padding-left: 8px; }
+.rt-in h2 { border-left: 4px solid #2f7d4f; padding-left: 8px; }
+.rt-table th { white-space: nowrap; }
+.rt-table th, .rt-table td { padding-left: 6px; padding-right: 6px; }
+.rt-table td input { width: 100%; min-width: 70px; box-sizing: border-box; }
+.rt-table td:last-child { width: 32%; }
+.rt-table tr.rt-stay td { background: #fbf7ea; }
+.badge.rt-badge { background: #fdf0d5; color: #8a5a00; }
+@media print {
+  .rt-grid { grid-template-columns: 1fr 1fr; gap: 8px; }
+  .rt-table td input { border: 0; padding: 0; }
+  .rt-form textarea { border: 1px solid #999; min-height: 80px; }
+}

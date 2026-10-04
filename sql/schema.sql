@@ -675,3 +675,19 @@ CREATE TABLE IF NOT EXISTS room_blocks (
   INDEX idx_room (product_id, date_from),
   INDEX idx_dates (date_from, date_to)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 입퇴실현황 (객실관리 › 입퇴실현황): 날짜별 중점정비사항과 객실별 비고 (입실·퇴실 목록은 일일객실판매에서 계산)
+CREATE TABLE IF NOT EXISTS room_turnover_days (
+  work_date  DATE NOT NULL PRIMARY KEY,
+  focus      TEXT NULL COMMENT '중점정비사항',
+  updated_by INT UNSIGNED NULL,
+  updated_at DATETIME NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS room_turnover_notes (
+  work_date  DATE NOT NULL,
+  side       VARCHAR(3) NOT NULL COMMENT 'out 퇴실 / in 입실',
+  product_id INT UNSIGNED NOT NULL COMMENT '객실',
+  note       VARCHAR(300) NOT NULL,
+  PRIMARY KEY (work_date, side, product_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
