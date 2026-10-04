@@ -125,7 +125,8 @@ layout_header('입퇴실현황', 'turnover');
 
 <form method="post" class="rt-form rt-page">
   <?= csrf_field() ?><input type="hidden" name="date" value="<?= e($date) ?>">
-  <h1 class="print-only">입퇴실현황 · <?= e(date('Y년 n월 j일', strtotime($date))) ?> (<?= e(weekday_ko($date)) ?>)</h1>
+  <div class="print-only rt-print-head"><b>입퇴실현황 · <?= e(date('Y년 n월 j일', strtotime($date))) ?> (<?= e(weekday_ko($date)) ?>)</b>
+    <span>퇴실예정 <?= $count('out', false) ?>실 · 입실예정 <?= $count('in', false) ?>실 · 오늘 묵는 객실 <?= count($lists['in']) ?>실 · 미판매 <?= count($blocked) ?>실</span></div>
   <div class="rt-grid">
     <?php foreach (['out' => '퇴실예정', 'in' => '입실예정'] as $side => $label): ?>
     <section class="card rt-<?= $side ?>">
@@ -163,9 +164,37 @@ layout_header('입퇴실현황', 'turnover');
   <section class="card">
     <h2>중점정비사항 <?php if ($day && $day['updated_at']): ?><small class="muted"><?= e((string) $day['user_name']) ?> · <?= e(substr((string) $day['updated_at'], 0, 16)) ?></small><?php endif ?></h2>
     <textarea name="focus" rows="5" placeholder="예: 별A 욕실 배수 점검, 퇴실 객실 침구 전체 교체, 구름B 에어컨 필터 청소"><?= e((string) ($day['focus'] ?? '')) ?></textarea>
+    <div class="print-only rt-focus-print"></div>
     <div class="actions no-print"><button class="btn primary">비고·중점정비사항 저장</button></div>
   </section>
 </form>
 <p class="muted small no-print">입실·퇴실은 <a href="<?= e(url('journal.php?type=rooms')) ?>">객실관리 › 객실판매관리</a>의 일일객실판매(임시저장 포함, 반려 제외)로 계산합니다. 퇴실예정 = 전날 묵은 객실, 입실예정 = 이 날 묵는 객실이며,
   <b>연박</b>은 일일객실판매에서 고른 '연박 2·3박'(예약 엑셀로 채우면 숙박기간으로 자동)을 기준으로 한 손님이 이어서 묵는 것으로 봅니다.</p>
+<style>@page { size: A4 landscape; margin: 8mm; }</style>
+<script>
+// 인쇄: A4 가로 한 장에 모두 들어가도록 — 인쇄용 배치로 바꾼 뒤 크기를 재서 넘치면 줄인다
+(function () {
+  const form = document.querySelector('.rt-form');
+  if (!form) return;
+  const PAGE_W = 1060, PAGE_H = 705; // A4 가로 − 여백 8mm (96dpi 기준 px, 조금 여유)
+  const before = () => {
+    document.body.classList.add('rt-printmode');
+    const memo = form.querySelector('textarea[name=focus]');
+    const out = form.querySelector('.rt-focus-print');
+    if (memo && out) out.textContent = memo.value || '(없음)';
+    form.style.zoom = 1;
+    form.style.width = PAGE_W + 'px';
+    for (let i = 0; i < 3; i++) { // 줄이면 폭이 넓어져 높이가 다시 바뀌므로 몇 번 맞춘다
+      const z = parseFloat(form.style.zoom) || 1;
+      const h = form.getBoundingClientRect().height / z; // 줌 전 높이
+      const s = Math.min(1, PAGE_H / h);
+      form.style.zoom = s;
+      form.style.width = (PAGE_W / s) + 'px';
+    }
+  };
+  const after = () => { document.body.classList.remove('rt-printmode'); form.style.zoom = ''; form.style.width = ''; };
+  window.addEventListener('beforeprint', before);
+  window.addEventListener('afterprint', after);
+})();
+</script>
 <?php layout_footer();
