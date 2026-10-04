@@ -1222,3 +1222,9 @@ body:has(.rt-page) main.container { max-width: 1680px; }
 .rt-kpis .kpi { display: flex; align-items: baseline; justify-content: center; gap: 10px; padding: 12px 14px; }
 .rt-kpis .kpi span { font-size: 1.2rem; font-weight: 600; }
 .rt-kpis .kpi b { font-size: 1.7rem; }
+/* 입퇴실현황: 위쪽 날짜 이동 버튼 한 줄 정렬 */
+.rt-page .card-head .actions { display: flex; flex-wrap: nowrap; align-items: center; gap: 6px; }
+.rt-page .card-head .actions .btn { white-space: nowrap; display: inline-flex; align-items: center; height: 38px; padding: 0 12px; line-height: 1; }
+.rt-page .card-head .actions form.inline { margin: 0; display: inline-flex; }
+.rt-page .card-head .actions input[type=date] { height: 38px; margin: 0; padding: 0 8px; }
+@media (max-width: 700px) { .rt-page .card-head .actions { flex-wrap: wrap; } }
