@@ -80,7 +80,7 @@ function journal_snapshot(array $journal): array
             } else {
                 $refund = $vouchersText($l['vouchers'] ?? []);
                 $lines[] = "{$l['name']} · " . (RATE_TYPES[$l['rate']] ?? '') . ($l['discounted'] ? ' · 할인' . (!empty($l['dc_reason']) ? '(' . (ROOM_DC_REASONS[$l['dc_reason']] ?? $l['dc_reason']) . ')' : '') : '')
-                    . ' · ' . $l['guests'] . '명 · ' . number_format($l['amount']) . '원' . ($refund ? " · 환급 $refund" : '');
+                    . ' · ' . $l['guests'] . '명' . ((int) ($l['stay_nights'] ?? 0) > 1 ? ' · 연박 ' . (int) $l['stay_nights'] . '박' : '') . ' · ' . number_format($l['amount']) . '원' . ($refund ? " · 환급 $refund" : '');
             }
         }
         $snap['판매 내역'] = $lines;

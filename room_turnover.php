@@ -2,9 +2,9 @@
 /**
  * 객실관리 › 입퇴실현황: 그 날 퇴실예정(왼쪽)·입실예정(오른쪽) 객실과 비고, 하단 중점정비사항
  *   room_turnover.php[?date=2026-10-04]
- * 입실·퇴실 목록은 일일객실판매(반려 제외, 임시저장 포함)에서 계산한다:
- *   입실예정 = 그 날 판매(묵는) 객실, 퇴실예정 = 전날 판매 객실. 같은 객실이 연달아 판매된 날은 한 번의 연박으로 보고
- *   입실일 = 연속 판매 첫날, 퇴실일 = 마지막 날 다음 날. 연박 중이라 그 날 실제 입실·퇴실이 없는 객실은 '연박'으로 표시한다.
+ * 입실·퇴실 목록은 일일객실판매(반려 제외, 임시저장 포함)에서 계산한다: 입실예정 = 그 날 묵는 객실, 퇴실예정 = 전날 묵은 객실.
+ * 연박은 일일객실판매에서 객실마다 고른 '연박 2·3박'(sales_lines.stay_nights, 예약 엑셀의 숙박기간으로 자동)이 기준 — 그 날부터 그 박수만큼 한 손님.
+ * 연박이 아닌 판매는 연달아 있어도 다른 손님으로 본다. 연박 중이라 그 날 실제 입실·퇴실이 없는 객실은 '오늘 입실(퇴실) 없음'.
  * 비고(객실별)와 중점정비사항(날짜별)은 room_turnover_notes · room_turnover_days 에 저장. 객실관리 메뉴 권한이 있으면 누구나 작성.
  */
 require __DIR__ . '/app/bootstrap.php';
@@ -37,43 +37,51 @@ if (is_post()) {
     redirect('room_turnover.php?date=' . $d);
 }
 
-/** 기간 안의 객실별 판매(묵은) 날짜 [객실 id => [날짜 => 입실 인원]] — 일일객실판매, 반려 제외 */
+/** 기간 안의 객실별 판매(묵은) 날짜 [객실 id => [날짜 => ['g' => 입실 인원, 's' => 연박 박수]]] — 일일객실판매, 반려 제외 */
 function rt_nights(string $from, string $to): array
 {
-    $st = db()->prepare("SELECT l.product_id, j.work_date, SUM(l.guests) AS g FROM journals j JOIN sales_lines l ON l.journal_id = j.id
+    $st = db()->prepare("SELECT l.product_id, j.work_date, SUM(l.guests) AS g, MAX(l.stay_nights) AS s FROM journals j JOIN sales_lines l ON l.journal_id = j.id
                           WHERE j.type = 'rooms' AND j.status <> 'rejected' AND l.grp = 'room' AND j.work_date BETWEEN ? AND ?
-                          GROUP BY l.product_id, j.work_date");
+                          GROUP BY l.product_id, j.work_date ORDER BY j.work_date");
     $st->execute([$from, $to]);
     $out = [];
-    foreach ($st as $r) $out[(int) $r['product_id']][$r['work_date']] = (int) $r['g'];
+    foreach ($st as $r) $out[(int) $r['product_id']][$r['work_date']] = ['g' => (int) $r['g'], 's' => (int) $r['s']];
     return $out;
+}
+
+/**
+ * 객실 하나의 숙박 구간: 연박(2·3박 …)을 고른 날부터 그 박수만큼은 한 손님 (다음 날 줄이 없어도 묵는 것으로 봄),
+ * 연박이 아닌 판매는 하루씩 따로 (연달아 판매돼도 다른 손님).  [['from' => 첫날, 'last' => 마지막 날, 'nights', 'g'], ...]
+ */
+function rt_stays(array $days): array
+{
+    $stays = [];
+    $until = '';
+    foreach ($days as $d => $x) {
+        if ($d <= $until) continue; // 앞선 연박 안의 날
+        $n = max(1, $x['s']);
+        $last = date('Y-m-d', strtotime("$d +" . ($n - 1) . ' days'));
+        $stays[] = ['from' => $d, 'last' => $last, 'nights' => $n, 'g' => $x['g']];
+        $until = $last;
+    }
+    return $stays;
 }
 
 // 연박을 이어 보려고 앞뒤 60일까지 읽는다
 $nights = rt_nights(date('Y-m-d', strtotime("$date -60 days")), date('Y-m-d', strtotime("$date +60 days")));
-/** 그 날 묵는 객실의 연속 판매 구간 → [입실일, 퇴실일, 박수] */
-$span = function (array $set, string $d): array {
-    $s = $d;
-    while (isset($set[date('Y-m-d', strtotime("$s -1 day"))])) $s = date('Y-m-d', strtotime("$s -1 day"));
-    $e = $d;
-    while (isset($set[date('Y-m-d', strtotime("$e +1 day"))])) $e = date('Y-m-d', strtotime("$e +1 day"));
-    $out = date('Y-m-d', strtotime("$e +1 day"));
-    return [$s, $out, (int) round((strtotime($out) - strtotime($s)) / 86400)];
-};
 $rooms = array_filter(products_all(), fn($p) => $p['grp'] === 'room');
 $types = room_types_all();
 $order = fn(array $p) => [(int) ($types[(int) $p['room_type_id']]['sort_order'] ?? 9999), (int) $p['sort_order'], (int) $p['id']];
 $lists = ['out' => [], 'in' => []];
-foreach ($nights as $pid => $set) {
+foreach ($nights as $pid => $days) {
     $p = $rooms[$pid] ?? null;
     if (!$p) continue;
-    if (isset($set[$prev])) { // 전날 묵음 → 오늘 퇴실 (오늘도 묵으면 연박이라 퇴실 없음)
-        [$s, $o, $n] = $span($set, $prev);
-        $lists['out'][$pid] = ['p' => $p, 'from' => $s, 'to' => $o, 'nights' => $n, 'guests' => $set[$prev], 'stay' => isset($set[$date])];
-    }
-    if (isset($set[$date])) { // 오늘 묵음 → 오늘 입실 (전날도 묵었으면 연박이라 입실 없음)
-        [$s, $o, $n] = $span($set, $date);
-        $lists['in'][$pid] = ['p' => $p, 'from' => $s, 'to' => $o, 'nights' => $n, 'guests' => $set[$date], 'stay' => isset($set[$prev])];
+    foreach (rt_stays($days) as $st) {
+        $row = ['p' => $p, 'nights' => $st['nights'], 'guests' => $st['g']];
+        // 퇴실예정: 전날 묵은 객실 — 연박 중이라 오늘도 묵으면 퇴실 없음
+        if ($st['from'] <= $prev && $prev <= $st['last']) $lists['out'][$pid] = $row + ['stay' => $st['last'] > $prev];
+        // 입실예정: 오늘 묵는 객실 — 연박으로 전부터 묵고 있으면 입실 없음
+        if ($st['from'] <= $date && $date <= $st['last']) $lists['in'][$pid] = $row + ['stay' => $st['from'] < $date];
     }
 }
 foreach ($lists as &$l) uasort($l, fn($a, $b) => $order($a['p']) <=> $order($b['p']));
@@ -95,7 +103,7 @@ $count = fn(string $side, bool $stay) => count(array_filter($lists[$side], fn($r
 
 layout_header('입퇴실현황', 'turnover');
 ?>
-<section class="card no-print">
+<section class="card no-print rt-page">
   <div class="card-head">
     <h1>입퇴실현황 <small class="muted"><?= e(date('Y년 n월 j일', strtotime($date))) ?> (<?= e(weekday_ko($date)) ?>)<?= $date === date('Y-m-d') ? ' · 오늘' : '' ?></small></h1>
     <div class="actions no-margin">
@@ -115,7 +123,7 @@ layout_header('입퇴실현황', 'turnover');
   <?php if (!$todayDoc): ?><p class="small warn">이 날 일일객실판매가 아직 없어 입실예정이 비어 있을 수 있습니다. <a href="<?= e(url('write.php?type=rooms&date=' . $date)) ?>">객실판매관리에서 작성</a>(입실예정 엑셀로 채우기)하면 여기에 나옵니다.</p><?php endif ?>
 </section>
 
-<form method="post" class="rt-form">
+<form method="post" class="rt-form rt-page">
   <?= csrf_field() ?><input type="hidden" name="date" value="<?= e($date) ?>">
   <h1 class="print-only">입퇴실현황 · <?= e(date('Y년 n월 j일', strtotime($date))) ?> (<?= e(weekday_ko($date)) ?>)</h1>
   <div class="rt-grid">
@@ -124,19 +132,17 @@ layout_header('입퇴실현황', 'turnover');
       <h2><?= $label ?> <small class="muted"><?= $side === 'out' ? $md($prev) . ' 묵은 객실' : $md($date) . ' 묵는 객실' ?> · <?= count($lists[$side]) ?>실</small></h2>
       <div class="table-scroll">
       <table class="table rt-table">
-        <thead><tr><th>객실구분</th><th>객실명</th><th>입실</th><th>퇴실</th><th>연박</th><th>비고</th></tr></thead>
+        <thead><tr><th>객실구분</th><th>객실명</th><th>연박</th><th>비고</th></tr></thead>
         <tbody>
         <?php foreach ($lists[$side] as $pid => $r): ?>
           <tr class="<?= $r['stay'] ? 'rt-stay' : '' ?>">
             <td class="small nowrap"><?= e(room_type_name($r['p']['room_type_id'] ? (int) $r['p']['room_type_id'] : null)) ?></td>
             <td class="nowrap"><b><?= e($r['p']['name']) ?></b> <small class="muted"><?= (int) $r['guests'] ?>명</small></td>
-            <td class="nowrap <?= $side === 'in' && !$r['stay'] ? 'strong' : '' ?>"><?= e($md($r['from'])) ?></td>
-            <td class="nowrap <?= $side === 'out' && !$r['stay'] ? 'strong' : '' ?>"><?= e($md($r['to'])) ?></td>
-            <td class="nowrap"><?= $r['nights'] > 1 ? '<span class="badge rt-badge">연박 ' . (int) $r['nights'] . '박</span>' . ($r['stay'] ? '<br><small class="muted">' . ($side === 'out' ? '오늘 퇴실 없음' : '오늘 입실 없음') . '</small>' : '') : '' ?></td>
+            <td class="nowrap"><?= $r['nights'] > 1 ? '<span class="badge rt-badge">연박</span>' . ($r['stay'] ? ' <small class="muted">' . ($side === 'out' ? '오늘 퇴실 없음' : '오늘 입실 없음') . '</small>' : '') : '' ?></td>
             <td><input name="note[<?= $side ?>][<?= (int) $pid ?>]" value="<?= e($notes[$side][$pid] ?? '') ?>" maxlength="300" placeholder="비고"></td>
           </tr>
         <?php endforeach ?>
-        <?php if (!$lists[$side]): ?><tr><td colspan="6" class="center muted"><?= $label ?> 객실이 없습니다.</td></tr><?php endif ?>
+        <?php if (!$lists[$side]): ?><tr><td colspan="4" class="center muted"><?= $label ?> 객실이 없습니다.</td></tr><?php endif ?>
         </tbody>
       </table>
       </div>
@@ -149,6 +155,6 @@ layout_header('입퇴실현황', 'turnover');
     <div class="actions no-print"><button class="btn primary">비고·중점정비사항 저장</button></div>
   </section>
 </form>
-<p class="muted small no-print">입실·퇴실은 <a href="<?= e(url('journal.php?type=rooms')) ?>">객실관리 › 객실판매관리</a>의 일일객실판매(임시저장 포함, 반려 제외)로 계산합니다. 퇴실예정 = 전날 판매한 객실, 입실예정 = 이 날 판매한 객실이며,
-  같은 객실이 연달아 판매되면 한 번의 연박으로 보고 입실일·퇴실일·박수를 보여 줍니다 (연박 중인 객실은 그 날 입실·퇴실이 없습니다).</p>
+<p class="muted small no-print">입실·퇴실은 <a href="<?= e(url('journal.php?type=rooms')) ?>">객실관리 › 객실판매관리</a>의 일일객실판매(임시저장 포함, 반려 제외)로 계산합니다. 퇴실예정 = 전날 묵은 객실, 입실예정 = 이 날 묵는 객실이며,
+  <b>연박</b>은 일일객실판매에서 고른 '연박 2·3박'(예약 엑셀로 채우면 숙박기간으로 자동)을 기준으로 한 손님이 이어서 묵는 것으로 봅니다.</p>
 <?php layout_footer();

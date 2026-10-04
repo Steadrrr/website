@@ -6,7 +6,7 @@ defined('APP_ROOT') || exit;
  * 새 버전 파일을 FTP로 덮어쓰기만 하면, 첫 접속 때 부족한 테이블/컬럼을 만든다.
  * (기존 자료는 그대로 유지)
  */
-const DB_VERSION = 45;
+const DB_VERSION = 46;
 
 function db_version(): int
 {
@@ -403,6 +403,11 @@ function db_migrate(): void
     // 44) v43 → v44: 객실 미판매 기간 room_blocks (예비객실·공사·업무예약, 1) 단계에서 생성) — 객실관리 › 객실운영관리, 객실 가동률에서 제외
 
     // 45) v44 → v45: 입퇴실현황의 중점정비사항 room_turnover_days · 객실별 비고 room_turnover_notes (1) 단계에서 생성)
+
+    // 46) v45 → v46: 일일객실판매 객실별 연박(한 손님이 묵는 박수 2·3박) — 입퇴실현황의 연박 기준
+    if (!column_exists('sales_lines', 'stay_nights')) {
+        $pdo->exec("ALTER TABLE sales_lines ADD stay_nights TINYINT UNSIGNED NOT NULL DEFAULT 0 COMMENT '객실 연박: 한 손님이 묵는 박수 (2·3박 …, 0 = 1박)' AFTER guests");
+    }
 
     $pdo->prepare("INSERT INTO settings (name, value) VALUES ('db_version', ?) ON DUPLICATE KEY UPDATE value = VALUES(value)")
         ->execute([(string) DB_VERSION]);

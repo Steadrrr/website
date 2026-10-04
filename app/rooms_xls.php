@@ -85,7 +85,7 @@ function rooms_xls_product(string $name, array $products): ?array
 }
 
 /** 객실 판매 줄 하나 (items_parse 의 일일객실판매 줄과 같은 모양) */
-function rooms_xls_line(array $p, string $date, int $guests, string $dcText, array $vouchers): array
+function rooms_xls_line(array $p, string $date, int $guests, string $dcText, array $vouchers, int $nights = 1): array
 {
     $rate = rate_for_date($date);
     $reason = $dcText !== '' ? rooms_xls_dc_reason($dcText) : null;
@@ -94,7 +94,8 @@ function rooms_xls_line(array $p, string $date, int $guests, string $dcText, arr
     $season = $rate === 'peak' ? season_for('room', $date) : null;
     return ['product_id' => (int) $p['id'], 'grp' => 'room', 'name' => $p['name'], 'is_free' => 0, 'rate' => $rate, 'season' => $season['name'] ?? null,
         'discounted' => (int) ($dc && $unit !== room_price($p, $rate)), 'dc_reason' => $reason, 'unit_price' => $unit, 'qty' => 1, 'guests' => max(0, $guests),
-        'amount' => $unit, 'refund_expected' => room_refund($p, $rate), 'vouchers' => $vouchers ?: array_fill_keys(voucher_denoms(), 0)];
+        'amount' => $unit, 'refund_expected' => room_refund($p, $rate), 'vouchers' => $vouchers ?: array_fill_keys(voucher_denoms(), 0),
+        'stay_nights' => $nights > 1 ? min($nights, 30) : 0]; // 숙박기간 '2박3일' → 연박 2박 (1박2일은 연박 아님)
 }
 
 /**
@@ -113,7 +114,7 @@ function rooms_fill_apply(array $payload, array $fill, string $workDate): array
         if (!$p) { $rep['unknown'][$s['room']] = true; continue; }
         $pid = (int) $p['id'];
         if (isset($lines[$pid])) { $rep['warn'][] = "{$p['name']}: 같은 날 예약이 2건이라 첫 예약만 넣었습니다."; continue; }
-        $line = rooms_xls_line($p, $workDate, $s['guests'], $s['dc'], $old[$pid]['vouchers'] ?? []);
+        $line = rooms_xls_line($p, $workDate, $s['guests'], $s['dc'], $old[$pid]['vouchers'] ?? [], $s['nights']);
         $unit = $line['unit_price'];
         if ($s['dc'] !== '' && !$line['dc_reason']) $rep['warn'][] = "{$p['name']}: 할인적용 '{$s['dc']}'에 맞는 할인사유가 없어 직접 골라야 합니다.";
         $max = (int) $p['max_people'];
@@ -121,9 +122,9 @@ function rooms_fill_apply(array $payload, array $fill, string $workDate): array
         elseif ($max > 0 && $s['guests'] > $max) $rep['warn'][] = "{$p['name']}: 입실 {$s['guests']}명이 최대인원({$max}명)을 넘습니다.";
         $perNight = $s['nights'] > 0 ? intdiv($s['amount'], $s['nights']) : $s['amount'];
         if ($s['amount'] && $perNight !== $unit) $rep['warn'][] = "{$p['name']}: 엑셀 결제금액 " . number_format($s['amount']) . '원' . ($s['nights'] > 1 ? " ({$s['nights']}박)" : '') . ' ≠ 사이트 금액 ' . number_format($unit) . '원 — 요금구분·할인을 확인하세요.';
-        if ($s['nights'] > 1) $rep['warn'][] = "{$p['name']}: {$s['nights']}박 예약(" . date('n.j', strtotime($s['from'])) . '~' . date('n.j', strtotime($s['to'])) . ') — 다른 날짜의 객실판매에도 입력해야 합니다.';
+        if ($s['nights'] > 1) $rep['warn'][] = "{$p['name']}: {$s['nights']}박 예약(" . date('n.j', strtotime($s['from'])) . '~' . date('n.j', strtotime($s['to'])) . ") — 연박 {$s['nights']}박으로 골랐습니다. 다음 날 객실판매에도 이 객실을 입력하세요.";
         $lines[$pid] = $line;
-        $rep['rooms'][] = ['name' => $p['name'], 'guests' => $s['guests'], 'dc' => $s['dc']];
+        $rep['rooms'][] = ['name' => $p['name'], 'guests' => $s['guests'], 'dc' => $s['dc'], 'nights' => $s['nights']];
         $rep['guests'] += $s['guests'];
     }
     $rep['cancel'] = $fill['cancel'];
@@ -157,7 +158,7 @@ function rooms_fill_panel(string $workDate, ?array $journal, ?array $rep): void
   <?php if ($rep && $fill): ?>
   <div class="flash flash-success"><b><?= e(date('Y.n.j', strtotime($fill['date']))) ?></b> 입실 예약 <?= count($rep['rooms']) ?>실 · <?= number_format($rep['guests']) ?>명으로 채웠습니다. <b>아직 저장되지 않았습니다</b> — 아래 내용을 확인하고 저장하세요.</div>
   <ul class="small sales-fill-list">
-    <li>객실: <?= e(implode(' / ', array_map(fn($r) => $r['name'] . ' ' . $r['guests'] . '명' . ($r['dc'] !== '' ? ' (' . $r['dc'] . ')' : ''), $rep['rooms']))) ?></li>
+    <li>객실: <?= e(implode(' / ', array_map(fn($r) => $r['name'] . ' ' . $r['guests'] . '명' . (($r['nights'] ?? 1) > 1 ? ' 연박 ' . $r['nights'] . '박' : '') . ($r['dc'] !== '' ? ' (' . $r['dc'] . ')' : ''), $rep['rooms']))) ?></li>
     <?php if ($rep['cancel']): ?><li>취소된 예약 <?= (int) $rep['cancel'] ?>건은 뺐습니다.</li><?php endif ?>
     <?php if ($fill['others']): ?><li>이 날 묵지 않는 예약 <?= (int) $fill['others'] ?>건(다른 날짜)은 넣지 않았습니다.</li><?php endif ?>
     <?php if ($rep['unknown']): ?><li class="warn">사이트에 없는 객실: <?= e(implode(', ', array_keys($rep['unknown']))) ?> — 설정 › 상품·요금의 객실 이름을 엑셀과 같게 맞춰 주세요.</li><?php endif ?>
@@ -204,9 +205,9 @@ function rooms_out_plan(array $stays, array $user): array
             if (!$p) { $item['unknown'][$s['room']] = true; continue; }
             $pid = (int) $p['id'];
             if (isset($item['rooms'][$pid])) { $item['warn'][] = "{$p['name']}: 같은 날 예약이 2건이라 첫 예약만 넣습니다."; continue; }
-            $line = rooms_xls_line($p, $date, $s['guests'], $s['dc'], $old[$pid]['vouchers'] ?? []);
+            $line = rooms_xls_line($p, $date, $s['guests'], $s['dc'], $old[$pid]['vouchers'] ?? [], $s['nights']);
             $o = $old[$pid] ?? null;
-            $how = !$o ? 'add' : (((int) $o['guests'] !== $line['guests'] || (int) $o['discounted'] !== $line['discounted'] || ($o['dc_reason'] ?? null) !== $line['dc_reason'] || $o['rate'] !== $line['rate']) ? 'change' : 'same');
+            $how = !$o ? 'add' : (((int) $o['guests'] !== $line['guests'] || (int) $o['discounted'] !== $line['discounted'] || ($o['dc_reason'] ?? null) !== $line['dc_reason'] || $o['rate'] !== $line['rate'] || (int) ($o['stay_nights'] ?? 0) !== $line['stay_nights']) ? 'change' : 'same');
             if ($how !== 'same') $item['changed']++;
             if ($s['dc'] !== '' && !$line['dc_reason']) $item['warn'][] = "{$p['name']}: 할인적용 '{$s['dc']}'에 맞는 할인사유가 없어 할인 없이 넣습니다 — 저장 후 직접 고르세요.";
             if ($line['guests'] <= 0) $item['warn'][] = "{$p['name']}: 입실 인원이 비어 있습니다.";

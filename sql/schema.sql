@@ -146,6 +146,7 @@ CREATE TABLE IF NOT EXISTS sales_lines (
   unit_price INT UNSIGNED NOT NULL DEFAULT 0,
   qty        INT UNSIGNED NOT NULL DEFAULT 0 COMMENT '입장권 매수 / 객실 수 / 프로그램 유료 인원(할인 포함)',
   guests     INT UNSIGNED NOT NULL DEFAULT 0 COMMENT '객실 입실인원 / 프로그램 무료 인원',
+  stay_nights TINYINT UNSIGNED NOT NULL DEFAULT 0 COMMENT '객실 연박: 한 손님이 묵는 박수 (2·3박 …, 0 = 1박)',
   refund_expected INT UNSIGNED NULL COMMENT '작성 당시 객실 기준 환급액',
   rent_time  VARCHAR(10)  NULL COMMENT '시설대관 시간: 2h / 4h / day',
   night      TINYINT(1)   NOT NULL DEFAULT 0 COMMENT '시설대관 야간 사용',

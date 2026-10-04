@@ -1189,7 +1189,7 @@ label .tm-pick { display: flex; margin-top: .25rem; }
 .rt-table th { white-space: nowrap; }
 .rt-table th, .rt-table td { padding-left: 6px; padding-right: 6px; }
 .rt-table td input { width: 100%; min-width: 70px; box-sizing: border-box; }
-.rt-table td:last-child { width: 32%; }
+.rt-table td:last-child { width: 45%; }
 .rt-table tr.rt-stay td { background: #fbf7ea; }
 .badge.rt-badge { background: #fdf0d5; color: #8a5a00; }
 @media print {
@@ -1197,3 +1197,17 @@ label .tm-pick { display: flex; margin-top: .25rem; }
   .rt-table td input { border: 0; padding: 0; }
   .rt-form textarea { border: 1px solid #999; min-height: 80px; }
 }
+/* 입퇴실현황: 글씨 크게 */
+.rt-page { font-size: 1.15rem; }
+.rt-page h1 { font-size: 1.7rem; }
+.rt-page h2 { font-size: 1.45rem; }
+.rt-page .kpi b { font-size: 1.9rem; }
+.rt-page .kpi span, .rt-page .kpi small { font-size: 1rem; }
+.rt-page .rt-table { font-size: 1.15rem; }
+.rt-page .rt-table th { font-size: 1.05rem; }
+.rt-page .rt-table td { padding-top: 10px; padding-bottom: 10px; }
+.rt-page .rt-table td input { font-size: 1.1rem; padding: 6px 8px; }
+.rt-page .rt-table small { font-size: .9rem; }
+.rt-page .badge.rt-badge { font-size: 1rem; padding: 3px 10px; }
+.rt-page textarea { font-size: 1.15rem; line-height: 1.6; }
+.rt-page .btn { font-size: 1.05rem; }
