@@ -6,7 +6,7 @@ defined('APP_ROOT') || exit;
  * 새 버전 파일을 FTP로 덮어쓰기만 하면, 첫 접속 때 부족한 테이블/컬럼을 만든다.
  * (기존 자료는 그대로 유지)
  */
-const DB_VERSION = 47;
+const DB_VERSION = 48;
 
 function db_version(): int
 {
@@ -410,6 +410,8 @@ function db_migrate(): void
     }
 
     // 47) v46 → v47: 일일업무일지 시간대별 업무내용 daily_entries (1) 단계에서 생성) — 하루 1건, 작성자만 자기 내용 수정
+
+    // 48) v47 → v48: 객실 청소관리 웹앱 room_clean · room_clean_events · push_subs (1) 단계에서 생성) — 퇴실처리·청소완료·비품지급, 휴대폰 알림
 
     $pdo->prepare("INSERT INTO settings (name, value) VALUES ('db_version', ?) ON DUPLICATE KEY UPDATE value = VALUES(value)")
         ->execute([(string) DB_VERSION]);

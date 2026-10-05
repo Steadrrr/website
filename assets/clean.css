@@ -1,0 +1,72 @@
+/* 객실 청소관리 웹앱 (clean.php) — 휴대폰 화면 기준 */
+:root {
+  --green: #2f7d4f; --green-d: #1f5a38; --bg: #f4f6f3; --card: #fff; --text: #1f2d24; --muted: #6b7a70; --line: #dfe5df;
+  --wait: #c0392b; --wait-bg: #fdecea; --dirty: #b7791f; --dirty-bg: #fdf3e1; --ready: #2f7d4f; --ready-bg: #e6f4ea; --stay: #2e6da4; --stay-bg: #e8f0f9;
+}
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body { margin: 0; background: var(--bg); color: var(--text); font: 16px/1.45 -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Malgun Gothic", "Noto Sans KR", sans-serif; }
+button { font: inherit; cursor: pointer; }
+
+.cl-bar { position: sticky; top: 0; z-index: 5; display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  padding: calc(env(safe-area-inset-top) + 10px) 16px 10px; background: var(--green-d); color: #fff; }
+.cl-title b { font-size: 1.15rem; }
+.cl-title small { margin-left: 8px; opacity: .8; font-size: .85rem; }
+.cl-bar-actions { display: flex; gap: 6px; }
+.cl-icon { display: inline-flex; align-items: center; justify-content: center; width: 40px; height: 40px; border-radius: 10px; border: 1px solid rgba(255,255,255,.35);
+  background: transparent; color: #fff; font-size: 1.2rem; text-decoration: none; }
+.cl-icon.on { background: #fff; color: var(--green-d); }
+.cl-icon.off { opacity: .6; }
+
+.cl-date { display: flex; align-items: center; gap: 8px; padding: 10px 16px; background: var(--card); border-bottom: 1px solid var(--line); }
+.cl-date b { flex: 1; text-align: center; font-size: 1.05rem; }
+.cl-date button { min-width: 44px; height: 40px; border: 1px solid var(--line); border-radius: 10px; background: #fff; font-size: 1.2rem; }
+.cl-date .cl-today { font-size: .9rem; padding: 0 10px; }
+
+.cl-main { max-width: 720px; margin: 0 auto; padding: 12px 16px calc(env(safe-area-inset-bottom) + 24px); }
+.cl-summary { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 12px 14px; }
+.cl-progress { height: 10px; border-radius: 6px; background: #e8ece8; overflow: hidden; }
+.cl-progress i { display: block; height: 100%; width: 0; background: var(--green); transition: width .3s; }
+.cl-progress-text { margin: 6px 0 8px; font-weight: 600; }
+.cl-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.cl-chip { padding: 3px 10px; border-radius: 999px; font-size: .85rem; font-weight: 600; }
+.cl-chip.wait { background: var(--wait-bg); color: var(--wait); }
+.cl-chip.dirty { background: var(--dirty-bg); color: var(--dirty); }
+.cl-chip.ready { background: var(--ready-bg); color: var(--ready); }
+.cl-chip.stay { background: var(--stay-bg); color: var(--stay); }
+
+.cl-allready { margin-top: 12px; padding: 14px; border-radius: 14px; background: var(--green); color: #fff; font-size: 1.15rem; font-weight: 700; text-align: center; }
+.cl-notice { margin-top: 12px; padding: 12px 14px; border-radius: 12px; background: #fff8e1; border: 1px solid #f1d58a; font-size: .92rem; }
+.cl-notice button { margin-top: 8px; padding: 8px 14px; border-radius: 10px; border: 0; background: var(--green); color: #fff; font-weight: 600; }
+
+.cl-sec { margin-top: 18px; }
+.cl-sec h2 { display: flex; align-items: center; gap: 8px; margin: 0 0 8px; font-size: 1rem; }
+.cl-sec h2 small { color: var(--muted); font-weight: 400; font-size: .85rem; }
+.cl-sec h2 .dot { width: 10px; height: 10px; border-radius: 50%; }
+.cl-empty { color: var(--muted); font-size: .9rem; margin: 0; }
+.cl-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 8px; }
+
+.cl-room { display: flex; align-items: center; gap: 10px; padding: 10px 12px; background: var(--card); border: 1px solid var(--line); border-left: 6px solid var(--line); border-radius: 12px; }
+.cl-room.wait { border-left-color: var(--wait); }
+.cl-room.dirty { border-left-color: var(--dirty); }
+.cl-room.ready { border-left-color: var(--ready); }
+.cl-room.stay { border-left-color: var(--stay); }
+.cl-room.arrive { border-left-color: #9aa79f; }
+.cl-room .info { flex: 1; min-width: 0; }
+.cl-room .name { font-size: 1.15rem; font-weight: 700; }
+.cl-room .type { white-space: nowrap; margin-left: 6px; color: var(--muted); font-size: .82rem; }
+.cl-room .meta { color: var(--muted); font-size: .82rem; }
+.cl-tag { display: inline-block; margin-left: 6px; padding: 1px 7px; border-radius: 6px; font-size: .75rem; font-weight: 700; vertical-align: 2px; background: var(--stay-bg); color: var(--stay); }
+.cl-act { flex: none; min-width: 96px; min-height: 48px; padding: 0 14px; border-radius: 12px; border: 0; color: #fff; font-weight: 700; font-size: 1rem; }
+.cl-act.wait { background: var(--wait); }
+.cl-act.dirty { background: var(--dirty); }
+.cl-act.stay { background: var(--stay); }
+.cl-act:disabled { opacity: .5; }
+.cl-undo { flex: none; padding: 8px 10px; border-radius: 10px; border: 1px solid var(--line); background: #fff; color: var(--muted); font-size: .85rem; }
+.cl-done { flex: none; color: var(--ready); font-weight: 700; }
+.cl-done.stay { color: var(--stay); }
+
+.cl-foot { margin-top: 24px; color: var(--muted); font-size: .8rem; }
+.cl-toast { position: fixed; left: 50%; bottom: calc(env(safe-area-inset-bottom) + 20px); transform: translateX(-50%); max-width: calc(100% - 32px);
+  padding: 10px 16px; border-radius: 12px; background: rgba(31,45,36,.92); color: #fff; font-size: .95rem; z-index: 10; }
+.cl-toast.err { background: #a93226; }

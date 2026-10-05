@@ -705,3 +705,39 @@ CREATE TABLE IF NOT EXISTS daily_entries (
   INDEX idx_journal (journal_id, slot, id),
   CONSTRAINT fk_daily_entry_journal FOREIGN KEY (journal_id) REFERENCES journals(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 객실 청소관리 (웹앱 clean.php): 날짜·객실별 퇴실처리 → 청소완료(입실가능), 연박 객실 비품지급
+CREATE TABLE IF NOT EXISTS room_clean (
+  work_date  DATE NOT NULL,
+  product_id INT UNSIGNED NOT NULL COMMENT '객실',
+  out_at     DATETIME NULL COMMENT '퇴실처리 (= 청소가능)',
+  out_by     INT UNSIGNED NULL,
+  clean_at   DATETIME NULL COMMENT '청소완료 (= 입실가능)',
+  clean_by   INT UNSIGNED NULL,
+  supply_at  DATETIME NULL COMMENT '연박 객실 비품지급',
+  supply_by  INT UNSIGNED NULL,
+  PRIMARY KEY (work_date, product_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 청소관리 알림 내역 (퇴실·청소완료·전객실 입실준비완료). 휴대폰 알림이 오면 앱이 여기서 내용을 읽어 띄운다
+CREATE TABLE IF NOT EXISTS room_clean_events (
+  id         INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  work_date  DATE NOT NULL,
+  product_id INT UNSIGNED NULL,
+  kind       VARCHAR(10) NOT NULL COMMENT 'out 퇴실 / clean 청소완료 / all 전객실 입실준비완료',
+  user_id    INT UNSIGNED NOT NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_created (created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 휴대폰(브라우저) 알림 구독 (Web Push). endpoint 는 알림 서버 주소, 알림 내용은 보내지 않는다(앱이 room_clean_events 에서 읽음)
+CREATE TABLE IF NOT EXISTS push_subs (
+  id            INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  user_id       INT UNSIGNED NOT NULL,
+  endpoint_hash CHAR(64) NOT NULL UNIQUE,
+  endpoint      TEXT NOT NULL,
+  last_event_id INT UNSIGNED NOT NULL DEFAULT 0 COMMENT '이 기기에 마지막으로 보여 준 알림',
+  created_at    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  last_ok_at    DATETIME NULL COMMENT '마지막 전송 성공',
+  INDEX idx_user (user_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
