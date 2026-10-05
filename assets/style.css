@@ -1260,3 +1260,24 @@ body.rt-printmode .rt-focus-print { white-space: pre-wrap; font-size: 10pt; min-
   body.rt-printmode .help-fab, body.rt-printmode .tab-bar, body.rt-printmode main.container > .print-head { display: none !important; } /* 이 화면은 자체 머리글 */
   body.rt-printmode .rt-form .card { break-inside: avoid; }
 }
+
+/* 일일업무일지: 시간대별 업무내용 */
+.daily-slots { margin: 8px 0 14px; }
+.daily-slot { border: 1px solid var(--line, #e2e2e2); border-radius: 8px; padding: 8px 12px; margin-bottom: 10px; background: #fcfdfc; }
+.daily-slot-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.daily-slot-head h4 { margin: 2px 0; }
+.daily-entry { border-top: 1px dashed var(--line, #e2e2e2); padding: 6px 0; }
+.daily-entry:first-child { border-top: 0; }
+.daily-entry .who { display: flex; align-items: center; gap: 6px; margin-bottom: 3px; }
+.daily-entry .who .btn { margin-left: auto; }
+.daily-entry.other .pre { background: #f3f5f3; border-radius: 6px; padding: 6px 8px; }
+.daily-entry.mine textarea { width: 100%; box-sizing: border-box; }
+.daily-entry.new { background: #fffbea; border-radius: 6px; padding: 6px; }
+.daily-dialog { width: min(640px, 92vw); border: 1px solid var(--line, #ccc); border-radius: 10px; padding: 16px; }
+.daily-dialog::backdrop { background: rgba(0, 0, 0, .35); }
+.daily-dialog textarea { width: 100%; box-sizing: border-box; }
+.daily-view { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+@media (max-width: 800px) { .daily-view { grid-template-columns: 1fr; } }
+.daily-view-slot { border: 1px solid var(--line, #e2e2e2); border-radius: 8px; padding: 6px 10px; }
+.daily-view-slot h4 { margin: 2px 0 4px; }
+@media print { .daily-view { grid-template-columns: 1fr 1fr; } }

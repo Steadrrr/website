@@ -34,7 +34,14 @@ if ($id) {
     }
     if ($type === 'arwork') $workDate = substr($workDate, 0, 7) . '-01'; // AR 사용보고는 월 단위 (그 달 1일)
     $payload = items_default($type, $teamId ?: null);
+    // 일일업무일지는 하루 1건: 그 날 일지가 있으면 그 문서로
+    if ($type === 'daily' && !is_post() && ($exist = daily_find_by_date($workDate))) {
+        if (can_edit_journal($exist, $user)) redirect('write.php?id=' . (int) $exist['id']);
+        flash(date('n월 j일', strtotime($workDate)) . ' 업무일지는 이미 있습니다 (임시저장 문서는 작성자만 고칠 수 있음).', 'info');
+        redirect('view.php?id=' . (int) $exist['id']);
+    }
 }
+$dailyLegacy = $type === 'daily' && daily_is_legacy($journal); // 이 기능 전에 쓴 일지는 예전처럼 업무내용 한 칸
 
 if ($menu = journal_menu($type)) require_menu($user, $menu);
 if (!can_write_type($user, $type)) abort(403, match ($type) {
@@ -68,7 +75,16 @@ if (is_post()) {
     }
 
     if (!valid_date($workDate)) $errors[] = '일자를 확인하세요.';
-    if ($type === 'daily' && $content === '') $errors[] = '업무내용을 입력하세요.';
+    if ($type === 'daily') {
+        if ($dailyLegacy) {
+            if ($content === '') $errors[] = '업무내용을 입력하세요.';
+        } else {
+            $dailyPosted = daily_parse_post();
+            if (!daily_count_after((int) $id, $user, $dailyPosted)) $errors[] = "업무내용을 하나 이상 적으세요. 시간대의 '업무내용추가'를 누르면 적을 수 있습니다.";
+            $content = (string) ($journal['content'] ?? ''); // 시간대 내용을 모아 저장 후 다시 만든다
+        }
+        if (valid_date($workDate) && ($dup = daily_find_by_date($workDate, (int) $id))) $errors[] = date('n월 j일', strtotime($workDate)) . ' 업무일지가 이미 있습니다 (문서번호 ' . (int) $dup['id'] . '). 업무일지는 하루에 하나입니다.';
+    }
 
     diag_trace("write $type #$id 입력 확인");
     [$payload, $itemErrors] = items_parse($type, valid_date($workDate) ? $workDate : date('Y-m-d'), $id);
@@ -89,6 +105,7 @@ if (is_post()) {
             }
             diag_trace("문서 #$id 저장 중");
             items_save($id, $type, $payload);
+            if ($type === 'daily' && !$dailyLegacy) daily_save($id, $user, $dailyPosted); // 내 시간대 업무내용 (다른 사람 것은 그대로)
             diag_trace('내용 저장 끝');
             // 운영보고 날짜를 바꿨으면 원래 날짜의 매출보고 프로그램 판매도 다시 맞춘다
             if ($journal && is_program_type($type) && $journal['work_date'] !== $workDate) sales_sync_programs($journal['work_date'], PROGRAM_TYPES[$type] . " 운영보고 날짜 변경 {$journal['work_date']} → $workDate (문서 $id)");
@@ -177,7 +194,9 @@ if ($type === 'rooms') rooms_fill_panel($workDate, $journal, $fillRep);
   </div>
 
   <?php if ($type === 'daily'): ?>
+    <?php if ($dailyLegacy): ?>
     <label>업무내용<textarea name="content" rows="10" required placeholder="- 09:00 입장객 안내&#10;- 10:30 산책로 순찰"><?= $v('content') ?></textarea></label>
+    <?php else: daily_form($journal, $user); endif ?>
     <label>특이사항<textarea name="remarks" rows="4" placeholder="사고, 인수인계 사항 등"><?= $v('remarks') ?></textarea></label>
     <?php cpl_form($payload['complaints'] ?? [], $workDate) ?>
   <?php else: ?>

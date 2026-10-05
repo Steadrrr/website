@@ -692,3 +692,16 @@ CREATE TABLE IF NOT EXISTS room_turnover_notes (
   note       VARCHAR(300) NOT NULL,
   PRIMARY KEY (work_date, side, product_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 일일업무일지 시간대별 업무내용 (오전·오후·야간·심야). 작성한 사람만 고칠 수 있고, journals.content 는 이 내용을 모아 자동으로 만든다
+CREATE TABLE IF NOT EXISTS daily_entries (
+  id         INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  journal_id INT UNSIGNED NOT NULL,
+  slot       VARCHAR(5) NOT NULL COMMENT 'DAILY_SLOTS 키: am 오전 / pm 오후 / eve 야간 / night 심야',
+  user_id    INT UNSIGNED NOT NULL COMMENT '작성자 (본인만 수정·삭제)',
+  content    TEXT NOT NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NULL ON UPDATE CURRENT_TIMESTAMP,
+  INDEX idx_journal (journal_id, slot, id),
+  CONSTRAINT fk_daily_entry_journal FOREIGN KEY (journal_id) REFERENCES journals(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

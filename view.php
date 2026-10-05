@@ -126,7 +126,7 @@ $docTitle = $att ? '근태 신청 · ' . $att['user_name'] . ' ' . att_kind_name
   <?php else: items_view($journal); endif ?>
   <?php if ($journal['type'] === 'rooms') vault_day_html($journal['work_date'], $id) ?>
 
-  <?php if ($journal['content']): ?>
+  <?php if ($journal['type'] === 'daily' && $journal['content'] && !daily_is_legacy($journal)): daily_view((int) $journal['id']); elseif ($journal['content']): ?>
     <h3><?= ['daily' => '업무내용', 'voucher' => '적요', 'attendance' => '사유', 'vcheck' => '점검 메모', 'purchase' => '구매 사유 · 메모'][$journal['type']] ?? '메모' ?></h3>
     <div class="pre"><?= e($journal['content']) ?></div>
   <?php endif ?>

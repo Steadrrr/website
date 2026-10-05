@@ -97,6 +97,7 @@ require __DIR__ . '/events.php';
 require __DIR__ . '/attendance.php';
 require __DIR__ . '/programs.php';
 require __DIR__ . '/complaints.php';
+require __DIR__ . '/daily.php';
 require __DIR__ . '/vault.php';
 require __DIR__ . '/ar.php';
 require __DIR__ . '/supplies.php';
