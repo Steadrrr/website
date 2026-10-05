@@ -3,6 +3,7 @@
 require __DIR__ . '/app/bootstrap.php';
 
 $user = require_login();
+require_menu($user, 'fac'); // 시설관리 메뉴 권한 (회원관리)
 $f = facility_find((int) ($_GET['id'] ?? 0)) ?? abort(404, '시설을 찾을 수 없습니다.');
 $showAll = !empty($_GET['all']);
 $from = valid_date($_GET['from'] ?? '') ? $_GET['from'] : '';

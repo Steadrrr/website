@@ -44,7 +44,7 @@ function require_manager(): array
 
 /** 회원별로 켜고 끌 수 있는 메인메뉴 (회원관리에서 설정) */
 const MENU_OPTIONAL = ['att' => '근태관리', // 개인업무 › 근태 달력·월간 근태
-     'ops' => '운영관리', 'room' => '객실관리', 'prog' => '프로그램', 'stat' => '통계'];
+     'ops' => '운영관리', 'room' => '객실관리', 'prog' => '프로그램', 'stat' => '통계', 'fac' => '시설관리'];
 
 /** 이 메인메뉴를 볼 수 있는가. 최고관리자·공무직 이상과 설정 전(NULL) 회원은 전부 (메뉴 권한은 사원에게만 적용) */
 function can_menu(?array $u, string $group): bool
@@ -84,6 +84,7 @@ function journal_menu(string $type): ?string
         in_array($type, ['daily', 'sales', 'voucher', 'vcheck'], true) => 'ops',
         in_array($type, ['rooms', 'arwork'], true) => 'room',
         isset(PROGRAM_TYPES[$type]) => 'prog',
+        in_array($type, ['facility', 'purchase'], true) => 'fac',
         $type === 'attendance' => 'att',
         default => null,
     };

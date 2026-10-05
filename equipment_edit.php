@@ -3,6 +3,7 @@
 require __DIR__ . '/app/bootstrap.php';
 
 $user = require_login();
+require_menu($user, 'fac'); // 시설관리 메뉴 권한 (회원관리)
 if (!can_manage_assets($user)) abort(403, '권한이 없습니다. (주무관 이상)');
 $pdo = db();
 

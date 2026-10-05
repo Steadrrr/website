@@ -3,6 +3,7 @@
 require __DIR__ . '/app/bootstrap.php';
 
 $user = require_login();
+require_menu($user, 'fac'); // 시설관리 메뉴 권한 (회원관리)
 $id = (int) ($_GET['id'] ?? 0);
 $e = equipment_find($id) ?? abort(404, '장비를 찾을 수 없습니다.');
 $canManage = can_manage_assets($user);

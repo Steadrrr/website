@@ -182,7 +182,8 @@ layout_header('대시보드', 'home');
   <section class="card">
     <h2>오늘(<?= e(date('n/j')) ?>) 일지 현황</h2>
     <ul class="list">
-      <?php foreach (DAILY_TYPES as $type): $label = JOURNAL_TYPES[$type]; ?>
+      <?php foreach (DAILY_TYPES as $type): $label = JOURNAL_TYPES[$type];
+          if (($m = journal_menu($type)) && !can_menu($user, $m)) continue; // 시설물관리일지는 시설관리 메뉴 권한 ?>
         <li>
           <a href="<?= e(url("journal.php?type=$type&date=$today")) ?>"><?= e($label) ?></a>
           <?php $n = (int) ($todayCounts[$type] ?? 0) ?>

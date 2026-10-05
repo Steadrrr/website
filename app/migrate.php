@@ -6,7 +6,7 @@ defined('APP_ROOT') || exit;
  * 새 버전 파일을 FTP로 덮어쓰기만 하면, 첫 접속 때 부족한 테이블/컬럼을 만든다.
  * (기존 자료는 그대로 유지)
  */
-const DB_VERSION = 49;
+const DB_VERSION = 50;
 
 function db_version(): int
 {
@@ -417,6 +417,11 @@ function db_migrate(): void
     foreach (['last_sent_at' => "DATETIME NULL COMMENT '마지막 전송 시도'", 'last_code' => "SMALLINT NULL COMMENT '마지막 전송 결과 (알림 서버 HTTP 코드, 0 = 연결 실패)'",
               'last_error' => "VARCHAR(255) NULL COMMENT '마지막 전송 오류 내용'", 'test_at' => "DATETIME NULL COMMENT '알림 테스트 요청'"] as $col => $def) {
         if (!column_exists('push_subs', $col)) $pdo->exec("ALTER TABLE push_subs ADD $col $def");
+    }
+
+    // 50) v49 → v50: 메뉴 권한에 '시설관리'(fac) 추가 — 이미 메뉴 권한을 고른 회원은 지금처럼 시설관리를 계속 보이게 fac 를 붙인다
+    if (db_version() < 50) {
+        $pdo->exec("UPDATE users SET menu_access = IF(menu_access = '', 'fac', CONCAT(menu_access, ',fac')) WHERE menu_access IS NOT NULL AND FIND_IN_SET('fac', menu_access) = 0");
     }
 
     $pdo->prepare("INSERT INTO settings (name, value) VALUES ('db_version', ?) ON DUPLICATE KEY UPDATE value = VALUES(value)")

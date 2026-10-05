@@ -8,6 +8,7 @@
 require __DIR__ . '/app/bootstrap.php';
 
 $user = require_login();
+require_menu($user, 'fac'); // 시설관리 메뉴 권한 (회원관리)
 if (!can_purchase($user)) abort(403, '물품구매는 공무직 이상만 사용할 수 있습니다.');
 $pdo = db();
 

@@ -3,6 +3,7 @@
 require __DIR__ . '/app/bootstrap.php';
 
 $user = require_login();
+require_menu($user, 'fac'); // 시설관리 메뉴 권한 (회원관리)
 $teamId = (int) ($_GET['team'] ?? 0);
 if ($teamId && !isset(teams_all()[$teamId])) $teamId = 0;
 $status = $_GET['status'] ?? 'inuse';
