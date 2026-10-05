@@ -15,7 +15,8 @@ $journal = null;
 
 if ($id) {
     $journal = journal_find($id) ?? abort(404, '일지를 찾을 수 없습니다.');
-    if (!can_edit_journal($journal, $user)) abort(403, '임시저장 문서는 작성자만 수정할 수 있습니다.');
+    if (!can_edit_journal($journal, $user)) abort(403, $journal['status'] !== 'draft' && !can_submit_journal($user, $journal['type'])
+        ? '결재를 올린 업무일지는 공무직 이상만 수정할 수 있습니다.' : '임시저장 문서는 작성자만 수정할 수 있습니다.');
     $type = $journal['type'];
     $workDate = $journal['work_date'];
     $teamId = $journal['team_id'] ? (int) $journal['team_id'] : null;
@@ -37,7 +38,7 @@ if ($id) {
     // 일일업무일지는 하루 1건: 그 날 일지가 있으면 그 문서로
     if ($type === 'daily' && !is_post() && ($exist = daily_find_by_date($workDate))) {
         if (can_edit_journal($exist, $user)) redirect('write.php?id=' . (int) $exist['id']);
-        flash(date('n월 j일', strtotime($workDate)) . ' 업무일지는 이미 있습니다 (임시저장 문서는 작성자만 고칠 수 있음).', 'info');
+        flash(date('n월 j일', strtotime($workDate)) . ' 업무일지는 이미 있고 결재를 올린 뒤라 공무직 이상만 고칠 수 있습니다.', 'info');
         redirect('view.php?id=' . (int) $exist['id']);
     }
 }
@@ -67,7 +68,8 @@ if (is_post()) {
     $weather  = in_array($type, NO_WEATHER_TYPES, true) ? '' : mb_substr(post('weather'), 0, 30);
     $content  = post('content');
     $remarks  = post('remarks');
-    $submit   = $revision || post('action') === 'submit';
+    $canSubmit = can_submit_journal($user, $type);
+    $submit   = $revision || (post('action') === 'submit' && $canSubmit); // 업무일지: 사원은 임시저장만
     $reason   = mb_substr(post('edit_reason'), 0, 500);
     if ($revision) {
         $before = journal_snapshot($journal);
@@ -131,7 +133,7 @@ if (is_post()) {
             journal_submit(journal_find($id), (int) $user['rank_level']); // 결재선은 결재를 올린 사람 기준
             flash('결재를 올렸습니다.', 'success');
         } else {
-            flash('임시저장했습니다. 결재 올리기를 눌러야 결재가 진행됩니다.', 'info');
+            flash($canSubmit ? '임시저장했습니다. 결재 올리기를 눌러야 결재가 진행됩니다.' : '임시저장했습니다. 결재 올리기는 공무직 이상이 합니다.', 'info');
         }
         // 작성·수정 기록 (결재와 별개)
         $cplCount = count($payload['complaints'] ?? []);
@@ -147,6 +149,7 @@ if (is_post()) {
 
 $v = fn(string $k) => e(is_post() ? post($k) : ($journal[$k] ?? ''));
 $line = approval_line_for((int) $user['rank_level'], $type);
+$canSubmit = can_submit_journal($user, $type);
 
 layout_header(JOURNAL_TYPES[$type] . ($journal ? ' 수정' : ' 작성'), journal_nav_key($type));
 if ($type === 'sales') sales_fill_panel($workDate, $journal, $fillRep);
@@ -156,7 +159,11 @@ if ($type === 'rooms') rooms_fill_panel($workDate, $journal, $fillRep);
   <?= csrf_field() ?>
   <div class="card-head">
     <h1><?= e(JOURNAL_TYPES[$type]) ?> <?= $journal ? '수정' : '작성' ?></h1>
+    <?php if (!$canSubmit): ?>
+    <span class="muted small">결재 올리기는 공무직 이상이 합니다 (임시저장까지)</span>
+    <?php else: ?>
     <span class="muted small">결재선: 작성(<?= e(rank_name($user['rank_level'])) ?>)<?php foreach ($line as $r): ?> → <?= e(rank_name($r)) ?><?php endforeach ?><?= $line ? '' : ' (결재 생략)' ?></span>
+    <?php endif ?>
   </div>
   <?php foreach ($errors as $err): ?><div class="flash flash-error"><?= e($err) ?></div><?php endforeach ?>
 
@@ -225,7 +232,7 @@ if ($type === 'rooms') rooms_fill_panel($workDate, $journal, $fillRep);
         수정 저장 · <?= $line ? '결재 다시 올리기' : '결재완료' ?></button>
     <?php else: ?>
       <button class="btn" name="action" value="save">임시저장</button>
-      <button class="btn primary" name="action" value="submit"><?= $line ? '결재 올리기' : '저장(결재완료)' ?></button>
+      <?php if ($canSubmit): ?><button class="btn primary" name="action" value="submit"><?= $line ? '결재 올리기' : '저장(결재완료)' ?></button><?php endif ?>
     <?php endif ?>
   </div>
 </form>
