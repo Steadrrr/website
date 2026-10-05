@@ -81,7 +81,18 @@ $rows = array_filter($all, fn($r) => match ($f) {
 });
 $byDate = [];
 foreach ($rows as $r) $byDate[$r['work_date']][] = $r;
-$q = fn(array $p) => 'purchase.php?' . http_build_query(array_filter(['ym' => $ym, 'f' => $f] + $p, fn($v) => $v !== ''));
+$q = fn(array $p) => 'purchase.php?' . http_build_query(array_filter($p + ['ym' => $ym, 'f' => $f], fn($v) => $v !== '')); // 바꿀 값($p)이 앞 — 뒤의 현재 값은 없는 키만 채움
+
+// 이전달·다음달: 구매 내역이 없는 달은 건너뛰고 내역이 있는 가까운 달로 (없으면 바로 앞·뒤 달)
+$navMonth = function (string $dir) use ($pdo, $from, $to, $user, $first): string {
+    $st = $pdo->prepare("SELECT DATE_FORMAT(" . ($dir === 'prev' ? 'MAX' : 'MIN') . "(j.work_date), '%Y-%m') FROM journals j
+                          WHERE j.type = 'purchase' AND (j.status <> 'draft' OR j.author_id = ?) AND j.work_date " . ($dir === 'prev' ? '< ?' : '> ?'));
+    $st->execute([$user['id'], $dir === 'prev' ? $from : $to]);
+    return (string) ($st->fetchColumn() ?: $first->modify($dir === 'prev' ? '-1 month' : '+1 month')->format('Y-m'));
+};
+$prevYm = $navMonth('prev');
+$nextYm = $navMonth('next');
+$ymLabel = fn(string $m) => ((int) substr($m, 0, 4) !== $year ? substr($m, 0, 4) . '년 ' : '') . (int) substr($m, 5) . '월';
 
 layout_header('물품구매', 'purchase');
 ?>
@@ -110,9 +121,9 @@ layout_header('물품구매', 'purchase');
 
 <section class="card">
   <div class="cal-nav no-print">
-    <a class="btn" href="<?= e(url($q(['ym' => $first->modify('-1 month')->format('Y-m')]))) ?>">‹ 이전달</a>
+    <a class="btn" href="<?= e(url($q(['ym' => $prevYm]))) ?>" title="구매 내역이 있는 이전 달">‹ 이전달 <small>(<?= e($ymLabel($prevYm)) ?>)</small></a>
     <strong><?= e($first->format('Y년 n월')) ?></strong>
-    <a class="btn" href="<?= e(url($q(['ym' => $first->modify('+1 month')->format('Y-m')]))) ?>">다음달 ›</a>
+    <a class="btn" href="<?= e(url($q(['ym' => $nextYm]))) ?>" title="구매 내역이 있는 다음 달">다음달 <small>(<?= e($ymLabel($nextYm)) ?>)</small> ›</a>
     <a class="btn ghost" href="<?= e(url('purchase.php')) ?>">이번 달</a>
     <div class="tabs pc-filter">
       <?php foreach ($filters as $k => $label): ?><a href="<?= e(url($q(['f' => $k]))) ?>" class="<?= $f === $k ? 'on' : '' ?>"><?= e($label) ?></a><?php endforeach ?>
