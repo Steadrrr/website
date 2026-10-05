@@ -137,9 +137,9 @@ function daily_form(?array $journal, array $user): void
 <dialog class="daily-dialog" data-entry-dialog>
   <!-- 작성 화면의 큰 form 안이라 form 을 겹치지 않고 버튼으로 닫는다 -->
   <h3>업무내용추가 · <span data-dialog-slot></span></h3>
-  <p class="small muted">작성자: <b><?= e($user['name']) ?></b> — 추가한 뒤 아래 '저장'을 눌러야 일지에 남습니다.</p>
+  <p class="small muted">작성자: <b><?= e($user['name']) ?></b> — '추가'를 누르면 바로 일지에 저장됩니다.</p>
   <textarea rows="7" data-dialog-text placeholder="- 09:00 입장객 안내&#10;- 10:30 산책로 순찰"></textarea>
-  <div class="actions"><button type="button" class="btn ghost" data-dialog-cancel>취소</button><button type="button" class="btn primary" data-dialog-ok>추가</button></div>
+  <div class="actions"><button type="button" class="btn ghost" data-dialog-cancel>취소</button><button type="button" class="btn primary" data-dialog-ok>추가 (저장)</button></div>
 </dialog>
 <script>
 (function () {
@@ -178,6 +178,12 @@ function daily_form(?array $journal, array $user): void
     box.querySelector('textarea').value = text;
     root.querySelector('.daily-slot[data-slot="' + slot + '"] .daily-entries').insertBefore(box, root.querySelector('.daily-slot[data-slot="' + slot + '"] .daily-empty'));
     refresh();
+    // 추가하면 바로 저장 (결재 올린 뒤 고치는 경우는 결재 초기화 확인 후)
+    const form = root.closest('form');
+    const save = form && form.querySelector('button[name=action][value=save]');
+    const resubmit = form && form.querySelector('button[name=action][value=submit]');
+    if (save) form.requestSubmit ? form.requestSubmit(save) : save.click();
+    else if (resubmit && confirm('저장하면 결재 상태가 초기화되고 처음부터 다시 결재를 받습니다. 저장할까요?')) form.requestSubmit ? form.requestSubmit(resubmit) : resubmit.click();
   });
   refresh();
 })();

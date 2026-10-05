@@ -133,7 +133,8 @@ if (is_post()) {
             journal_submit(journal_find($id), (int) $user['rank_level']); // 결재선은 결재를 올린 사람 기준
             flash('결재를 올렸습니다.', 'success');
         } else {
-            flash($canSubmit ? '임시저장했습니다. 결재 올리기를 눌러야 결재가 진행됩니다.' : '임시저장했습니다. 결재 올리기는 공무직 이상이 합니다.', 'info');
+            $saved = $type === 'daily' ? '저장했습니다.' : '임시저장했습니다.';
+            flash($saved . ($canSubmit ? ' 결재 올리기를 눌러야 결재가 진행됩니다.' : ' 결재 올리기는 공무직 이상이 합니다.'), 'info');
         }
         // 작성·수정 기록 (결재와 별개)
         $cplCount = count($payload['complaints'] ?? []);
@@ -231,7 +232,7 @@ if ($type === 'rooms') rooms_fill_panel($workDate, $journal, $fillRep);
       <button class="btn primary" name="action" value="submit" onclick="return confirm('결재 상태가 초기화되고 처음부터 다시 결재를 받습니다. 저장할까요?')">
         수정 저장 · <?= $line ? '결재 다시 올리기' : '결재완료' ?></button>
     <?php else: ?>
-      <button class="btn" name="action" value="save">임시저장</button>
+      <button class="btn" name="action" value="save"><?= $type === 'daily' ? '저장' : '임시저장' ?></button>
       <?php if ($canSubmit): ?><button class="btn primary" name="action" value="submit"><?= $line ? '결재 올리기' : '저장(결재완료)' ?></button><?php endif ?>
     <?php endif ?>
   </div>
