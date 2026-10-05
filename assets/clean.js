@@ -3,6 +3,7 @@
   const C = window.CLEAN;
   let state = C.state;
   let busy = false;
+  const picked = new Set(); // 퇴실대기에서 체크한 객실 id
   const $ = (s) => document.querySelector(s);
   const esc = (s) => String(s == null ? '' : s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   const WD = ['일', '월', '화', '수', '목', '금', '토'];
@@ -15,15 +16,17 @@
     clearTimeout(toast.t); toast.t = setTimeout(() => { t.hidden = true; }, err ? 4000 : 2200);
   }
 
-  function room(r, cls, right, meta, tag) {
-    return '<div class="cl-room ' + cls + '"><div class="info"><span class="name">' + esc(r.name) + '</span><span class="type">' + esc(r.type) + '</span>'
+  function room(r, cls, right, meta, tag, check) {
+    return '<div class="cl-room ' + cls + (check && picked.has(r.id) ? ' picked' : '') + '"' + (check ? ' data-pick-card="' + r.id + '"' : '') + '>'
+      + (check ? '<span class="cl-check"><input type="checkbox" data-pick value="' + r.id + '"' + (picked.has(r.id) ? ' checked' : '') + ' aria-label="' + esc(r.name) + ' 선택"></span>' : '')
+      + '<div class="info"><span class="name">' + esc(r.name) + '</span><span class="type">' + esc(r.type) + '</span>'
       + (tag ? '<span class="cl-tag">' + tag + '</span>' : '') + (meta ? '<div class="meta">' + meta + '</div>' : '') + '</div>' + right + '</div>';
   }
   const btn = (id, op, label, cls) => '<button type="button" class="cl-act ' + cls + '" data-op="' + op + '" data-room="' + id + '">' + label + '</button>';
   const undo = (id, op, label) => '<button type="button" class="cl-undo" data-op="' + op + '" data-room="' + id + '">' + label + '</button>';
 
-  function section(title, color, items, empty) {
-    return '<section class="cl-sec"><h2><span class="dot" style="background:' + color + '"></span>' + title + ' <small>' + items.length + '실</small></h2>'
+  function section(title, color, items, empty, extra) {
+    return '<section class="cl-sec"><h2><span class="dot" style="background:' + color + '"></span>' + title + ' <small>' + items.length + '실</small>' + (extra || '') + '</h2>'
       + (items.length ? '<div class="cl-grid">' + items.join('') + '</div>' : '<p class="cl-empty">' + empty + '</p>') + '</section>';
   }
 
@@ -39,7 +42,11 @@
     $('[data-allready]').hidden = !s.all_ready;
 
     const inTag = (r) => (r.in_today ? '오늘 입실' : '');
-    const wait = s.rooms.filter((r) => r.status === 'wait').map((r) => room(r, 'wait', btn(r.id, 'out', '퇴실처리', 'wait'), '', inTag(r)));
+    const waitRooms = s.rooms.filter((r) => r.status === 'wait');
+    const waitIds = new Set(waitRooms.map((r) => r.id));
+    [...picked].forEach((id) => { if (!waitIds.has(id)) picked.delete(id); }); // 이미 퇴실처리된 객실은 선택에서 뺌
+    const wait = waitRooms.map((r) => room(r, 'wait', btn(r.id, 'out', '퇴실처리', 'wait'), '', inTag(r), true));
+    const allOn = waitRooms.length > 0 && picked.size === waitRooms.length;
     const dirty = s.rooms.filter((r) => r.status === 'dirty').map((r) => room(r, 'dirty',
       undo(r.id, 'undo_out', '퇴실취소') + btn(r.id, 'clean', '청소완료', 'dirty'), '퇴실 ' + esc(r.out_at) + ' ' + esc(r.out_by), inTag(r)));
     const ready = s.rooms.filter((r) => r.status === 'ready').map((r) => room(r, 'ready',
@@ -48,11 +55,46 @@
       r.supply_at ? undo(r.id, 'undo_supply', '취소') + '<span class="cl-done stay">지급완료</span>' : btn(r.id, 'supply', '비품지급', 'stay'),
       r.supply_at ? '비품 ' + esc(r.supply_at) + ' ' + esc(r.supply_by) : '청소 없음 · 비품만 지급', r.nights + '박'));
     const arr = s.arrivals.map((r) => room(r, 'arrive', '', '어젯밤 빈 객실 · 청소 없음', '오늘 입실'));
-    $('[data-list]').innerHTML = section('퇴실대기', 'var(--wait)', wait, '퇴실을 기다리는 객실이 없습니다.')
+    $('[data-list]').innerHTML = section('퇴실대기', 'var(--wait)', wait, '퇴실을 기다리는 객실이 없습니다.',
+      waitRooms.length > 1 ? '<button type="button" class="cl-pick-all" data-pick-all>' + (allOn ? '선택 해제' : '전체선택') + '</button>' : '')
       + section('청소가능', 'var(--dirty)', dirty, '청소할 객실이 없습니다.')
       + section('입실가능', 'var(--ready)', ready, '아직 청소를 마친 객실이 없습니다.')
       + section('연박 (비품지급)', 'var(--stay)', stays, '연박 객실이 없습니다.')
       + (arr.length ? section('빈 객실 입실예정', '#9aa79f', arr, '') : '');
+    bulkBar();
+  }
+
+  // 체크한 퇴실대기 객실 → 아래 '선택 퇴실처리' 막대
+  function bulkBar() {
+    const bar = $('[data-bulk]');
+    bar.hidden = picked.size === 0;
+    bar.querySelector('[data-bulk-count]').textContent = picked.size;
+    document.body.classList.toggle('cl-has-bulk', picked.size > 0);
+    document.querySelectorAll('[data-pick-card]').forEach((c) => {
+      const on = picked.has(Number(c.dataset.pickCard));
+      c.classList.toggle('picked', on);
+      c.querySelector('[data-pick]').checked = on;
+    });
+    const all = $('[data-pick-all]');
+    if (all) all.textContent = picked.size === document.querySelectorAll('[data-pick-card]').length ? '선택 해제' : '전체선택';
+  }
+  async function bulkOut() {
+    if (busy || !picked.size) return;
+    const names = state.rooms.filter((r) => picked.has(r.id)).map((r) => r.name);
+    if (!confirm(names.length + '실을 한 번에 퇴실처리할까요?\n' + names.join(', ') + '\n\n청소가능 상태가 되고 모든 사용자에게 알림이 갑니다.')) return;
+    busy = true;
+    const b = $('[data-bulk-out]'); b.disabled = true;
+    const fd = new FormData();
+    fd.append('act', 'bulk'); fd.append('date', state.date); fd.append('_csrf', C.csrf);
+    picked.forEach((id) => fd.append('rooms[]', id));
+    try {
+      const r = await fetch(C.api, { method: 'POST', body: fd, credentials: 'same-origin' });
+      const j = await r.json();
+      if (j.rooms) { picked.clear(); state = j; render(); }
+      if (j.error) toast((j.done ? j.done + '실 퇴실처리 · ' : '') + j.error, true);
+      else toast(j.done + '실을 퇴실처리했습니다.');
+    } catch (e) { toast('저장하지 못했습니다. 인터넷 연결을 확인하세요.', true); }
+    b.disabled = false; busy = false;
   }
 
   async function load(date) {
@@ -72,6 +114,19 @@
   const DONE = { out: '퇴실처리했습니다.', clean: '청소완료 — 입실가능', supply: '비품지급을 기록했습니다.', undo_out: '퇴실처리를 취소했습니다.', undo_clean: '되돌렸습니다.', undo_supply: '취소했습니다.' };
 
   document.addEventListener('click', async (ev) => {
+    if (ev.target.closest('[data-bulk-out]')) return bulkOut();
+    if (ev.target.closest('[data-bulk-clear]')) { picked.clear(); return bulkBar(); }
+    if (ev.target.closest('[data-pick-all]')) {
+      const ids = [...document.querySelectorAll('[data-pick-card]')].map((c) => Number(c.dataset.pickCard));
+      if (picked.size === ids.length) picked.clear(); else ids.forEach((id) => picked.add(id));
+      return bulkBar();
+    }
+    const card = ev.target.closest('[data-pick-card]');
+    if (card && !ev.target.closest('[data-op]')) { // 객실 칸 아무 곳이나 눌러도 체크
+      const id = Number(card.dataset.pickCard);
+      if (ev.target.matches('[data-pick]') ? !ev.target.checked : picked.has(id)) picked.delete(id); else picked.add(id);
+      return bulkBar();
+    }
     const b = ev.target.closest('[data-op]');
     if (b) {
       if (busy) return;

@@ -148,10 +148,23 @@ function clean_events_for(array $sub): array
         $st->execute([(int) $sub['user_id']]);
         $evs = $st->fetchAll();
     }
-    $out = array_map(function ($ev) {
+    // 같은 사람이 같은 종류(퇴실·청소완료)를 한꺼번에 처리한 것은 알림 하나로 묶는다 (퇴실 일괄처리)
+    $groups = [];
+    foreach ($evs as $ev) {
+        $k = in_array($ev['kind'], ['out', 'clean'], true) ? $ev['kind'] . '|' . $ev['user_id'] . '|' . $ev['work_date'] : 'e' . $ev['id'];
+        $groups[$k][] = $ev;
+    }
+    $out = [];
+    foreach ($groups as $g) {
+        $ev = end($g);
         [$title, $body] = clean_event_text($ev);
-        return ['id' => (int) $ev['id'], 'kind' => $ev['kind'], 'title' => $title, 'body' => $body];
-    }, $evs);
+        if (count($g) > 1) {
+            $title = ($ev['kind'] === 'out' ? '퇴실 ' : '입실가능 ') . count($g) . '실';
+            $body = implode(', ', array_column($g, 'room_name')) . ' — ' . ($ev['kind'] === 'out' ? '퇴실처리되어 청소가능' : '청소완료되어 입실가능')
+                . ' (' . trim($ev['user_name'] . ' ' . substr((string) $ev['created_at'], 11, 5)) . ')';
+        }
+        $out[] = ['id' => (int) $ev['id'], 'kind' => $ev['kind'], 'title' => $title, 'body' => $body];
+    }
     // 알림 테스트 요청 (5분 안)
     if (!empty($sub['test_at']) && strtotime((string) $sub['test_at']) >= time() - 300) {
         db()->prepare('UPDATE push_subs SET test_at = NULL WHERE id = ?')->execute([(int) $sub['id']]);

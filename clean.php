@@ -62,6 +62,11 @@ $boot = [
   <div data-list></div>
   <p class="cl-foot">객실 목록은 객실판매관리의 일일객실판매(입퇴실현황과 같은 기준)에서 가져옵니다. 화면은 15초마다 저절로 새로 고치고, 위쪽 새로고침 버튼으로 바로 고칠 수 있습니다.</p>
 </main>
+<div class="cl-bulk" data-bulk hidden>
+  <span>선택 <b data-bulk-count>0</b>실</span>
+  <button type="button" class="cl-bulk-clear" data-bulk-clear>해제</button>
+  <button type="button" class="cl-bulk-out" data-bulk-out>선택 퇴실처리</button>
+</div>
 <div class="cl-toast" data-toast hidden></div>
 <script>window.CLEAN = <?= json_encode($boot, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HEX_AMP) ?>;</script>
 <script src="<?= e(asset_url('assets/clean.js')) ?>"></script>

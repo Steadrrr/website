@@ -3,6 +3,7 @@
  * 객실 청소관리 앱(clean.php)의 데이터 주소 — JSON
  *   GET  ?act=state&date=YYYY-MM-DD           그 날 객실 상태
  *   POST act=do  date, room, op, _csrf         퇴실처리·청소완료·비품지급·되돌리기 (퇴실·청소완료는 알림)
+ *   POST act=bulk  date, rooms[], _csrf          퇴실대기 여러 객실 한 번에 퇴실처리 (알림 한 번)
  *   POST act=subscribe / unsubscribe  endpoint, _csrf   이 기기 알림 켜기·끄기
  *   POST act=test  endpoint, _csrf              알림 테스트 (이 기기에만, 알림 서버 응답 코드 반환)
  *   POST act=sw_events  {"endpoint": …}        알림을 받은 앱(clean-sw.js)이 띄울 내용 (로그인 없이 구독한 기기만)
@@ -44,6 +45,21 @@ switch ($act) {
         clean_json(['error' => $err ?: null] + clean_state($date), $err ? 409 : 200);
         if ($notify) {
             // 응답을 먼저 보내고 알림 (휴대폰 화면이 기다리지 않게)
+            if (function_exists('fastcgi_finish_request')) fastcgi_finish_request();
+            push_notify_all((int) $user['id']);
+        }
+        exit;
+    case 'bulk': // 퇴실대기 객실 여러 개를 한 번에 퇴실처리 (알림은 한 번)
+        $done = 0;
+        $errs = [];
+        $rooms = array_unique(array_map('intval', (array) ($_POST['rooms'] ?? [])));
+        $names = array_column(products_all(), 'name', 'id');
+        foreach (array_slice($rooms, 0, 200) as $pid) {
+            [$err] = clean_act($date, $pid, 'out', $user);
+            if ($err) $errs[] = ($names[$pid] ?? $pid) . ': ' . $err; else $done++;
+        }
+        clean_json(['done' => $done, 'error' => $errs ? implode(' / ', $errs) : null] + clean_state($date), $done || !$errs ? 200 : 409);
+        if ($done) {
             if (function_exists('fastcgi_finish_request')) fastcgi_finish_request();
             push_notify_all((int) $user['id']);
         }

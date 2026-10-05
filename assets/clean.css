@@ -73,3 +73,20 @@ button { font: inherit; cursor: pointer; }
 .cl-toast { position: fixed; left: 50%; bottom: calc(env(safe-area-inset-bottom) + 20px); transform: translateX(-50%); max-width: calc(100% - 32px);
   padding: 10px 16px; border-radius: 12px; background: rgba(31,45,36,.92); color: #fff; font-size: .95rem; z-index: 10; }
 .cl-toast.err { background: #a93226; }
+
+/* 퇴실대기 여러 개 선택 → 한 번에 퇴실처리 */
+.cl-check { flex: none; display: flex; align-items: center; }
+.cl-check input { width: 26px; height: 26px; margin: 0; accent-color: var(--wait); cursor: pointer; }
+.cl-room.wait { cursor: pointer; }
+.cl-room.picked { background: var(--wait-bg); border-color: #f1b7b0; }
+.cl-pick-all { margin-left: auto; padding: 5px 12px; border-radius: 999px; border: 1px solid var(--wait); background: #fff; color: var(--wait); font-size: .85rem; font-weight: 600; }
+.cl-bulk { position: fixed; left: 0; right: 0; bottom: 0; z-index: 8; display: flex; align-items: center; gap: 8px;
+  padding: 10px 16px calc(env(safe-area-inset-bottom) + 10px); background: #fff; border-top: 1px solid var(--line); box-shadow: 0 -4px 16px rgba(0,0,0,.08); }
+.cl-bulk[hidden] { display: none; }
+.cl-bulk span { flex: 1; font-size: 1rem; }
+.cl-bulk b { color: var(--wait); font-size: 1.2rem; }
+.cl-bulk-clear { padding: 0 14px; min-height: 48px; border-radius: 12px; border: 1px solid var(--line); background: #fff; color: var(--muted); }
+.cl-bulk-out { padding: 0 18px; min-height: 48px; border-radius: 12px; border: 0; background: var(--wait); color: #fff; font-weight: 700; font-size: 1rem; }
+.cl-bulk-out:disabled { opacity: .5; }
+body.cl-has-bulk .cl-main { padding-bottom: 96px; }
+body.cl-has-bulk .cl-toast { bottom: calc(env(safe-area-inset-bottom) + 84px); }
