@@ -6,10 +6,33 @@ defined('APP_ROOT') || exit;
  *   퇴실 객실: 퇴실대기 → [퇴실처리] 청소가능 → [청소완료] 입실가능. 퇴실처리·청소완료는 모든 앱 사용자에게 알림,
  *   퇴실 객실이 모두 청소완료되면 '전객실 입실준비완료' 알림.
  *   연박 객실(오늘도 같은 손님): 청소 대상이 아니고 [비품지급] 여부만 기록 (알림 없음).
- * 객실 목록은 입퇴실현황과 같은 계산(turnover_lists, 일일객실판매 기준).
+ * 객실 목록은 turnover_lists(app/turnover.php, 일일객실판매 기준).
  */
 
 const CLEAN_STATUS = ['wait' => '퇴실대기', 'dirty' => '청소가능', 'ready' => '입실가능'];
+
+/** 청소관리 맨 위 공지 (날짜와 관계없이 하나) — settings.clean_notice (JSON: text·by·at). 작성·수정은 공무직 이상 */
+function clean_notice(): array
+{
+    $st = db()->prepare("SELECT value FROM settings WHERE name = 'clean_notice'");
+    $st->execute();
+    $n = json_decode((string) $st->fetchColumn(), true);
+    if (!is_array($n) || trim((string) ($n['text'] ?? '')) === '') return ['text' => '', 'by' => null, 'at' => null];
+    $st = db()->prepare('SELECT name FROM users WHERE id = ?');
+    $st->execute([(int) ($n['by'] ?? 0)]);
+    return ['text' => (string) $n['text'], 'by' => $st->fetchColumn() ?: null, 'at' => $n['at'] ?? null];
+}
+
+function clean_can_notice(array $user): bool
+{
+    return can_write_notice($user); // 최고관리자·공무직 이상
+}
+
+function clean_notice_save(string $text, array $user): void
+{
+    $text = mb_substr(trim(str_replace("\r\n", "\n", $text)), 0, 2000);
+    setting_set('clean_notice', json_encode(['text' => $text, 'by' => (int) $user['id'], 'at' => date('Y-m-d H:i')], JSON_UNESCAPED_UNICODE));
+}
 
 /** 그 날 객실별 기록 [객실 id => room_clean 줄 + 처리한 사람 이름] */
 function clean_rows(string $date): array
@@ -48,6 +71,7 @@ function clean_state(string $date): array
     $state['count'] = ['total' => count($state['rooms']), 'wait' => $cnt('wait'), 'dirty' => $cnt('dirty'), 'ready' => $cnt('ready'),
         'stays' => count($state['stays']), 'supplied' => count(array_filter($state['stays'], fn($r) => $r['supply_at'] !== null))];
     $state['all_ready'] = $state['count']['total'] > 0 && $state['count']['ready'] === $state['count']['total'];
+    $state['notice'] = clean_notice();
     return $state;
 }
 

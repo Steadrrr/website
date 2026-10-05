@@ -505,7 +505,7 @@ function items_form(string $type, array $payload, string $workDate, ?array $jour
   <div class="table-scroll">
   <table class="table room-table" data-room-table>
     <thead>
-      <tr><th rowspan="2">객실</th><th rowspan="2">요금구분</th><th rowspan="2">할인</th><th rowspan="2" class="right">단가</th><th rowspan="2">입실인원</th><th rowspan="2" title="한 손님이 연속으로 묵을 때 (입퇴실현황에 '연박' 표시)">연박</th><th rowspan="2" class="right">금액</th>
+      <tr><th rowspan="2">객실</th><th rowspan="2">요금구분</th><th rowspan="2">할인</th><th rowspan="2" class="right">단가</th><th rowspan="2">입실인원</th><th rowspan="2" title="한 손님이 연속으로 묵을 때 (청소관리에서 연박 객실: 청소 없이 비품지급)">연박</th><th rowspan="2" class="right">금액</th>
         <th colspan="<?= count($denoms) + 1 ?>" class="center refund-head">지역상품권 환급 (매수)</th></tr>
       <tr><?php foreach ($denoms as $d): ?><th class="refund-head"><?= e(denom_label($d)) ?></th><?php endforeach ?><th class="right refund-head">환급액 / 기준</th></tr>
     </thead>

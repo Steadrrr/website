@@ -3,7 +3,8 @@
  * 객실 청소관리 앱(clean.php)의 데이터 주소 — JSON
  *   GET  ?act=state&date=YYYY-MM-DD           그 날 객실 상태
  *   POST act=do  date, room, op, _csrf         퇴실처리·청소완료·비품지급·되돌리기 (퇴실·청소완료는 알림)
- *   POST act=bulk  date, rooms[], _csrf          퇴실대기 여러 객실 한 번에 퇴실처리 (알림 한 번)
+ *   POST act=bulk  date, op(out|clean), rooms[], _csrf   여러 객실 한 번에 퇴실처리·청소완료 (알림 한 번)
+ *   POST act=notice  text, _csrf                   맨 위 공지 작성·수정 (공무직 이상, 빈 글 = 삭제)
  *   POST act=subscribe / unsubscribe  endpoint, _csrf   이 기기 알림 켜기·끄기
  *   POST act=test  endpoint, _csrf              알림 테스트 (이 기기에만, 알림 서버 응답 코드 반환)
  *   POST act=sw_events  {"endpoint": …}        알림을 받은 앱(clean-sw.js)이 띄울 내용 (로그인 없이 구독한 기기만)
@@ -49,13 +50,14 @@ switch ($act) {
             push_notify_all((int) $user['id']);
         }
         exit;
-    case 'bulk': // 퇴실대기 객실 여러 개를 한 번에 퇴실처리 (알림은 한 번)
+    case 'bulk': // 여러 객실을 한 번에 퇴실처리(op=out) · 청소완료(op=clean) (알림은 한 번)
+        $op = in_array($_POST['op'] ?? 'out', ['out', 'clean'], true) ? (string) ($_POST['op'] ?? 'out') : 'out';
         $done = 0;
         $errs = [];
         $rooms = array_unique(array_map('intval', (array) ($_POST['rooms'] ?? [])));
         $names = array_column(products_all(), 'name', 'id');
         foreach (array_slice($rooms, 0, 200) as $pid) {
-            [$err] = clean_act($date, $pid, 'out', $user);
+            [$err] = clean_act($date, $pid, $op, $user);
             if ($err) $errs[] = ($names[$pid] ?? $pid) . ': ' . $err; else $done++;
         }
         clean_json(['done' => $done, 'error' => $errs ? implode(' / ', $errs) : null] + clean_state($date), $done || !$errs ? 200 : 409);
@@ -63,6 +65,11 @@ switch ($act) {
             if (function_exists('fastcgi_finish_request')) fastcgi_finish_request();
             push_notify_all((int) $user['id']);
         }
+        exit;
+    case 'notice': // 맨 위 공지 작성·수정·삭제(빈 글) — 공무직 이상
+        if (!clean_can_notice($user)) { clean_json(['error' => '공지는 공무직 이상만 작성할 수 있습니다.'], 403); exit; }
+        clean_notice_save((string) ($_POST['text'] ?? ''), $user);
+        clean_json(['notice' => clean_notice()]);
         exit;
     case 'subscribe':
         $ok = push_subscribe((int) $user['id'], (string) ($_POST['endpoint'] ?? ''));

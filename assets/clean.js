@@ -3,7 +3,7 @@
   const C = window.CLEAN;
   let state = C.state;
   let busy = false;
-  const picked = new Set(); // 퇴실대기에서 체크한 객실 id
+  const picked = new Map(); // 체크한 객실 id → 'wait'(퇴실대기) | 'dirty'(청소가능)
   const $ = (s) => document.querySelector(s);
   const esc = (s) => String(s == null ? '' : s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   const WD = ['일', '월', '화', '수', '목', '금', '토'];
@@ -17,7 +17,7 @@
   }
 
   function room(r, cls, right, meta, tag, check) {
-    return '<div class="cl-room ' + cls + (check && picked.has(r.id) ? ' picked' : '') + '"' + (check ? ' data-pick-card="' + r.id + '"' : '') + '>'
+    return '<div class="cl-room ' + cls + (check && picked.has(r.id) ? ' picked' : '') + '"' + (check ? ' data-pick-card="' + r.id + '" data-pick-kind="' + check + '"' : '') + '>'
       + (check ? '<span class="cl-check"><input type="checkbox" data-pick value="' + r.id + '"' + (picked.has(r.id) ? ' checked' : '') + ' aria-label="' + esc(r.name) + ' 선택"></span>' : '')
       + '<div class="info"><span class="name">' + esc(r.name) + '</span><span class="type">' + esc(r.type) + '</span>'
       + (tag ? '<span class="cl-tag">' + tag + '</span>' : '') + (meta ? '<div class="meta">' + meta + '</div>' : '') + '</div>' + right + '</div>';
@@ -43,59 +43,115 @@
 
     const inTag = (r) => (r.in_today ? '오늘 입실' : '');
     const waitRooms = s.rooms.filter((r) => r.status === 'wait');
-    const waitIds = new Set(waitRooms.map((r) => r.id));
-    [...picked].forEach((id) => { if (!waitIds.has(id)) picked.delete(id); }); // 이미 퇴실처리된 객실은 선택에서 뺌
-    const wait = waitRooms.map((r) => room(r, 'wait', btn(r.id, 'out', '퇴실처리', 'wait'), '', inTag(r), true));
-    const allOn = waitRooms.length > 0 && picked.size === waitRooms.length;
-    const dirty = s.rooms.filter((r) => r.status === 'dirty').map((r) => room(r, 'dirty',
-      undo(r.id, 'undo_out', '퇴실취소') + btn(r.id, 'clean', '청소완료', 'dirty'), '퇴실 ' + esc(r.out_at) + ' ' + esc(r.out_by), inTag(r)));
+    const dirtyRooms = s.rooms.filter((r) => r.status === 'dirty');
+    // 상태가 바뀐 객실(다른 사람이 처리 등)은 선택에서 뺌
+    const now = new Map(s.rooms.map((r) => [r.id, r.status]));
+    [...picked].forEach(([id, k]) => { if (now.get(id) !== k) picked.delete(id); });
+    const wait = waitRooms.map((r) => room(r, 'wait', btn(r.id, 'out', '퇴실처리', 'wait'), '', inTag(r), 'wait'));
+    const dirty = dirtyRooms.map((r) => room(r, 'dirty',
+      undo(r.id, 'undo_out', '퇴실취소') + btn(r.id, 'clean', '청소완료', 'dirty'), '퇴실 ' + esc(r.out_at) + ' ' + esc(r.out_by), inTag(r), 'dirty'));
+    const pickAll = (k, list) => (list.length > 1 ? '<button type="button" class="cl-pick-all ' + k + '" data-pick-all="' + k + '">전체선택</button>' : '');
     const ready = s.rooms.filter((r) => r.status === 'ready').map((r) => room(r, 'ready',
       undo(r.id, 'undo_clean', '되돌리기') + '<span class="cl-done">입실가능</span>', '청소 ' + esc(r.clean_at) + ' ' + esc(r.clean_by), inTag(r)));
     const stays = s.stays.map((r) => room(r, 'stay',
       r.supply_at ? undo(r.id, 'undo_supply', '취소') + '<span class="cl-done stay">지급완료</span>' : btn(r.id, 'supply', '비품지급', 'stay'),
       r.supply_at ? '비품 ' + esc(r.supply_at) + ' ' + esc(r.supply_by) : '청소 없음 · 비품만 지급', r.nights + '박'));
     const arr = s.arrivals.map((r) => room(r, 'arrive', '', '어젯밤 빈 객실 · 청소 없음', '오늘 입실'));
-    $('[data-list]').innerHTML = section('퇴실대기', 'var(--wait)', wait, '퇴실을 기다리는 객실이 없습니다.',
-      waitRooms.length > 1 ? '<button type="button" class="cl-pick-all" data-pick-all>' + (allOn ? '선택 해제' : '전체선택') + '</button>' : '')
-      + section('청소가능', 'var(--dirty)', dirty, '청소할 객실이 없습니다.')
+    $('[data-list]').innerHTML = section('퇴실대기', 'var(--wait)', wait, '퇴실을 기다리는 객실이 없습니다.', pickAll('wait', waitRooms))
+      + section('청소가능', 'var(--dirty)', dirty, '청소할 객실이 없습니다.', pickAll('dirty', dirtyRooms))
       + section('입실가능', 'var(--ready)', ready, '아직 청소를 마친 객실이 없습니다.')
       + section('연박 (비품지급)', 'var(--stay)', stays, '연박 객실이 없습니다.')
       + (arr.length ? section('빈 객실 입실예정', '#9aa79f', arr, '') : '');
     bulkBar();
+    board();
   }
 
-  // 체크한 퇴실대기 객실 → 아래 '선택 퇴실처리' 막대
+  // 체크한 객실 → 아래 막대: 퇴실대기는 '선택 퇴실처리', 청소가능은 '선택 청소완료'
+  const pickedOf = (k) => [...picked].filter(([, v]) => v === k).map(([id]) => id);
   function bulkBar() {
     const bar = $('[data-bulk]');
+    const nOut = pickedOf('wait').length, nClean = pickedOf('dirty').length;
     bar.hidden = picked.size === 0;
     bar.querySelector('[data-bulk-count]').textContent = picked.size;
+    const bo = bar.querySelector('[data-bulk-out]'), bc = bar.querySelector('[data-bulk-clean]');
+    bo.hidden = !nOut; bo.textContent = '퇴실처리 ' + nOut + '실';
+    bc.hidden = !nClean; bc.textContent = '청소완료 ' + nClean + '실';
     document.body.classList.toggle('cl-has-bulk', picked.size > 0);
     document.querySelectorAll('[data-pick-card]').forEach((c) => {
       const on = picked.has(Number(c.dataset.pickCard));
       c.classList.toggle('picked', on);
       c.querySelector('[data-pick]').checked = on;
     });
-    const all = $('[data-pick-all]');
-    if (all) all.textContent = picked.size === document.querySelectorAll('[data-pick-card]').length ? '선택 해제' : '전체선택';
+    document.querySelectorAll('[data-pick-all]').forEach((b) => {
+      const k = b.dataset.pickAll, total = document.querySelectorAll('[data-pick-kind="' + k + '"]').length;
+      b.textContent = total && pickedOf(k).length === total ? '선택 해제' : '전체선택';
+    });
   }
-  async function bulkOut() {
-    if (busy || !picked.size) return;
-    const names = state.rooms.filter((r) => picked.has(r.id)).map((r) => r.name);
-    if (!confirm(names.length + '실을 한 번에 퇴실처리할까요?\n' + names.join(', ') + '\n\n청소가능 상태가 되고 모든 사용자에게 알림이 갑니다.')) return;
+  const BULK = {
+    out: { kind: 'wait', ask: '퇴실처리', after: '청소가능', done: '퇴실처리' },
+    clean: { kind: 'dirty', ask: '청소완료', after: '입실가능', done: '청소완료(입실가능)' },
+  };
+  async function bulkDo(op) {
+    const B = BULK[op], ids = pickedOf(B.kind);
+    if (busy || !ids.length) return;
+    const names = state.rooms.filter((r) => ids.includes(r.id)).map((r) => r.name);
+    if (!confirm(names.length + '실을 한 번에 ' + B.ask + '할까요?\n' + names.join(', ') + '\n\n' + B.after + ' 상태가 되고 모든 사용자에게 알림이 갑니다.')) return;
     busy = true;
-    const b = $('[data-bulk-out]'); b.disabled = true;
+    const btns = document.querySelectorAll('[data-bulk] button'); btns.forEach((x) => { x.disabled = true; });
     const fd = new FormData();
-    fd.append('act', 'bulk'); fd.append('date', state.date); fd.append('_csrf', C.csrf);
-    picked.forEach((id) => fd.append('rooms[]', id));
+    fd.append('act', 'bulk'); fd.append('op', op); fd.append('date', state.date); fd.append('_csrf', C.csrf);
+    ids.forEach((id) => fd.append('rooms[]', id));
     try {
       const r = await fetch(C.api, { method: 'POST', body: fd, credentials: 'same-origin' });
       const j = await r.json();
-      if (j.rooms) { picked.clear(); state = j; render(); }
-      if (j.error) toast((j.done ? j.done + '실 퇴실처리 · ' : '') + j.error, true);
-      else toast(j.done + '실을 퇴실처리했습니다.');
+      if (j.rooms) { ids.forEach((id) => picked.delete(id)); state = j; render(); }
+      if (j.error) toast((j.done ? j.done + '실 ' + B.done + ' · ' : '') + j.error, true);
+      else toast(j.all_ready && op === 'clean' ? j.done + '실 청소완료 — 전객실 입실준비완료!' : j.done + '실을 ' + B.done + '했습니다.');
     } catch (e) { toast('저장하지 못했습니다. 인터넷 연결을 확인하세요.', true); }
-    b.disabled = false; busy = false;
+    btns.forEach((x) => { x.disabled = false; }); busy = false;
   }
+
+  // 맨 위 공지 (공무직 이상 작성·수정)
+  let editing = false;
+  function board() {
+    if (editing) return; // 고치는 중에는 새로 고침으로 덮지 않음
+    const el = $('[data-board]'), n = state.notice || {};
+    if (!n.text) {
+      el.hidden = !C.canNotice;
+      el.className = 'cl-board empty';
+      el.innerHTML = C.canNotice ? '<button type="button" class="cl-board-add" data-notice-edit>+ 공지 작성</button>' : '';
+      return;
+    }
+    el.hidden = false; el.className = 'cl-board';
+    el.innerHTML = '<div class="cl-board-head"><b>📢 공지</b><small>' + esc(n.by || '') + ' · ' + esc((n.at || '').slice(5).replace('-', '/')) + '</small>'
+      + (C.canNotice ? '<button type="button" class="cl-board-btn" data-notice-edit>수정</button>' : '') + '</div><div class="cl-board-text">' + esc(n.text) + '</div>';
+  }
+  function boardEdit() {
+    editing = true;
+    const el = $('[data-board]'); el.hidden = false; el.className = 'cl-board editing';
+    el.innerHTML = '<div class="cl-board-head"><b>📢 공지 작성</b><small>모든 청소관리 사용자에게 보입니다</small></div>'
+      + '<textarea rows="4" maxlength="2000" data-notice-text placeholder="예: 오늘 단체 입실 15시 — 산림휴양관 먼저 청소"></textarea>'
+      + '<div class="cl-board-actions">' + (state.notice && state.notice.text ? '<button type="button" class="ghost danger" data-notice-del>삭제</button>' : '')
+      + '<span></span><button type="button" class="ghost" data-notice-cancel>취소</button><button type="button" data-notice-save>저장</button></div>';
+    const ta = el.querySelector('[data-notice-text]');
+    ta.value = (state.notice && state.notice.text) || ''; ta.focus();
+  }
+  async function boardSave(text) {
+    const fd = new FormData(); fd.append('act', 'notice'); fd.append('text', text); fd.append('_csrf', C.csrf);
+    try {
+      const r = await fetch(C.api, { method: 'POST', body: fd, credentials: 'same-origin' });
+      const j = await r.json();
+      if (j.error) return toast(j.error, true);
+      state.notice = j.notice; editing = false; board();
+      toast(text.trim() ? '공지를 저장했습니다.' : '공지를 지웠습니다.');
+    } catch (e) { toast('저장하지 못했습니다. 인터넷 연결을 확인하세요.', true); }
+  }
+  $('[data-board]').addEventListener('click', (e) => {
+    if (e.target.closest('[data-notice-edit]')) return boardEdit();
+    if (e.target.closest('[data-notice-cancel]')) { editing = false; return board(); }
+    if (e.target.closest('[data-notice-save]')) return boardSave($('[data-notice-text]').value);
+    if (e.target.closest('[data-notice-del]') && confirm('공지를 지울까요?')) return boardSave('');
+  });
 
   async function load(date) {
     try {
@@ -114,17 +170,20 @@
   const DONE = { out: '퇴실처리했습니다.', clean: '청소완료 — 입실가능', supply: '비품지급을 기록했습니다.', undo_out: '퇴실처리를 취소했습니다.', undo_clean: '되돌렸습니다.', undo_supply: '취소했습니다.' };
 
   document.addEventListener('click', async (ev) => {
-    if (ev.target.closest('[data-bulk-out]')) return bulkOut();
+    if (ev.target.closest('[data-bulk-out]')) return bulkDo('out');
+    if (ev.target.closest('[data-bulk-clean]')) return bulkDo('clean');
     if (ev.target.closest('[data-bulk-clear]')) { picked.clear(); return bulkBar(); }
-    if (ev.target.closest('[data-pick-all]')) {
-      const ids = [...document.querySelectorAll('[data-pick-card]')].map((c) => Number(c.dataset.pickCard));
-      if (picked.size === ids.length) picked.clear(); else ids.forEach((id) => picked.add(id));
+    const all = ev.target.closest('[data-pick-all]');
+    if (all) {
+      const k = all.dataset.pickAll;
+      const ids = [...document.querySelectorAll('[data-pick-kind="' + k + '"]')].map((c) => Number(c.dataset.pickCard));
+      if (pickedOf(k).length === ids.length) ids.forEach((id) => picked.delete(id)); else ids.forEach((id) => picked.set(id, k));
       return bulkBar();
     }
     const card = ev.target.closest('[data-pick-card]');
     if (card && !ev.target.closest('[data-op]')) { // 객실 칸 아무 곳이나 눌러도 체크
       const id = Number(card.dataset.pickCard);
-      if (ev.target.matches('[data-pick]') ? !ev.target.checked : picked.has(id)) picked.delete(id); else picked.add(id);
+      if (ev.target.matches('[data-pick]') ? !ev.target.checked : picked.has(id)) picked.delete(id); else picked.set(id, card.dataset.pickKind);
       return bulkBar();
     }
     const b = ev.target.closest('[data-op]');

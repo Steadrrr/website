@@ -56,16 +56,16 @@ button { font: inherit; cursor: pointer; }
 .cl-room.stay { border-left-color: var(--stay); }
 .cl-room.arrive { border-left-color: #9aa79f; }
 .cl-room .info { flex: 1; min-width: 0; }
-.cl-room .name { font-size: 1.15rem; font-weight: 700; }
+.cl-room .name { font-size: 1.15rem; font-weight: 700; white-space: nowrap; }
 .cl-room .type { white-space: nowrap; margin-left: 6px; color: var(--muted); font-size: .82rem; }
 .cl-room .meta { color: var(--muted); font-size: .82rem; }
 .cl-tag { display: inline-block; margin-left: 6px; padding: 1px 7px; border-radius: 6px; font-size: .75rem; font-weight: 700; vertical-align: 2px; background: var(--stay-bg); color: var(--stay); }
-.cl-act { flex: none; min-width: 96px; min-height: 48px; padding: 0 14px; border-radius: 12px; border: 0; color: #fff; font-weight: 700; font-size: 1rem; }
+.cl-act { flex: none; min-width: 86px; min-height: 48px; padding: 0 12px; border-radius: 12px; border: 0; color: #fff; font-weight: 700; font-size: 1rem; }
 .cl-act.wait { background: var(--wait); }
 .cl-act.dirty { background: var(--dirty); }
 .cl-act.stay { background: var(--stay); }
 .cl-act:disabled { opacity: .5; }
-.cl-undo { flex: none; padding: 8px 10px; border-radius: 10px; border: 1px solid var(--line); background: #fff; color: var(--muted); font-size: .85rem; }
+.cl-undo { flex: none; padding: 8px 8px; border-radius: 10px; border: 1px solid var(--line); background: #fff; color: var(--muted); font-size: .85rem; }
 .cl-done { flex: none; color: var(--ready); font-weight: 700; }
 .cl-done.stay { color: var(--stay); }
 
@@ -77,16 +77,36 @@ button { font: inherit; cursor: pointer; }
 /* 퇴실대기 여러 개 선택 → 한 번에 퇴실처리 */
 .cl-check { flex: none; display: flex; align-items: center; }
 .cl-check input { width: 26px; height: 26px; margin: 0; accent-color: var(--wait); cursor: pointer; }
-.cl-room.wait { cursor: pointer; }
+.cl-room.wait, .cl-room[data-pick-kind] { cursor: pointer; }
+.cl-room.dirty .cl-check input { accent-color: var(--dirty); }
+.cl-room.dirty.picked { background: var(--dirty-bg); border-color: #ecc98a; }
 .cl-room.picked { background: var(--wait-bg); border-color: #f1b7b0; }
 .cl-pick-all { margin-left: auto; padding: 5px 12px; border-radius: 999px; border: 1px solid var(--wait); background: #fff; color: var(--wait); font-size: .85rem; font-weight: 600; }
 .cl-bulk { position: fixed; left: 0; right: 0; bottom: 0; z-index: 8; display: flex; align-items: center; gap: 8px;
   padding: 10px 16px calc(env(safe-area-inset-bottom) + 10px); background: #fff; border-top: 1px solid var(--line); box-shadow: 0 -4px 16px rgba(0,0,0,.08); }
 .cl-bulk[hidden] { display: none; }
-.cl-bulk span { flex: 1; font-size: 1rem; }
+.cl-bulk span { flex: none; white-space: nowrap; font-size: .95rem; }
 .cl-bulk b { color: var(--wait); font-size: 1.2rem; }
-.cl-bulk-clear { padding: 0 14px; min-height: 48px; border-radius: 12px; border: 1px solid var(--line); background: #fff; color: var(--muted); }
-.cl-bulk-out { padding: 0 18px; min-height: 48px; border-radius: 12px; border: 0; background: var(--wait); color: #fff; font-weight: 700; font-size: 1rem; }
+.cl-bulk-clear { flex: none; padding: 0 12px; min-height: 48px; border-radius: 12px; border: 1px solid var(--line); background: #fff; color: var(--muted); }
+.cl-bulk-out { flex: 1 1 0; white-space: nowrap; padding: 0 10px; min-height: 48px; border-radius: 12px; border: 0; background: var(--wait); color: #fff; font-weight: 700; font-size: 1rem; }
+.cl-bulk-out.clean { background: var(--dirty); }
+.cl-bulk-out[hidden] { display: none; }
 .cl-bulk-out:disabled { opacity: .5; }
+.cl-pick-all.dirty { border-color: var(--dirty); color: var(--dirty); }
 body.cl-has-bulk .cl-main { padding-bottom: 96px; }
 body.cl-has-bulk .cl-toast { bottom: calc(env(safe-area-inset-bottom) + 84px); }
+
+/* 맨 위 공지 (공무직 이상 작성) */
+.cl-board { margin-bottom: 12px; padding: 12px 14px; border-radius: 14px; background: #fff8e1; border: 1px solid #f1d58a; }
+.cl-board[hidden] { display: none; }
+.cl-board.empty { padding: 0; background: none; border: 0; }
+.cl-board-head { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+.cl-board-head small { flex: 1; color: var(--muted); font-size: .8rem; }
+.cl-board-text { white-space: pre-wrap; word-break: break-word; font-size: 1.02rem; line-height: 1.5; }
+.cl-board-btn, .cl-board-actions button { padding: 6px 12px; border-radius: 10px; border: 1px solid #e0c46e; background: #fff; color: #8a6d12; font-size: .85rem; font-weight: 600; }
+.cl-board-add { width: 100%; padding: 10px; border-radius: 12px; border: 1px dashed #d9b85c; background: #fffdf5; color: #8a6d12; font-weight: 600; }
+.cl-board textarea { width: 100%; padding: 10px; border: 1px solid #e0c46e; border-radius: 10px; font: inherit; resize: vertical; }
+.cl-board-actions { display: flex; gap: 8px; margin-top: 8px; }
+.cl-board-actions span { flex: 1; }
+.cl-board-actions [data-notice-save] { background: var(--green); border-color: var(--green); color: #fff; }
+.cl-board-actions .danger { color: var(--wait); border-color: #f1b7b0; }

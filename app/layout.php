@@ -109,7 +109,6 @@ function nav_groups(?array $user): array
         ]],
         'room'     => ['label' => '객실관리', 'items' => [
             'rooms'    => ['journal.php?type=rooms', '객실판매관리'],
-            'turnover' => ['room_turnover.php', '입퇴실현황'],
             'clean'    => ['clean.php', '청소관리'],
             'room_ops' => ['room_ops.php', '객실운영관리'],
             'supplies' => ['supplies.php', '소모품관리'],

@@ -16,7 +16,7 @@ try {
 }
 $site = config('site_name', '휴양림 업무일지');
 $boot = [
-    'state' => clean_state($date), 'today' => date('Y-m-d'), 'csrf' => csrf_token(), 'vapid' => $vapid, 'me' => $user['name'],
+    'state' => clean_state($date), 'today' => date('Y-m-d'), 'csrf' => csrf_token(), 'vapid' => $vapid, 'me' => $user['name'], 'canNotice' => clean_can_notice($user),
     'api' => url('clean_api.php'), 'sw' => url('clean-sw.js'), 'scope' => url(''), 'self' => url('clean.php'),
 ];
 ?>
@@ -52,6 +52,7 @@ $boot = [
   <button type="button" class="cl-today" data-today>오늘</button>
 </nav>
 <main class="cl-main">
+  <section class="cl-board" data-board hidden></section>
   <section class="cl-summary">
     <div class="cl-progress"><i data-progress></i></div>
     <div class="cl-progress-text" data-progress-text></div>
@@ -60,12 +61,13 @@ $boot = [
   <div class="cl-allready" data-allready hidden>✓ 전객실 입실준비완료</div>
   <div class="cl-notice" data-push-notice hidden></div>
   <div data-list></div>
-  <p class="cl-foot">객실 목록은 객실판매관리의 일일객실판매(입퇴실현황과 같은 기준)에서 가져옵니다. 화면은 15초마다 저절로 새로 고치고, 위쪽 새로고침 버튼으로 바로 고칠 수 있습니다.</p>
+  <p class="cl-foot">객실 목록은 객실판매관리의 일일객실판매에서 가져옵니다. 화면은 15초마다 저절로 새로 고치고, 위쪽 새로고침 버튼으로 바로 고칠 수 있습니다.</p>
 </main>
 <div class="cl-bulk" data-bulk hidden>
-  <span>선택 <b data-bulk-count>0</b>실</span>
+  <span><b data-bulk-count>0</b>실 선택</span>
   <button type="button" class="cl-bulk-clear" data-bulk-clear>해제</button>
-  <button type="button" class="cl-bulk-out" data-bulk-out>선택 퇴실처리</button>
+  <button type="button" class="cl-bulk-out" data-bulk-out hidden>퇴실처리</button>
+  <button type="button" class="cl-bulk-out clean" data-bulk-clean hidden>청소완료</button>
 </div>
 <div class="cl-toast" data-toast hidden></div>
 <script>window.CLEAN = <?= json_encode($boot, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HEX_AMP) ?>;</script>
