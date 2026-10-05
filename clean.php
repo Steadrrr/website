@@ -64,7 +64,7 @@ $boot = [
   <p class="cl-foot">객실 목록은 객실판매관리의 일일객실판매에서 가져옵니다. 화면은 15초마다 저절로 새로 고치고, 위쪽 새로고침 버튼으로 바로 고칠 수 있습니다.</p>
 </main>
 <div class="cl-bulk" data-bulk hidden>
-  <span><b data-bulk-count>0</b>실 선택</span>
+  <span><small data-bulk-kind></small> <b data-bulk-count>0</b>실</span>
   <button type="button" class="cl-bulk-clear" data-bulk-clear>해제</button>
   <button type="button" class="cl-bulk-out" data-bulk-out hidden>퇴실처리</button>
   <button type="button" class="cl-bulk-out clean" data-bulk-clean hidden>청소완료</button>

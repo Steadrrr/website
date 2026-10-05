@@ -110,3 +110,18 @@ body.cl-has-bulk .cl-toast { bottom: calc(env(safe-area-inset-bottom) + 84px); }
 .cl-board-actions span { flex: 1; }
 .cl-board-actions [data-notice-save] { background: var(--green); border-color: var(--green); color: #fff; }
 .cl-board-actions .danger { color: var(--wait); border-color: #f1b7b0; }
+
+/* 카테고리: 금일 입실 예정 / 금일 미입실 → 객실 분류(2인실·4인실·독채)별 */
+.cl-cat { margin-top: 20px; }
+.cl-cat-title { margin: 0 0 6px; padding: 8px 12px; border-radius: 12px; background: var(--green-d); color: #fff; font-size: 1.05rem; }
+.cl-cat-title small { color: rgba(255,255,255,.8); font-weight: 400; font-size: .85rem; }
+.cl-cat[data-cat-sec="none"] .cl-cat-title { background: #5d6b63; }
+.cl-cat-picks { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0 2px; }
+.cl-cat-picks .cl-pick-all { margin-left: 0; }
+.cl-pick-all:disabled { opacity: .35; }
+.cl-type { margin-top: 10px; }
+.cl-type h3 { margin: 0 0 6px; padding-left: 4px; font-size: .95rem; color: var(--text); border-left: 4px solid var(--line); }
+.cl-type h3 small { color: var(--muted); font-weight: 400; }
+.cl-room.pick-off { opacity: .45; }
+.cl-room.pick-off .cl-check input { cursor: not-allowed; }
+.cl-bulk span small { color: var(--muted); font-size: .8rem; }

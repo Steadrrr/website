@@ -52,7 +52,9 @@ function clean_state(string $date): array
     $lists = turnover_lists($date);
     $rows = clean_rows($date);
     $hm = fn(?string $t) => $t ? substr($t, 11, 5) : null;
-    $room = fn(array $p) => ['id' => (int) $p['id'], 'name' => (string) $p['name'], 'type' => room_type_name($p['room_type_id'] ? (int) $p['room_type_id'] : null)];
+    $types = room_types_all();
+    $room = fn(array $p) => ['id' => (int) $p['id'], 'name' => (string) $p['name'], 'type' => room_type_name($p['room_type_id'] ? (int) $p['room_type_id'] : null),
+        'type_order' => (int) ($types[(int) $p['room_type_id']]['sort_order'] ?? 9999), 'order' => (int) $p['sort_order']]; // 화면에서 객실 분류(2인실·4인실·독채)별로 묶는 순서
     $state = ['date' => $date, 'rooms' => [], 'stays' => [], 'arrivals' => []];
     foreach ($lists['out'] as $pid => $r) {
         $c = $rows[$pid] ?? [];
