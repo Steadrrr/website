@@ -148,8 +148,14 @@ function clean_events_for(array $sub): array
         $st->execute([(int) $sub['user_id']]);
         $evs = $st->fetchAll();
     }
-    return array_map(function ($ev) {
+    $out = array_map(function ($ev) {
         [$title, $body] = clean_event_text($ev);
         return ['id' => (int) $ev['id'], 'kind' => $ev['kind'], 'title' => $title, 'body' => $body];
     }, $evs);
+    // 알림 테스트 요청 (5분 안)
+    if (!empty($sub['test_at']) && strtotime((string) $sub['test_at']) >= time() - 300) {
+        db()->prepare('UPDATE push_subs SET test_at = NULL WHERE id = ?')->execute([(int) $sub['id']]);
+        $out = [['id' => -(int) $sub['id'], 'kind' => 'test', 'title' => '알림 테스트', 'body' => '이 휴대폰에 알림이 정상으로 옵니다.']];
+    }
+    return $out;
 }

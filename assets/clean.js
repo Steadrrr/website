@@ -143,7 +143,40 @@
       if (j.error) return toast(j.error, true);
       pushBtn.classList.add('on'); notice.hidden = true;
       toast('알림을 켰습니다. 다른 사람이 퇴실·청소완료하면 알림이 옵니다.');
+      onPanel();
     } catch (e) { toast('알림을 켜지 못했습니다: ' + e.message, true); }
+  }
+  // 알림 테스트: 서버가 이 기기로 보내 보고 알림 서버(구글·애플) 응답을 보여 준다
+  const isSamsung = /SamsungBrowser/i.test(navigator.userAgent);
+  const androidHelp = '휴대폰 <b>설정 › 애플리케이션 › ' + (isSamsung ? '삼성 인터넷' : 'Chrome') + ' › 알림</b>이 허용인지, '
+    + '<b>배터리 › 백그라운드 사용 제한(절전)</b>에 들어가 있지 않은지, <b>방해금지 모드</b>가 아닌지 확인하세요.';
+  async function pushTest(again) {
+    const sub = reg && await reg.pushManager.getSubscription();
+    if (!sub) return say(MSG.off, '🔔 알림 켜기');
+    say('알림 테스트 중…');
+    let j;
+    try { j = await post('test', sub.endpoint); } catch (e) { return say('서버에 연결하지 못했습니다. 인터넷 연결을 확인하세요.'); }
+    const code = j.code;
+    if (j.resub || code === 403 || code === 401 || code === 404 || code === 410) { // 등록이 없거나 만료·키 불일치 → 다시 등록 후 한 번 더
+      if (!again) {
+        try { await sub.unsubscribe(); } catch (e) {}
+        try {
+          const ns = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64(C.vapid) });
+          await post('subscribe', ns.endpoint);
+          return pushTest(true);
+        } catch (e) { return say('알림을 다시 등록하지 못했습니다: ' + esc(e.message)); }
+      }
+      return say('알림 서버가 거절했습니다 (응답 ' + esc(code || '') + ' ' + esc(j.err || j.error || '') + '). 🔔 로 알림을 껐다가 다시 켜 보세요.');
+    }
+    if (code >= 200 && code < 300) {
+      return say('<b>서버 → 알림 서버 전송 정상</b> (응답 ' + code + '). 몇 초 안에 <b>\'알림 테스트\'</b> 알림이 와야 합니다.<br>'
+        + '알림이 오지 않으면 휴대폰 설정 문제입니다: ' + (isIOS ? '설정 › 알림 › 청소관리 가 허용인지 확인하세요.' : androidHelp), '다시 테스트');
+    }
+    return say('<b>서버가 알림 서버에 보내지 못했습니다</b> (응답 ' + esc(code) + ': ' + esc(j.err || '') + ').<br>휴대폰 문제가 아니라 서버 쪽 문제입니다. 이 화면을 캡처해 개발 담당자에게 보내 주세요.', '다시 테스트');
+  }
+  function onPanel() {
+    notice.innerHTML = '<b>알림이 켜져 있습니다.</b><br><button type="button" data-push-test>알림 테스트</button> <button type="button" data-push-off class="ghost">알림 끄기</button>';
+    notice.hidden = false;
   }
   async function turnOff() {
     if (!confirm('이 기기의 알림을 끌까요?')) return;
@@ -151,8 +184,14 @@
     if (sub) { await post('unsubscribe', sub.endpoint); await sub.unsubscribe(); }
     pushBtn.classList.remove('on'); toast('알림을 껐습니다.');
   }
-  pushBtn.addEventListener('click', () => (pushBtn.classList.contains('on') ? turnOff() : turnOn()));
-  notice.addEventListener('click', (e) => { if (e.target.closest('[data-push-on]')) turnOn(); });
+  pushBtn.addEventListener('click', () => (pushBtn.classList.contains('on') ? onPanel() : turnOn()));
+  notice.addEventListener('click', (e) => {
+    const b = e.target.closest('button');
+    if (!b) return;
+    if (b.hasAttribute('data-push-off')) { turnOff().then(() => { notice.hidden = true; }); return; }
+    if (b.hasAttribute('data-push-test') || pushBtn.classList.contains('on')) { pushTest(false); return; }
+    turnOn();
+  });
   pushState().then((st) => { if (st !== 'on') say(MSG[st], st === 'off' ? '🔔 알림 켜기' : ''); }).catch(() => {});
   if ('serviceWorker' in navigator) navigator.serviceWorker.addEventListener('message', (e) => { if (e.data && e.data.type === 'clean-refresh') load(); });
 

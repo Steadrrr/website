@@ -4,6 +4,7 @@
  *   GET  ?act=state&date=YYYY-MM-DD           그 날 객실 상태
  *   POST act=do  date, room, op, _csrf         퇴실처리·청소완료·비품지급·되돌리기 (퇴실·청소완료는 알림)
  *   POST act=subscribe / unsubscribe  endpoint, _csrf   이 기기 알림 켜기·끄기
+ *   POST act=test  endpoint, _csrf              알림 테스트 (이 기기에만, 알림 서버 응답 코드 반환)
  *   POST act=sw_events  {"endpoint": …}        알림을 받은 앱(clean-sw.js)이 띄울 내용 (로그인 없이 구독한 기기만)
  */
 require __DIR__ . '/app/bootstrap.php';
@@ -50,6 +51,10 @@ switch ($act) {
     case 'subscribe':
         $ok = push_subscribe((int) $user['id'], (string) ($_POST['endpoint'] ?? ''));
         clean_json($ok ? ['ok' => true] : ['error' => '알림 주소가 올바르지 않습니다.'], $ok ? 200 : 400);
+        exit;
+    case 'test': // 알림 테스트: 이 기기에만 보내고 알림 서버 응답을 그대로 알려 준다
+        $r = push_test((int) $user['id'], (string) ($_POST['endpoint'] ?? ''));
+        clean_json($r === null ? ['error' => '이 기기의 알림 등록이 서버에 없습니다.', 'resub' => true] : ['code' => $r['code'], 'err' => $r['err']]);
         exit;
     case 'unsubscribe':
         push_unsubscribe((string) ($_POST['endpoint'] ?? ''));

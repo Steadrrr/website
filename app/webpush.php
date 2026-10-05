@@ -60,8 +60,8 @@ function webpush_auth(string $endpoint): string
     return $cache[$aud] = 'vapid t=' . $data . '.' . b64u(webpush_der_to_raw($der)) . ', k=' . $keys['public'];
 }
 
-/** 알림 보내기 (내용 없이). [endpoint => HTTP 상태코드(0 = 연결 실패)] */
-function webpush_send(array $endpoints): array
+/** 알림 보내기 (내용 없이). [endpoint => ['code' => 알림 서버 HTTP 코드(0 = 연결 실패), 'err' => 오류 내용]] */
+function webpush_send(array $endpoints, bool $ipv4 = false): array
 {
     $res = [];
     if (!$endpoints) return $res;
@@ -72,7 +72,8 @@ function webpush_send(array $endpoints): array
         foreach ($endpoints as $ep) {
             $ch = curl_init($ep);
             curl_setopt_array($ch, [CURLOPT_POST => true, CURLOPT_POSTFIELDS => '', CURLOPT_HTTPHEADER => $headers($ep),
-                CURLOPT_RETURNTRANSFER => true, CURLOPT_CONNECTTIMEOUT => 4, CURLOPT_TIMEOUT => 6]);
+                CURLOPT_RETURNTRANSFER => true, CURLOPT_CONNECTTIMEOUT => 5, CURLOPT_TIMEOUT => 8]);
+            if ($ipv4) curl_setopt($ch, CURLOPT_IPRESOLVE, CURL_IPRESOLVE_V4);
             curl_multi_add_handle($mh, $ch);
             $hs[$ep] = $ch;
         }
@@ -81,40 +82,64 @@ function webpush_send(array $endpoints): array
             if ($running) curl_multi_select($mh, 1.0);
         } while ($running && $st === CURLM_OK);
         foreach ($hs as $ep => $ch) {
-            $res[$ep] = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            $code = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            $body = trim((string) curl_multi_getcontent($ch));
+            $res[$ep] = ['code' => $code, 'err' => $code === 0 ? 'curl ' . curl_errno($ch) . ': ' . curl_error($ch) : ($code >= 300 ? mb_substr($body, 0, 200) : '')];
             curl_multi_remove_handle($mh, $ch);
             curl_close($ch);
         }
         curl_multi_close($mh);
+        // 연결 자체가 안 된 주소는 IPv4 로 한 번 더 (IPv6 경로가 막힌 서버 대비)
+        $retry = array_keys(array_filter($res, fn($r) => $r['code'] === 0));
+        if ($retry && !$ipv4) $res = webpush_send($retry, true) + $res;
         return $res;
     }
     foreach ($endpoints as $ep) { // curl 이 없는 서버
-        $ctx = stream_context_create(['http' => ['method' => 'POST', 'header' => implode("\r\n", $headers($ep)), 'content' => '', 'timeout' => 6, 'ignore_errors' => true]]);
-        @file_get_contents($ep, false, $ctx);
-        $res[$ep] = preg_match('#HTTP/\S+ (\d{3})#', (string) ($http_response_header[0] ?? ''), $m) ? (int) $m[1] : 0;
+        $ctx = stream_context_create(['http' => ['method' => 'POST', 'header' => implode("\r\n", $headers($ep)), 'content' => '', 'timeout' => 8, 'ignore_errors' => true]]);
+        $body = @file_get_contents($ep, false, $ctx);
+        $code = preg_match('#HTTP/\S+ (\d{3})#', (string) ($http_response_header[0] ?? ''), $m) ? (int) $m[1] : 0;
+        $res[$ep] = ['code' => $code, 'err' => $code === 0 ? (string) (error_get_last()['message'] ?? '연결 실패') : ($code >= 300 ? mb_substr((string) $body, 0, 200) : '')];
     }
     return $res;
 }
 
-/** 구독한 모든 기기에 알림 (보낸 사람 기기 제외). 없어진 구독(404·410)은 지운다. 보낸 기기 수 */
-function push_notify_all(int $exceptUserId = 0): int
+/** 구독 기기들에 보내고 결과 기록. 없어진 구독(404·410)은 지운다. [구독 id => 결과] */
+function push_send_subs(array $subs): array
 {
-    $st = db()->prepare("SELECT s.id, s.endpoint FROM push_subs s JOIN users u ON u.id = s.user_id AND u.status = 'active' WHERE s.user_id <> ?");
-    $st->execute([$exceptUserId]);
-    $subs = array_column($st->fetchAll(), 'id', 'endpoint');
-    if (!$subs) return 0;
+    if (!$subs) return [];
     try {
         $res = webpush_send(array_keys($subs));
     } catch (Throwable $e) {
         error_log('push: ' . $e->getMessage());
-        return 0;
+        $res = array_fill_keys(array_keys($subs), ['code' => 0, 'err' => $e->getMessage()]);
     }
-    $ok = 0;
-    foreach ($res as $ep => $code) {
-        if ($code === 404 || $code === 410) db()->prepare('DELETE FROM push_subs WHERE id = ?')->execute([$subs[$ep]]);
-        elseif ($code >= 200 && $code < 300) { $ok++; db()->prepare('UPDATE push_subs SET last_ok_at = NOW() WHERE id = ?')->execute([$subs[$ep]]); }
+    $out = [];
+    $log = db()->prepare('UPDATE push_subs SET last_sent_at = NOW(), last_code = ?, last_error = ?, last_ok_at = IF(? BETWEEN 200 AND 299, NOW(), last_ok_at) WHERE id = ?');
+    foreach ($res as $ep => $r) {
+        $id = (int) $subs[$ep];
+        $out[$id] = $r;
+        if ($r['code'] === 404 || $r['code'] === 410) db()->prepare('DELETE FROM push_subs WHERE id = ?')->execute([$id]);
+        else $log->execute([$r['code'], $r['err'] !== '' ? mb_substr($r['err'], 0, 250) : null, $r['code'], $id]);
     }
-    return $ok;
+    return $out;
+}
+
+/** 구독한 모든 기기에 알림 (보낸 사람 기기 제외). 보낸 기기 수 */
+function push_notify_all(int $exceptUserId = 0): int
+{
+    $st = db()->prepare("SELECT s.id, s.endpoint FROM push_subs s JOIN users u ON u.id = s.user_id AND u.status = 'active' WHERE s.user_id <> ?");
+    $st->execute([$exceptUserId]);
+    $res = push_send_subs(array_column($st->fetchAll(), 'id', 'endpoint'));
+    return count(array_filter($res, fn($r) => $r['code'] >= 200 && $r['code'] < 300));
+}
+
+/** 알림 테스트: 이 기기에만 보낸다 (앱이 '알림 테스트'를 띄움). ['code', 'err'] 또는 null(구독 없음) */
+function push_test(int $userId, string $endpoint): ?array
+{
+    $sub = push_find($endpoint);
+    if (!$sub || (int) $sub['user_id'] !== $userId) return null;
+    db()->prepare('UPDATE push_subs SET test_at = NOW() WHERE id = ?')->execute([(int) $sub['id']]);
+    return push_send_subs([$sub['endpoint'] => (int) $sub['id']])[(int) $sub['id']] ?? null;
 }
 
 /** 이 기기(endpoint) 구독 저장 — 알림 서버 주소는 https 만 */

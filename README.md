@@ -459,6 +459,8 @@ PC에서는 메인메뉴에 마우스를 올리면, 휴대폰에서는 ☰ → �
 - 알림 = **Web Push(VAPID)**, Firebase 등 외부 계정 불필요. 키는 처음 쓸 때 만들어 `settings.push_vapid_private/public`에 저장 (지우면 모든 기기 알림을 다시 켜야 함).
   서버는 내용 없는 알림만 보내고(`push_notify_all`, 보낸 사람 기기 제외, 404·410이면 구독 삭제), 앱이 `clean_api.php?act=sw_events`로 `room_clean_events`(out·clean·all)에서 내용을 읽어 띄웁니다. 구독: `push_subs`.
   연락처(`sub`)는 기본 `https://사이트주소`, `config.php`의 `push_subject`(예: `mailto:admin@…`)로 바꿀 수 있습니다. 알림은 **https** 접속에서만 켜집니다.
+- 전송 결과는 기기마다 `push_subs.last_sent_at · last_code(알림 서버 HTTP 코드, 0 = 연결 실패) · last_error`에 기록 (DB v49). 연결 실패(0)는 IPv4로 한 번 더 시도.
+  앱의 🔔 › **알림 테스트**(`act=test`, `push_test()`): 이 기기에만 보내고 응답 코드를 보여 줌, `test_at`이 있으면 앱이 '알림 테스트' 알림을 띄움. 401·403·404·410이면 앱이 구독을 새로 만들어 한 번 더 시도.
 - 퇴실 객실이 모두 청소완료되는 순간 `all` 이벤트('전객실 입실준비완료'). 화면은 15초마다, 알림을 받으면 바로 새로 고침.
 
 ## 4-0-1z. 업무일지 시간대별 업무내용 (DB v47)

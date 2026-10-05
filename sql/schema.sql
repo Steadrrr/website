@@ -739,5 +739,9 @@ CREATE TABLE IF NOT EXISTS push_subs (
   last_event_id INT UNSIGNED NOT NULL DEFAULT 0 COMMENT '이 기기에 마지막으로 보여 준 알림',
   created_at    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   last_ok_at    DATETIME NULL COMMENT '마지막 전송 성공',
+  last_sent_at  DATETIME NULL COMMENT '마지막 전송 시도',
+  last_code     SMALLINT NULL COMMENT '마지막 전송 결과 (알림 서버 HTTP 코드, 0 = 연결 실패)',
+  last_error    VARCHAR(255) NULL COMMENT '마지막 전송 오류 내용',
+  test_at       DATETIME NULL COMMENT '알림 테스트 요청 (앱이 테스트 알림을 띄우면 지움)',
   INDEX idx_user (user_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
