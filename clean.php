@@ -40,6 +40,7 @@ $boot = [
 <header class="cl-bar">
   <div class="cl-title"><b>객실 청소관리</b><small><?= e($user['name']) ?></small></div>
   <div class="cl-bar-actions">
+    <button type="button" class="cl-icon" data-reload title="새로고침" aria-label="새로고침"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12a8 8 0 1 1-2.34-5.66"/><path d="M20 4v5h-5"/></svg></button>
     <button type="button" class="cl-icon" data-push title="알림">🔔</button>
     <a class="cl-icon" href="<?= e(url('index.php')) ?>" title="업무일지 사이트">⌂</a>
   </div>
@@ -59,7 +60,7 @@ $boot = [
   <div class="cl-allready" data-allready hidden>✓ 전객실 입실준비완료</div>
   <div class="cl-notice" data-push-notice hidden></div>
   <div data-list></div>
-  <p class="cl-foot">객실 목록은 객실판매관리의 일일객실판매(입퇴실현황과 같은 기준)에서 가져옵니다. 화면은 15초마다 새로 고칩니다.</p>
+  <p class="cl-foot">객실 목록은 객실판매관리의 일일객실판매(입퇴실현황과 같은 기준)에서 가져옵니다. 화면은 15초마다 저절로 새로 고치고, 위쪽 새로고침 버튼으로 바로 고칠 수 있습니다.</p>
 </main>
 <div class="cl-toast" data-toast hidden></div>
 <script>window.CLEAN = <?= json_encode($boot, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HEX_AMP) ?>;</script>

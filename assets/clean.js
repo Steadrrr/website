@@ -62,7 +62,9 @@
       const j = await r.json();
       if (j.error) { toast(j.error, true); return; }
       state = j; render();
+      return true;
     } catch (e) { /* 잠깐 끊긴 것은 다음 새로 고침에 */ }
+    return false;
   }
 
   const CONFIRM = { out: '퇴실처리할까요?\n청소가능 상태가 되고 모든 사용자에게 알림이 갑니다.', clean: '청소완료할까요?\n입실가능 상태가 되고 모든 사용자에게 알림이 갑니다.',
@@ -86,6 +88,14 @@
         else { toast((rm ? rm.name + ' ' : '') + DONE[op]); if (j.all_ready && op === 'clean') toast('전객실 입실준비완료!'); }
       } catch (e) { toast('저장하지 못했습니다. 인터넷 연결을 확인하세요.', true); b.disabled = false; }
       busy = false;
+      return;
+    }
+    const rl = ev.target.closest('[data-reload]');
+    if (rl) {
+      rl.classList.add('spin'); rl.disabled = true;
+      const ok = await load();
+      rl.classList.remove('spin'); rl.disabled = false;
+      toast(ok ? '새로 고쳤습니다.' : '새로 고치지 못했습니다. 인터넷 연결을 확인하세요.', !ok);
       return;
     }
     const day = ev.target.closest('[data-day]');

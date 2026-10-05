@@ -17,6 +17,8 @@ button { font: inherit; cursor: pointer; }
   background: transparent; color: #fff; font-size: 1.2rem; text-decoration: none; }
 .cl-icon.on { background: #fff; color: var(--green-d); }
 .cl-icon.off { opacity: .6; }
+.cl-icon.spin { animation: cl-spin .7s linear infinite; }
+@keyframes cl-spin { to { transform: rotate(360deg); } }
 
 .cl-date { display: flex; align-items: center; gap: 8px; padding: 10px 16px; background: var(--card); border-bottom: 1px solid var(--line); }
 .cl-date b { flex: 1; text-align: center; font-size: 1.05rem; }
