@@ -6,7 +6,7 @@ defined('APP_ROOT') || exit;
  * 새 버전 파일을 FTP로 덮어쓰기만 하면, 첫 접속 때 부족한 테이블/컬럼을 만든다.
  * (기존 자료는 그대로 유지)
  */
-const DB_VERSION = 50;
+const DB_VERSION = 51;
 
 function db_version(): int
 {
@@ -422,6 +422,11 @@ function db_migrate(): void
     // 50) v49 → v50: 메뉴 권한에 '시설관리'(fac) 추가 — 이미 메뉴 권한을 고른 회원은 지금처럼 시설관리를 계속 보이게 fac 를 붙인다
     if (db_version() < 50) {
         $pdo->exec("UPDATE users SET menu_access = IF(menu_access = '', 'fac', CONCAT(menu_access, ',fac')) WHERE menu_access IS NOT NULL AND FIND_IN_SET('fac', menu_access) = 0");
+    }
+
+    // 51) v50 → v51: 결재를 올린 사람 journals.submitted_by — 올린 사람이 '결재 상신 취소'로 임시저장으로 되돌림 (예전 문서는 작성자로 봄)
+    if (!column_exists('journals', 'submitted_by')) {
+        $pdo->exec("ALTER TABLE journals ADD submitted_by INT UNSIGNED NULL COMMENT '결재를 올린 사람 (상신 취소 권한)' AFTER submitted_at");
     }
 
     $pdo->prepare("INSERT INTO settings (name, value) VALUES ('db_version', ?) ON DUPLICATE KEY UPDATE value = VALUES(value)")

@@ -176,6 +176,12 @@ $docTitle = $att ? '근태 신청 · ' . $att['user_name'] . ' ' . att_kind_name
       <?= csrf_field() ?><button class="btn danger" name="action" value="delete"><?= $att ? '근태 취소' : '삭제' ?></button>
     </form>
   <?php endif ?>
+  <?php if (can_recall($journal, $user)): ?>
+    <form method="post" action="<?= e(url('approvals.php')) ?>" onsubmit="return confirm('결재 상신을 취소하고 임시저장 상태로 되돌릴까요?\n이미 받은 결재는 지워집니다.')">
+      <?= csrf_field() ?><input type="hidden" name="id" value="<?= (int) $journal['id'] ?>"><input type="hidden" name="back" value="view">
+      <button class="btn" name="action" value="recall">결재 상신 취소</button>
+    </form>
+  <?php endif ?>
   <?php if ($editable): ?>
     <form method="post">
       <?= csrf_field() ?><button class="btn primary" name="action" value="submit"><?= $journal['status'] === 'rejected' ? '재상신' : '결재 올리기' ?></button>

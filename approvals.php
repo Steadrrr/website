@@ -8,6 +8,17 @@ $user = require_login();
 if (is_post()) {
     csrf_verify();
     $action = post('action');
+    // 결재 상신 취소: 내가 올린 결재중 문서를 임시저장으로
+    if ($action === 'recall') {
+        $j = journal_find((int) post('id'));
+        if (!$j || !can_recall($j, $user)) {
+            flash('상신 취소할 수 없는 문서입니다 (결재를 올린 사람만, 결재가 끝나기 전에만 취소할 수 있습니다).', 'error');
+        } else {
+            journal_recall($j, $user);
+            flash(journal_type_label($j) . ' ' . $j['work_date'] . ' 결재 상신을 취소했습니다. 임시저장 상태로 돌아갔습니다.', 'success');
+        }
+        redirect(post('back') === 'view' && $j ? 'view.php?id=' . (int) $j['id'] : 'approvals.php');
+    }
     $ids = array_unique(array_map('intval', (array) ($_POST['ids'] ?? [])));
     if (!in_array($action, ['approve', 'delegate'], true) || !$ids) {
         flash('결재할 문서를 체크하세요.', 'error');
@@ -42,12 +53,14 @@ foreach ($waiting as $j) {
     if (can_delegate($user, approvable_step($j, $user))) $delegatable[(int) $j['id']] = true;
 }
 
+// 내가 작성했거나 내가 결재를 올린 문서 (진행중·반려·임시저장)
 $st = db()->prepare(
-    "SELECT j.* FROM journals j
-      WHERE j.author_id = ? AND j.status IN ('draft', 'pending', 'rejected')
+    "SELECT j.*, u.name AS author_name FROM journals j JOIN users u ON u.id = j.author_id
+      WHERE (j.author_id = ? AND j.status IN ('draft', 'pending', 'rejected'))
+         OR (j.status = 'pending' AND COALESCE(j.submitted_by, j.author_id) = ?)
       ORDER BY j.work_date DESC, j.id DESC LIMIT 50"
 );
-$st->execute([$user['id']]);
+$st->execute([$user['id'], $user['id']]);
 $mine = $st->fetchAll();
 
 layout_header('결재함', 'approval');
@@ -114,18 +127,28 @@ layout_header('결재함', 'approval');
 </script>
 
 <section class="card">
-  <h2>내가 작성한 문서 (진행중·반려·임시저장)</h2>
+  <h2>내가 작성·상신한 문서 (진행중·반려·임시저장)</h2>
+  <p class="muted small no-print">결재중인 문서는 <b>결재를 올린 사람</b>이 최종 결재 전에 <b>상신 취소</b>로 임시저장 상태로 되돌릴 수 있습니다 (고친 뒤 다시 결재 올리기). 이미 받은 결재는 지워지고 작성·수정 기록에 남습니다.</p>
   <table class="table">
-    <thead><tr><th>일자</th><th>구분</th><th>상태</th></tr></thead>
+    <thead><tr><th>일자</th><th>구분</th><th>상태</th><th>결재 진행</th><th class="no-print"></th></tr></thead>
     <tbody>
     <?php foreach ($mine as $j): ?>
       <tr class="clickable" onclick="location.href='<?= e(url('view.php?id=' . $j['id'])) ?>'">
         <td><?= e($j['work_date']) ?></td>
-        <td><?= e(journal_type_label($j)) ?></td>
+        <td><?= e(journal_type_label($j)) ?><?= (int) $j['author_id'] !== (int) $user['id'] ? ' <small class="muted">(작성 ' . e($j['author_name']) . ')</small>' : '' ?></td>
         <td><?= journal_badges($j) ?></td>
+        <td class="small muted"><?= $j['status'] === 'pending' ? e(preg_replace('/^[^·]*·\s*/', '', approval_summary($j))) : '' ?></td>
+        <td class="right no-print" onclick="event.stopPropagation()">
+          <?php if (can_recall($j, $user)): ?>
+          <form method="post" onsubmit="return confirm('이 문서의 결재 상신을 취소하고 임시저장 상태로 되돌릴까요?\n이미 받은 결재는 지워집니다.')">
+            <?= csrf_field() ?><input type="hidden" name="id" value="<?= (int) $j['id'] ?>">
+            <button class="btn small" name="action" value="recall">상신 취소</button>
+          </form>
+          <?php endif ?>
+        </td>
       </tr>
     <?php endforeach ?>
-    <?php if (!$mine): ?><tr><td colspan="3" class="center muted">없음</td></tr><?php endif ?>
+    <?php if (!$mine): ?><tr><td colspan="5" class="center muted">없음</td></tr><?php endif ?>
     </tbody>
   </table>
 </section>

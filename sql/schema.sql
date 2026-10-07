@@ -42,6 +42,7 @@ CREATE TABLE IF NOT EXISTS journals (
   last_edited_at DATETIME NULL,
   last_edited_by INT UNSIGNED NULL,
   submitted_at DATETIME     NULL,
+  submitted_by INT UNSIGNED NULL COMMENT '결재를 올린 사람 (상신 취소 권한)',
   completed_at DATETIME     NULL,
   created_at   DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at   DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,

@@ -50,26 +50,60 @@ function journal_submit(array $journal, ?int $rank = null): void
 {
     $pdo = db();
     $line = approval_line_for($rank ?? (int) $journal['author_rank'], (string) ($journal['type'] ?? ''));
+    $by = current_user()['id'] ?? null; // 결재를 올린 사람 (상신 취소는 이 사람이)
 
     $pdo->beginTransaction();
     try {
         $pdo->prepare('DELETE FROM approvals WHERE journal_id = ?')->execute([$journal['id']]);
         if ($line === []) {
-            $pdo->prepare("UPDATE journals SET status = 'approved', submitted_at = NOW(), completed_at = NOW() WHERE id = ?")
-                ->execute([$journal['id']]);
+            $pdo->prepare("UPDATE journals SET status = 'approved', submitted_at = NOW(), submitted_by = ?, completed_at = NOW() WHERE id = ?")
+                ->execute([$by, $journal['id']]);
         } else {
             $ins = $pdo->prepare('INSERT INTO approvals (journal_id, step_order, required_rank) VALUES (?, ?, ?)');
             foreach ($line as $i => $rank) {
                 $ins->execute([$journal['id'], $i + 1, $rank]);
             }
-            $pdo->prepare("UPDATE journals SET status = 'pending', submitted_at = NOW(), completed_at = NULL WHERE id = ?")
-                ->execute([$journal['id']]);
+            $pdo->prepare("UPDATE journals SET status = 'pending', submitted_at = NOW(), submitted_by = ?, completed_at = NULL WHERE id = ?")
+                ->execute([$by, $journal['id']]);
         }
         $pdo->commit();
     } catch (Throwable $e) {
         $pdo->rollBack();
         throw $e;
     }
+}
+
+/** 결재를 올린 사람 id (예전 문서는 작성자) */
+function journal_submitter(array $journal): int
+{
+    return (int) ($journal['submitted_by'] ?? 0) ?: (int) $journal['author_id'];
+}
+
+/**
+ * 결재 상신 취소(회수) 가능: 결재중(최종 결재 전)인 문서를 올린 사람 본인.
+ * 근태는 '근태 취소'로 처리하므로 제외.
+ */
+function can_recall(array $journal, array $user): bool
+{
+    return $journal['status'] === 'pending' && $journal['type'] !== 'attendance' && journal_submitter($journal) === (int) $user['id'];
+}
+
+/** 결재 상신 취소: 결재선을 지우고 임시저장으로 되돌린다 (작성·수정 기록에 남김) */
+function journal_recall(array $journal, array $user): void
+{
+    $summary = approval_summary($journal);
+    $pdo = db();
+    $pdo->beginTransaction();
+    try {
+        $pdo->prepare('DELETE FROM approvals WHERE journal_id = ?')->execute([$journal['id']]);
+        $pdo->prepare("UPDATE journals SET status = 'draft', submitted_at = NULL, submitted_by = NULL, completed_at = NULL WHERE id = ? AND status = 'pending'")
+            ->execute([$journal['id']]);
+        $pdo->commit();
+    } catch (Throwable $e) {
+        $pdo->rollBack();
+        throw $e;
+    }
+    journal_log((int) $journal['id'], $user, '결재 상신 취소', '취소 전: ' . $summary);
 }
 
 /** 지금 결재 차례인 단계 (없으면 null) */
