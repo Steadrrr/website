@@ -30,17 +30,20 @@
 
   // 객실 칸 하나 (상태가 섞여 있어도 됨)
   function card(r) {
+    const inTag = r.showIn && r.in_today ? '오늘 입실' : ''; // 퇴실완료 묶음에서는 오늘 새 손님이 오는 객실 표시
     r = Object.assign({}, r, { type: '' }); // 분류는 묶음 제목에 있으므로 칸에서는 뺌
     if (r.arrive) return room(r, 'arrive', '<span class="cl-done">입실가능</span>', '어젯밤 빈 객실 · 청소 없음', '');
     if (r.status === 'wait') return room(r, 'wait', btn(r.id, 'out', '퇴실처리', 'wait'), '퇴실대기', '', 'wait');
     if (r.status === 'dirty') return room(r, 'dirty', undo(r.id, 'undo_out', '퇴실취소') + btn(r.id, 'clean', '청소완료', 'dirty'),
-      '퇴실 ' + esc(r.out_at) + ' ' + esc(r.out_by), '', 'dirty');
-    return room(r, 'ready', undo(r.id, 'undo_clean', '되돌리기') + '<span class="cl-done">입실가능</span>', '청소 ' + esc(r.clean_at) + ' ' + esc(r.clean_by), '');
+      '퇴실 ' + esc(r.out_at) + ' ' + esc(r.out_by), inTag, 'dirty');
+    return room(r, 'ready', undo(r.id, 'undo_clean', '되돌리기') + '<span class="cl-done">입실가능</span>', '청소 ' + esc(r.clean_at) + ' ' + esc(r.clean_by), inTag);
   }
   // 객실 분류(2인실·4인실·독채 …)별로 묶기 — 분류 순서는 설정의 객실 분류 순서
   function byType(list) {
     const groups = new Map();
-    list.slice().sort((x, y) => x.type_order - y.type_order || x.order - y.order || x.id - y.id)
+    // 같은 분류 안에서는 청소가능(오늘 입실 먼저) → 입실가능 순, 그다음 객실 순서
+    const rank = (r) => (r.status === 'dirty' ? (r.in_today ? 0 : 1) : r.status === 'ready' ? 2 : 0);
+    list.slice().sort((x, y) => x.type_order - y.type_order || rank(x) - rank(y) || x.order - y.order || x.id - y.id)
       .forEach((r) => { const k = r.type || '분류 없음'; if (!groups.has(k)) groups.set(k, []); groups.get(k).push(r); });
     return groups;
   }
@@ -77,14 +80,18 @@
     [...picked].forEach(([id, k]) => { if (now.get(id) !== k) picked.delete(id); });
     if (!picked.size) pickKind = null;
 
-    // 금일 입실 예정 = 오늘 새 손님이 들어오는 객실(퇴실 후 청소 + 어젯밤 빈 객실), 금일 미입실 = 퇴실만 있고 오늘 입실 없음
-    const arriving = s.rooms.filter((r) => r.in_today).concat(s.arrivals.map((r) => Object.assign({ arrive: true }, r)));
-    const notArriving = s.rooms.filter((r) => !r.in_today);
+    // 퇴실대기 객실: 금일 입실 예정(오늘 새 손님 — 어젯밤 빈 객실 포함) / 금일 미입실, 퇴실처리한 객실(청소가능·입실가능)은 퇴실완료로 모음
+    const waitRooms = s.rooms.filter((r) => r.status === 'wait');
+    const arriving = waitRooms.filter((r) => r.in_today).concat(s.arrivals.map((r) => Object.assign({ arrive: true }, r)));
+    const notArriving = waitRooms.filter((r) => !r.in_today);
+    const outDone = s.rooms.filter((r) => r.status !== 'wait').map((r) => Object.assign({ showIn: true }, r));
+    const nDirty = outDone.filter((r) => r.status === 'dirty').length;
     const stays = s.stays.map((r) => room(r, 'stay',
       r.supply_at ? undo(r.id, 'undo_supply', '취소') + '<span class="cl-done stay">지급완료</span>' : btn(r.id, 'supply', '비품지급', 'stay'),
       r.supply_at ? '비품 ' + esc(r.supply_at) + ' ' + esc(r.supply_by) : '청소 없음 · 비품만 지급', r.nights + '박'));
-    $('[data-list]').innerHTML = category('in', '금일 입실 예정', '먼저 청소', arriving, '오늘 입실할 객실이 없습니다.')
-      + category('none', '금일 미입실', '', notArriving, '오늘 입실이 없는 퇴실 객실이 없습니다.')
+    $('[data-list]').innerHTML = category('in', '금일 입실 예정', '먼저 퇴실·청소', arriving, '퇴실을 기다리는 오늘 입실 객실이 없습니다.')
+      + category('none', '금일 미입실', '', notArriving, '퇴실을 기다리는 객실이 없습니다.')
+      + category('done', '퇴실완료', '청소가능 ' + nDirty + ' · 입실가능 ' + (outDone.length - nDirty), outDone, '아직 퇴실처리한 객실이 없습니다.')
       + section('연박 (비품지급)', 'var(--stay)', stays, '연박 객실이 없습니다.');
     bulkBar();
     board();
