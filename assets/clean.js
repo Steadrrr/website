@@ -90,8 +90,8 @@
       r.supply_at ? undo(r.id, 'undo_supply', '취소') + '<span class="cl-done stay">지급완료</span>' : btn(r.id, 'supply', '비품지급', 'stay'),
       r.supply_at ? '비품 ' + esc(r.supply_at) + ' ' + esc(r.supply_by) : '청소 없음 · 비품만 지급', r.nights + '박'));
     $('[data-list]').innerHTML = category('in', '금일 입실 예정', '먼저 퇴실·청소', arriving, '퇴실을 기다리는 오늘 입실 객실이 없습니다.')
-      + category('none', '금일 미입실', '', notArriving, '퇴실을 기다리는 객실이 없습니다.')
       + category('done', '퇴실완료', '청소가능 ' + nDirty + ' · 입실가능 ' + (outDone.length - nDirty), outDone, '아직 퇴실처리한 객실이 없습니다.')
+      + category('none', '금일 미입실', '', notArriving, '퇴실을 기다리는 객실이 없습니다.')
       + section('연박 (비품지급)', 'var(--stay)', stays, '연박 객실이 없습니다.');
     bulkBar();
     board();
