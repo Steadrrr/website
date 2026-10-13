@@ -123,9 +123,9 @@ function vault_day(string $date, int $includeJournalId = 0): array
 /** 기간의 불출·반납 기록 (권종별 매수 포함) */
 function vault_records(string $from, string $to): array
 {
-    $st = db()->prepare('SELECT v.*, h.name AS holder_name, c.name AS created_name, u.name AS updated_name
+    $st = db()->prepare('SELECT v.*, h.name AS holder_name, i.name AS issuer_name, c.name AS created_name, u.name AS updated_name
                            FROM voucher_issues v
-                           LEFT JOIN users h ON h.id = v.holder_id LEFT JOIN users c ON c.id = v.created_by LEFT JOIN users u ON u.id = v.updated_by
+                           LEFT JOIN users h ON h.id = v.holder_id LEFT JOIN users i ON i.id = v.issuer_id LEFT JOIN users c ON c.id = v.created_by LEFT JOIN users u ON u.id = v.updated_by
                           WHERE v.work_date BETWEEN ? AND ? ORDER BY v.work_date, v.kind = \'return\', v.id');
     $st->execute([$from, $to]);
     $rows = [];

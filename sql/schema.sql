@@ -243,6 +243,7 @@ CREATE TABLE IF NOT EXISTS voucher_issues (
   kind       ENUM('issue','return') NOT NULL,
   reason     ENUM('cancel','unpaid') NULL,
   holder_id  INT UNSIGNED NULL COMMENT '담당자 (받은 사람 / 돌려준 사람)',
+  issuer_id  INT UNSIGNED NULL COMMENT '불출 담당자 (금고에서 꺼내 준 사람)',
   room       VARCHAR(100) NULL COMMENT '반납 객실',
   note       VARCHAR(300) NULL,
   created_by INT UNSIGNED NULL,

@@ -58,7 +58,8 @@ if (is_post()) {
         $id = (int) post('id');
         $kind = post('kind') === 'return' ? 'return' : 'issue';
         $wd = post('work_date');
-        $holder = (int) post('holder_id') ?: null;
+        $holder = (int) post('holder_id') ?: null; // 받는 담당자(불출) / 돌려준 담당자(반납)
+        $issuer = post('kind') === 'return' ? null : ((int) post('issuer_id') ?: null); // 불출 담당자 (금고에서 꺼내 준 사람)
         $reason = $kind === 'return' && isset(VAULT_REASONS[post('reason')]) ? post('reason') : null;
         $room = $kind === 'return' ? (mb_substr(trim(post('room')), 0, 100) ?: null) : null;
         $note = mb_substr(trim(post('note')), 0, 300) ?: null;
@@ -67,9 +68,12 @@ if (is_post()) {
         $errs = [];
         if (!valid_date($wd)) $errs[] = '일자를 확인하세요.';
         if (!array_sum($qty)) $errs[] = '권종별 매수를 입력하세요.';
+        if ($kind === 'issue' && !$issuer) $errs[] = '불출 담당자를 고르세요.';
         if ($kind === 'issue' && !$holder) $errs[] = '받는 담당자를 고르세요.';
-        if ($holder && !in_array($holder, array_map('intval', array_column(vault_holders(), 'id')), true)
-            && !($id && ($prev = vault_record($id)) && (int) $prev['holder_id'] === $holder)) $errs[] = '담당자는 운영관리 메뉴 권한이 있는 사람만 고를 수 있습니다.';
+        $okIds = array_map('intval', array_column(vault_holders(), 'id'));
+        $prev = $id ? vault_record($id) : null; // 예전 기록을 고칠 때 원래 담당자는 그대로 허용
+        if (($holder && !in_array($holder, $okIds, true) && (int) ($prev['holder_id'] ?? 0) !== $holder)
+            || ($issuer && !in_array($issuer, $okIds, true) && (int) ($prev['issuer_id'] ?? 0) !== $issuer)) $errs[] = '담당자는 운영관리 메뉴 권한이 있는 사람만 고를 수 있습니다.';
         if ($kind === 'return' && !$reason) $errs[] = '반납 사유(입실 취소 / 미지급)를 고르세요.';
         if ($reason === 'unpaid' && !$room) $errs[] = '미지급 반납은 객실을 입력하세요.';
         if ($errs) {
@@ -79,18 +83,22 @@ if (is_post()) {
         $old = $id ? vault_record($id) : null;
         $pdo->beginTransaction();
         if ($old) {
-            $pdo->prepare('UPDATE voucher_issues SET work_date = ?, kind = ?, reason = ?, holder_id = ?, room = ?, note = ?, updated_by = ?, updated_at = NOW() WHERE id = ?')
-                ->execute([$wd, $kind, $reason, $holder, $room, $note, $user['id'], $id]);
+            $pdo->prepare('UPDATE voucher_issues SET work_date = ?, kind = ?, reason = ?, holder_id = ?, issuer_id = ?, room = ?, note = ?, updated_by = ?, updated_at = NOW() WHERE id = ?')
+                ->execute([$wd, $kind, $reason, $holder, $issuer, $room, $note, $user['id'], $id]);
             $pdo->prepare('DELETE FROM voucher_issue_items WHERE issue_id = ?')->execute([$id]);
         } else {
-            $pdo->prepare('INSERT INTO voucher_issues (work_date, kind, reason, holder_id, room, note, created_by) VALUES (?, ?, ?, ?, ?, ?, ?)')
-                ->execute([$wd, $kind, $reason, $holder, $room, $note, $user['id']]);
+            $pdo->prepare('INSERT INTO voucher_issues (work_date, kind, reason, holder_id, issuer_id, room, note, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
+                ->execute([$wd, $kind, $reason, $holder, $issuer, $room, $note, $user['id']]);
             $id = (int) $pdo->lastInsertId();
         }
         $ins = $pdo->prepare('INSERT INTO voucher_issue_items (issue_id, denom, qty) VALUES (?, ?, ?)');
         foreach ($qty as $d => $q) if ($q > 0) $ins->execute([$id, $d, $q]);
         $pdo->commit();
         $label = $kind === 'issue' ? '불출' : '반납(' . VAULT_REASONS[$reason] . ')';
+        if ($kind === 'issue') { // 로그에 불출 → 받는 담당자
+            $nm = array_column(vault_holders(), 'name', 'id') + array_filter([(int) ($prev['issuer_id'] ?? 0) => $prev['issuer_name'] ?? null, (int) ($prev['holder_id'] ?? 0) => $prev['holder_name'] ?? null]);
+            $label .= ' ' . ($nm[$issuer] ?? '?') . '→' . ($nm[$holder] ?? '?');
+        }
         vault_log($id, $wd, $user, $old ? '수정' : '입력', "$label " . vault_qty_text($qty)
             . ($old ? ' (이전: ' . vault_qty_text($old['qty']) . ($old['work_date'] !== $wd ? " {$old['work_date']}" : '') . ')' : ''));
         flash("$label " . vault_qty_text($qty) . ' 을(를) 저장했습니다.', 'success');
@@ -111,10 +119,11 @@ $start = vault_start();
 $records = vault_records($date, $date);
 $editRow = $canVault && !empty($_GET['edit']) ? vault_record((int) $_GET['edit']) : null;
 $users = vault_holders(); // 운영관리 메뉴 권한이 있는 사람만
-if ($editRow && $editRow['holder_id'] && !in_array((int) $editRow['holder_id'], array_map('intval', array_column($users, 'id')), true)) {
+foreach ($editRow ? ['holder_id', 'issuer_id'] : [] as $col) {
     // 예전에 입력한 담당자가 지금은 권한이 없어도 고치는 화면에서는 보이게
+    if (!$editRow[$col] || in_array((int) $editRow[$col], array_map('intval', array_column($users, 'id')), true)) continue;
     $st = $pdo->prepare('SELECT id, name, rank_level FROM users WHERE id = ?');
-    $st->execute([(int) $editRow['holder_id']]);
+    $st->execute([(int) $editRow[$col]]);
     if ($old = $st->fetch()) $users[] = $old;
 }
 // 반납 객실 후보: 그 날 매출보고의 객실 + 판매중 객실
@@ -259,7 +268,7 @@ if ($pending): ?>
     <?php foreach ($records as $r): ?>
       <tr class="vk-<?= $r['kind'] ?>">
         <td><b><?= $r['kind'] === 'issue' ? '불출' : '반납' ?></b></td>
-        <td><?= e($r['holder_name'] ?? '-') ?></td>
+        <td><?php if ($r['kind'] === 'issue'): ?><small class="muted">불출</small> <?= e($r['issuer_name'] ?? '-') ?> → <small class="muted">받음</small> <?= e($r['holder_name'] ?? '-') ?><?php else: ?><?= e($r['holder_name'] ?? '-') ?><?php endif ?></td>
         <td><?= $r['reason'] ? '<span class="badge ' . ($r['reason'] === 'unpaid' ? 'st-rejected' : 'st-pending') . '">' . e(VAULT_REASONS[$r['reason']]) . '</span> ' : '' ?><?= e($r['room'] ?? '') ?></td>
         <td class="small"><?= e(vault_qty_text($r['qty'])) ?></td>
         <td class="right"><?= e(won(voucher_amount($r['qty']))) ?></td>
@@ -285,7 +294,12 @@ if ($pending): ?>
         <h3><?= $editRow['kind'] === 'issue' ? '불출' : '반납' ?> 수정</h3>
         <div class="vault-fields">
           <label>일자<input type="date" name="work_date" value="<?= e($editRow['work_date']) ?>" required></label>
-          <label>담당자<?php $userSelect('holder_id', $editRow['holder_id'] ? (int) $editRow['holder_id'] : null, $editRow['kind'] === 'issue') ?></label>
+          <?php if ($editRow['kind'] === 'issue'): ?>
+            <label>불출 담당자<?php $userSelect('issuer_id', $editRow['issuer_id'] ? (int) $editRow['issuer_id'] : null, true) ?></label>
+            <label>받는 담당자<?php $userSelect('holder_id', $editRow['holder_id'] ? (int) $editRow['holder_id'] : null, true) ?></label>
+          <?php else: ?>
+            <label>돌려준 담당자<?php $userSelect('holder_id', $editRow['holder_id'] ? (int) $editRow['holder_id'] : null, false) ?></label>
+          <?php endif ?>
           <?php if ($editRow['kind'] === 'return'): ?>
             <label>사유<select name="reason" required><?php foreach (VAULT_REASONS as $k => $v): ?><option value="<?= $k ?>" <?= $editRow['reason'] === $k ? 'selected' : '' ?>><?= $v ?></option><?php endforeach ?></select></label>
             <label>객실<input name="room" value="<?= e($editRow['room'] ?? '') ?>" list="vault-rooms"></label>
@@ -299,7 +313,10 @@ if ($pending): ?>
       <form method="post" class="vault-form issue">
         <?= csrf_field() ?><input type="hidden" name="action" value="save_issue"><input type="hidden" name="kind" value="issue"><input type="hidden" name="work_date" value="<?= e($date) ?>">
         <h3>불출 <small class="muted">금고 → 담당자 (<?= e(date('n/j', strtotime($date))) ?>)</small></h3>
-        <div class="vault-fields"><label>받는 담당자<?php $userSelect('holder_id', null, true) ?></label></div>
+        <div class="vault-fields">
+          <label>불출 담당자<?php $userSelect('issuer_id', in_array((int) $user['id'], array_map('intval', array_column($users, 'id')), true) ? (int) $user['id'] : null, true) ?></label>
+          <label>받는 담당자<?php $userSelect('holder_id', null, true) ?></label>
+        </div>
         <div class="vault-fields"><?php $qtyInputs() ?></div>
         <label>메모<input name="note" maxlength="300" placeholder="예: 입실 예정 12실"></label>
         <div class="actions"><button class="btn primary">불출 저장</button></div>

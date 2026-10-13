@@ -6,7 +6,7 @@ defined('APP_ROOT') || exit;
  * 새 버전 파일을 FTP로 덮어쓰기만 하면, 첫 접속 때 부족한 테이블/컬럼을 만든다.
  * (기존 자료는 그대로 유지)
  */
-const DB_VERSION = 51;
+const DB_VERSION = 52;
 
 function db_version(): int
 {
@@ -427,6 +427,11 @@ function db_migrate(): void
     // 51) v50 → v51: 결재를 올린 사람 journals.submitted_by — 올린 사람이 '결재 상신 취소'로 임시저장으로 되돌림 (예전 문서는 작성자로 봄)
     if (!column_exists('journals', 'submitted_by')) {
         $pdo->exec("ALTER TABLE journals ADD submitted_by INT UNSIGNED NULL COMMENT '결재를 올린 사람 (상신 취소 권한)' AFTER submitted_at");
+    }
+
+    // 52) v51 → v52: 상품권 불출의 불출 담당자 voucher_issues.issuer_id (holder_id 는 받는 담당자 그대로)
+    if (!column_exists('voucher_issues', 'issuer_id')) {
+        $pdo->exec("ALTER TABLE voucher_issues ADD issuer_id INT UNSIGNED NULL COMMENT '불출 담당자 (금고에서 꺼내 준 사람)' AFTER holder_id");
     }
 
     $pdo->prepare("INSERT INTO settings (name, value) VALUES ('db_version', ?) ON DUPLICATE KEY UPDATE value = VALUES(value)")
