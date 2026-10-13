@@ -549,18 +549,20 @@ function items_form(string $type, array $payload, string $workDate, ?array $jour
   </div>
 
   <h3>지역상품권 환급 합계 · 재고</h3>
+  <p class="muted small"><b>금일 출고 필요</b>: 입실인원을 입력한 객실의 <b>기준 환급액</b>(객실·요금구분별) 합계를 큰 권종부터 나눈 매수입니다 — 오늘 금고에서 불출해야 할 양. 현재고보다 많으면 붉게 표시됩니다.<span data-need-rest></span></p>
   <div class="table-scroll">
   <table class="table" data-voucher-summary>
-    <thead><tr><th>권종</th><th class="right">현재고</th><th class="right">이번 환급(매)</th><th class="right">환급 금액</th><th class="right">남은 재고(매)</th><th class="right">남은 재고 금액</th></tr></thead>
+    <thead><tr><th>권종</th><th class="right">현재고</th><th class="right need-col" title="판매한 객실(입실인원 입력)의 기준 환급액 합계를 큰 권종부터 나눈 매수">금일 출고 필요(매)</th><th class="right need-col">출고 필요 금액</th><th class="right">이번 환급(매)</th><th class="right">환급 금액</th><th class="right">남은 재고(매)</th><th class="right">남은 재고 금액</th></tr></thead>
     <tbody>
     <?php foreach ($denoms as $d): ?>
       <tr data-denom="<?= $d ?>" data-stock="<?= (int) ($stock[$d] ?? 0) ?>">
         <td><?= e(denom_label($d)) ?></td><td class="right"><?= number_format($stock[$d] ?? 0) ?></td>
+        <td class="right need-col" data-need>0</td><td class="right need-col" data-need-amt>0</td>
         <td class="right" data-out>0</td><td class="right" data-out-amt>0</td><td class="right" data-left>0</td><td class="right" data-left-amt>0</td>
       </tr>
     <?php endforeach ?>
     </tbody>
-    <tfoot><tr><th>합계</th><th class="right"><?= number_format(array_sum($stock)) ?></th><th class="right" data-out-total>0</th><th class="right" data-out-amt-total>0</th>
+    <tfoot><tr><th>합계</th><th class="right"><?= number_format(array_sum($stock)) ?></th><th class="right need-col" data-need-total>0</th><th class="right need-col" data-need-amt-total>0</th><th class="right" data-out-total>0</th><th class="right" data-out-amt-total>0</th>
       <th class="right" data-left-total>0</th><th class="right" data-left-amt-total>0</th></tr></tfoot>
   </table>
   </div>

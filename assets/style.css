@@ -1200,3 +1200,7 @@ label .tm-pick { display: flex; margin-top: .25rem; }
 .daily-view-slot { border: 1px solid var(--line, #e2e2e2); border-radius: 8px; padding: 6px 10px; }
 .daily-view-slot h4 { margin: 2px 0 4px; }
 @media print { .daily-view { grid-template-columns: 1fr 1fr; } }
+
+/* 일일객실판매: 지역상품권 금일 출고 필요 */
+.need-col { background: #f3f8f4; }
+.need-col.warn, td.need-col.warn { color: var(--red); font-weight: 700; }

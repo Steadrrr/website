@@ -38,8 +38,10 @@
     // 객실: 입실인원을 넣으면 판매. 요금구분(비수기 평일/주말, 성수기) + 할인율, 객실별 상품권 환급
     const dc = window.ROOM_DC || {};
     $$(document, 'table[data-room-table]').forEach((t) => {
-      let rooms = 0, guests = 0, amount = 0, refundTotal = 0;
-      const vsum = {};
+      let rooms = 0, guests = 0, amount = 0, refundTotal = 0, needRest = 0;
+      const vsum = {}, need = {};
+      // 금일 출고 필요: 판매 객실의 기준 환급액을 큰 권종부터 나눈 매수
+      const denoms = $$(document, 'table[data-voucher-summary] tbody tr').map((r) => num(r.dataset.denom)).sort((a, b) => b - a);
       $$(t, 'tbody tr').forEach((tr) => {
         let refund = 0;
         $$(tr, 'input[data-vdenom]').forEach((inp) => {
@@ -81,7 +83,12 @@
         tr.classList.toggle('sold', sold);
         tr.classList.toggle('refund-mismatch', mismatch);
         tr.dataset.mismatch = mismatch ? `${tr.dataset.name}: 환급 ${fmt(refund)}원 / 기준 ${fmt(expected)}원` : '';
-        if (sold) { rooms += 1; guests += g; amount += unit; }
+        if (sold) {
+          rooms += 1; guests += g; amount += unit;
+          let restAmt = expected;
+          denoms.forEach((d) => { if (d > 0) { const n = Math.floor(restAmt / d); need[d] = (need[d] || 0) + n; restAmt -= n * d; } });
+          needRest += restAmt; // 가장 작은 권종으로도 나눌 수 없는 금액
+        }
       });
       setText($(t, '[data-room-count]'), `${rooms}실`);
       setText($(t, '[data-room-guests]'), fmt(guests));
@@ -93,9 +100,14 @@
       // 환급 합계 · 남은 재고
       const sum = $(document, 'table[data-voucher-summary]');
       if (sum) {
-        let outQ = 0, outA = 0, leftQ = 0, leftA = 0;
+        let outQ = 0, outA = 0, leftQ = 0, leftA = 0, needQ = 0, needA = 0;
         $$(sum, 'tbody tr').forEach((tr) => {
-          const d = num(tr.dataset.denom), q = vsum[tr.dataset.denom] || 0, left = num(tr.dataset.stock) - q;
+          const d = num(tr.dataset.denom), q = vsum[tr.dataset.denom] || 0, stock = Number(tr.dataset.stock) || 0, left = stock - q; // 재고는 음수일 수 있어 부호 그대로
+          const nq = need[d] || 0;
+          setText($(tr, '[data-need]'), fmt(nq));
+          setText($(tr, '[data-need-amt]'), fmt(nq * d));
+          $(tr, '[data-need]').classList.toggle('warn', nq > stock);
+          needQ += nq; needA += nq * d;
           setText($(tr, '[data-out]'), fmt(q));
           setText($(tr, '[data-out-amt]'), fmt(q * d));
           setText($(tr, '[data-left]'), fmt(left));
@@ -103,6 +115,10 @@
           tr.classList.toggle('issue', left < 0);
           outQ += q; outA += q * d; leftQ += left; leftA += left * d;
         });
+        setText($(sum, '[data-need-total]'), fmt(needQ));
+        setText($(sum, '[data-need-amt-total]'), fmt(needA) + '원');
+        const rest = $(document, '[data-need-rest]');
+        if (rest) setText(rest, needRest ? ` (권종으로 나눌 수 없는 기준 환급액 ${fmt(needRest)}원은 빼고 계산)` : '');
         setText($(sum, '[data-out-total]'), fmt(outQ));
         setText($(sum, '[data-out-amt-total]'), fmt(outA) + '원');
         setText($(sum, '[data-left-total]'), fmt(leftQ));
