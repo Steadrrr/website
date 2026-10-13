@@ -68,6 +68,8 @@ if (is_post()) {
         if (!valid_date($wd)) $errs[] = '일자를 확인하세요.';
         if (!array_sum($qty)) $errs[] = '권종별 매수를 입력하세요.';
         if ($kind === 'issue' && !$holder) $errs[] = '받는 담당자를 고르세요.';
+        if ($holder && !in_array($holder, array_map('intval', array_column(vault_holders(), 'id')), true)
+            && !($id && ($prev = vault_record($id)) && (int) $prev['holder_id'] === $holder)) $errs[] = '담당자는 운영관리 메뉴 권한이 있는 사람만 고를 수 있습니다.';
         if ($kind === 'return' && !$reason) $errs[] = '반납 사유(입실 취소 / 미지급)를 고르세요.';
         if ($reason === 'unpaid' && !$room) $errs[] = '미지급 반납은 객실을 입력하세요.';
         if ($errs) {
@@ -108,7 +110,13 @@ $start = vault_start();
 // 그 날의 불출·반납 기록
 $records = vault_records($date, $date);
 $editRow = $canVault && !empty($_GET['edit']) ? vault_record((int) $_GET['edit']) : null;
-$users = $pdo->query("SELECT id, name, rank_level FROM users WHERE status = 'active' AND hide_in_org = 0 ORDER BY rank_level, name")->fetchAll();
+$users = vault_holders(); // 운영관리 메뉴 권한이 있는 사람만
+if ($editRow && $editRow['holder_id'] && !in_array((int) $editRow['holder_id'], array_map('intval', array_column($users, 'id')), true)) {
+    // 예전에 입력한 담당자가 지금은 권한이 없어도 고치는 화면에서는 보이게
+    $st = $pdo->prepare('SELECT id, name, rank_level FROM users WHERE id = ?');
+    $st->execute([(int) $editRow['holder_id']]);
+    if ($old = $st->fetch()) $users[] = $old;
+}
 // 반납 객실 후보: 그 날 매출보고의 객실 + 판매중 객실
 $st = $pdo->prepare("SELECT DISTINCT l.name FROM sales_lines l JOIN journals j ON j.id = l.journal_id WHERE " . SALE_DOC_SQL . " AND j.work_date = ? AND l.grp = 'room' ORDER BY l.name");
 $st->execute([$date]);

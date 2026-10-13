@@ -308,3 +308,10 @@ function vcheck_view(array $journal, array $checks): void
     : '결재가 끝나면 차이(실제 − 장부)만큼 재고(금고)가 맞춰집니다.' ?></p>
     <?php
 }
+
+/** 불출·반납 담당자 후보: 운영관리 메뉴 권한이 있는 회원 (회원관리 › 메뉴 권한, 공무직 이상은 늘 포함) */
+function vault_holders(): array
+{
+    $rows = db()->query("SELECT id, name, rank_level, is_admin, menu_access FROM users WHERE status = 'active' AND hide_in_org = 0 ORDER BY rank_level, name")->fetchAll();
+    return array_values(array_filter($rows, fn($u) => can_menu($u, 'ops')));
+}
