@@ -228,6 +228,28 @@ function room_refund(array $p, string $rate): int
     };
 }
 
+/**
+ * 그 날 줄의 기준 지역상품권 환급액 (일일객실판매)
+ *  - 할인 객실은 환급 없음 (0)
+ *  - 연박(2·3박 …)은 입실일에 숙박 전체를 한 번에: 1박째는 고른 요금구분, 2박째부터는 그 날짜의 요금구분(주말·성수기) 기준
+ *  - 앞선 연박이 이어지는 날($continued)은 입실일에 이미 줬으므로 0
+ */
+function room_refund_stay(array $p, string $date, string $rate, bool $discounted, int $nights = 0, bool $continued = false): int
+{
+    if ($discounted || $continued) return 0;
+    $sum = room_refund($p, $rate);
+    for ($k = 1; $k < max(1, $nights); $k++) $sum += room_refund($p, rate_for_date(date('Y-m-d', strtotime("$date +$k days"))));
+    return $sum;
+}
+
+/** 연박 2박째부터의 날짜별 기준 환급액 [2박째, 3박째, …] (작성 화면이 연박 선택에 따라 더함) */
+function room_refund_next_nights(array $p, string $date, int $upTo = 3): array
+{
+    $out = [];
+    for ($k = 1; $k < $upTo; $k++) $out[] = room_refund($p, rate_for_date(date('Y-m-d', strtotime("$date +$k days"))));
+    return $out;
+}
+
 /** 객실 단가 (서버에서 항상 다시 계산한다. 화면 입력값은 믿지 않음). 할인가는 10원 단위 버림 */
 function room_price(array $p, string $rate, bool $discount = false, ?string $reason = null): int
 {

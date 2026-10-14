@@ -77,8 +77,17 @@
         setText($(tr, '[data-refund-amt]'), fmt(refund));
         $(tr, '[data-guests]').classList.toggle('invalid', (max > 0 && g > max) || (!sold && refund > 0));
         // 기준 환급액: 요금구분별 (data-refund-weekday / -weekend / -peak)
-        const expected = num(tr.dataset['refund' + rate.charAt(0).toUpperCase() + rate.slice(1)]);
+        //  할인 객실 0, 앞선 연박이 이어지는 날 0(입실일에 지급), 연박 N박은 입실일에 2박째부터의 날짜별 기준액까지 더함
+        const stay = num(($(tr, '.stay-select') || {}).value);
+        let next = [];
+        try { next = JSON.parse(tr.dataset.refundNext || '[]'); } catch (e) { next = []; }
+        let expected = num(tr.dataset['refund' + rate.charAt(0).toUpperCase() + rate.slice(1)]);
+        let refundWhy = '';
+        if (dcBox.checked) { expected = 0; refundWhy = ' (할인 · 환급 없음)'; }
+        else if (tr.dataset.cont) { expected = 0; refundWhy = ' (연박 중 · ' + tr.dataset.cont + ' 입실일에 지급)'; }
+        else if (stay >= 2) { for (let k = 0; k < stay - 1; k++) expected += num(next[k]); refundWhy = ' (연박 ' + stay + '박 합계)'; }
         setText($(tr, '[data-refund-base]'), fmt(expected));
+        setText($(tr, '[data-refund-why]'), refundWhy);
         const mismatch = sold ? refund !== expected : refund > 0;
         tr.classList.toggle('sold', sold);
         tr.classList.toggle('refund-mismatch', mismatch);
@@ -204,7 +213,7 @@
       recalc();
     });
   });
-  document.querySelectorAll('[data-rate], [data-dc], [data-dc-reason]').forEach((el) => el.addEventListener('change', recalc));
+  document.querySelectorAll('[data-rate], [data-dc], [data-dc-reason], .stay-select').forEach((el) => el.addEventListener('change', recalc));
   document.querySelectorAll('[data-rent-time], [data-rent-night]').forEach((el) => el.addEventListener('change', recalc));
   document.querySelectorAll('[data-rent-youth]').forEach((el) => el.addEventListener('change', recalc));
 

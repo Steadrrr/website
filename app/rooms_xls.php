@@ -94,7 +94,7 @@ function rooms_xls_line(array $p, string $date, int $guests, string $dcText, arr
     $season = $rate === 'peak' ? season_for('room', $date) : null;
     return ['product_id' => (int) $p['id'], 'grp' => 'room', 'name' => $p['name'], 'is_free' => 0, 'rate' => $rate, 'season' => $season['name'] ?? null,
         'discounted' => (int) ($dc && $unit !== room_price($p, $rate)), 'dc_reason' => $reason, 'unit_price' => $unit, 'qty' => 1, 'guests' => max(0, $guests),
-        'amount' => $unit, 'refund_expected' => room_refund($p, $rate), 'vouchers' => $vouchers ?: array_fill_keys(voucher_denoms(), 0),
+        'amount' => $unit, 'refund_expected' => room_refund_stay($p, $date, $rate, $dc && $unit !== room_price($p, $rate), $nights > 1 ? min($nights, 30) : 0), 'vouchers' => $vouchers ?: array_fill_keys(voucher_denoms(), 0),
         'stay_nights' => $nights > 1 ? min($nights, 30) : 0]; // 숙박기간 '2박3일' → 연박 2박 (1박2일은 연박 아님)
 }
 

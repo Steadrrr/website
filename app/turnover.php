@@ -64,3 +64,14 @@ function turnover_lists(string $date): array
     unset($l);
     return $lists;
 }
+
+/** 그 날이 앞선 연박의 둘째 날 이후인 객실 [객실 id => 입실일] — 상품권 환급은 입실일에 이미 줬으므로 0 */
+function turnover_continued(string $date): array
+{
+    $prev = date('Y-m-d', strtotime("$date -1 day"));
+    $out = [];
+    foreach (rt_nights(date('Y-m-d', strtotime("$date -31 days")), $prev) as $pid => $days) {
+        foreach (rt_stays($days) as $st) if ($st['from'] < $date && $date <= $st['last']) $out[$pid] = $st['from'];
+    }
+    return $out;
+}
