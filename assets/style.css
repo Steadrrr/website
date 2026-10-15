@@ -1204,3 +1204,7 @@ label .tm-pick { display: flex; margin-top: .25rem; }
 /* 일일객실판매: 지역상품권 금일 출고 필요 */
 .need-col { background: #f3f8f4; }
 .need-col.warn, td.need-col.warn { color: var(--red); font-weight: 700; }
+
+/* 일일객실판매: 기준 환급액 사유는 따로 한 줄, 좁게 줄바꿈 (가로 스크롤 방지) */
+.refund-why { display: block; white-space: normal; max-width: 7.5em; margin-left: auto; line-height: 1.25; font-size: .75rem; }
+.refund-why:empty { display: none; }

@@ -540,7 +540,7 @@ function items_form(string $type, array $payload, string $workDate, ?array $jour
         <?php foreach ($denoms as $d): ?>
           <td class="refund-cell"><input name="room[<?= $pid ?>][v][<?= $d ?>]" value="<?= e(($l['vouchers'][$d] ?? 0) ?: '') ?>" inputmode="numeric" class="num tiny" data-money data-vdenom="<?= $d ?>"></td>
         <?php endforeach ?>
-        <td class="right refund-cell nowrap"><b data-refund-amt>0</b><br><small class="muted">기준 <span data-refund-base><?= number_format(room_refund($p, $rate)) ?></span><span data-refund-why></span></small></td>
+        <td class="right refund-cell nowrap"><b data-refund-amt>0</b><br><small class="muted">기준 <span data-refund-base><?= number_format(room_refund($p, $rate)) ?></span></small><small class="muted refund-why" data-refund-why></small></td>
       </tr>
     <?php endforeach ?>
     <?php if ($unassigned): ?>
