@@ -164,6 +164,17 @@ function vault_last_check(): ?array
 
 /* ───────────── 매출보고 보기·결재 화면의 상품권 대조 ───────────── */
 
+/** 불출 기록의 담당자 "불출 김○○ → 박○○ · …" (같은 짝은 한 번) */
+function vault_issue_names(array $records): string
+{
+    $pairs = [];
+    foreach ($records as $r) {
+        if ($r['kind'] !== 'issue') continue;
+        $pairs[] = ($r['issuer_name'] ? $r['issuer_name'] . ' → ' : '') . ($r['holder_name'] ?? '담당자 미기재');
+    }
+    return $pairs ? implode(' · ', array_unique($pairs)) : '';
+}
+
 function vault_day_html(string $date, int $journalId = 0, bool $compact = false): void
 {
     $v = vault_day($date, $journalId);
@@ -181,7 +192,7 @@ function vault_day_html(string $date, int $journalId = 0, bool $compact = false)
     <tbody>
     <?php foreach (['issue' => '불출 (금고 → 담당자)', 'paid' => '고객 지급 (매출보고)', 'cancel' => '반납 · 입실 취소', 'unpaid' => '반납 · 미지급'] as $k => $label):
         if (in_array($k, ['cancel', 'unpaid'], true) && !array_sum($v[$k])) continue; ?>
-      <tr><td><?= e($label) ?></td><?php foreach ($denoms as $d): ?><td class="right"><?= $v[$k][$d] ? number_format($v[$k][$d]) : '' ?></td><?php endforeach ?>
+      <tr><td><?= e($label) ?><?php if ($k === 'issue' && ($who = vault_issue_names($v['records']))): ?><br><small class="muted"><?= e($who) ?></small><?php endif ?></td><?php foreach ($denoms as $d): ?><td class="right"><?= $v[$k][$d] ? number_format($v[$k][$d]) : '' ?></td><?php endforeach ?>
         <td class="right"><?= number_format(voucher_amount($v[$k])) ?></td></tr>
     <?php endforeach ?>
     </tbody>
