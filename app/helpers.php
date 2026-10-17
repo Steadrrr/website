@@ -71,7 +71,8 @@ const RENT_DC_RULES = [
 const RATE_TYPES = ['weekday' => '비수기 평일', 'weekend' => '비수기 주말', 'peak' => '성수기'];
 const RATE_DC_DEFAULT = ['weekday' => 30, 'weekend' => 10, 'peak' => 10]; // 할인율(%) 기본값
 const ROOM_BLOCK_REASONS = ['spare' => '예비객실', 'construction' => '공사', 'business' => '업무예약']; // 객실 미판매 사유 (객실운영관리)
-const ROOM_DC_REASONS = ['multichild' => '다자녀', 'local' => '지역주민', 'disabled' => '장애인', 'group' => '단체']; // 객실 할인사유 (일일객실판매)
+const ROOM_DC_REASONS = ['multichild' => '다자녀', 'local' => '지역주민', 'disabled' => '장애인', 'group' => '단체', 'work' => '업무예약']; // 객실 할인사유 (일일객실판매)
+const ROOM_DC_FREE = ['work']; // 전액 무료(100%)인 할인사유 — 업무예약
 
 const JOURNAL_STATUS = [
     'draft'    => '임시저장',

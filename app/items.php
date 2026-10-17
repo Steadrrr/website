@@ -500,11 +500,11 @@ function items_form(string $type, array $payload, string $workDate, ?array $jour
         foreach (journal_vouchers_out((int) $journal['id']) as $d => $q) $stock[$d] += $q;
     }
     $unassigned = array_sum($payload['vouchers'] ?? []) > 0; ?>
-  <script>window.ROOM_DC = <?= json_encode(array_map(fn($k) => room_dc_pct($k), array_combine(array_keys(RATE_TYPES), array_keys(RATE_TYPES)))) ?>; window.ROOM_DC_GROUP = <?= room_dc_group_pct() ?>;</script>
+  <script>window.ROOM_DC = <?= json_encode(array_map(fn($k) => room_dc_pct($k), array_combine(array_keys(RATE_TYPES), array_keys(RATE_TYPES)))) ?>; window.ROOM_DC_GROUP = <?= room_dc_group_pct() ?>; window.ROOM_DC_FREE = <?= json_encode(ROOM_DC_FREE) ?>;</script>
   <h3>객실 판매 · 지역상품권 환급</h3>
   <p class="muted small">
     판매한 객실의 <b>입실인원</b>을 입력하세요. 요금구분은 날짜로 자동 선택됩니다(성수기 기간 → 성수기, 금·토 → 비수기 주말).
-    할인 대상이면 '할인'에 체크하고 <b>할인사유</b>(<?= e(implode('·', ROOM_DC_REASONS)) ?>)를 고르세요 (<?= e(implode(', ', array_map(fn($k, $v) => $v . ' ' . room_dc_pct($k) . '%', array_keys(RATE_TYPES), RATE_TYPES))) ?><?= room_dc_group_pct() ? ', 할인사유가 단체면 ' . room_dc_group_pct() . '%' : '' ?>).
+    할인 대상이면 '할인'에 체크하고 <b>할인사유</b>(<?= e(implode('·', ROOM_DC_REASONS)) ?>)를 고르세요 (<?= e(implode(', ', array_map(fn($k, $v) => $v . ' ' . room_dc_pct($k) . '%', array_keys(RATE_TYPES), RATE_TYPES))) ?><?= room_dc_group_pct() ? ', 할인사유가 단체면 ' . room_dc_group_pct() . '%' : '' ?>, <b>업무예약은 전액 무료</b>). 할인 객실은 지역상품권 환급이 없습니다.
     지역상품권은 환급한 권종별 매수를 입력하며, 객실·요금구분별 기준 환급액과 다르면 붉게 표시되고 저장할 때 알려 드립니다.
     <b>연박</b>(2·3박)은 입실일에 숙박 전체 환급액을 한 번에 주고(2박째부터는 그 날짜의 주말·성수기 기준), 연박 둘째 날부터는 환급하지 않습니다. <b>할인 객실은 환급이 없습니다.</b>
   </p>

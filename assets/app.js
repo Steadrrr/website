@@ -56,9 +56,10 @@
         const group = window.ROOM_DC_GROUP || 0; // 단체 할인율 (0이면 요금구분별)
         const dcBox = $(tr, '[data-dc]');
         const why = $(tr, '[data-dc-reason]');
-        const pct = dcBox.checked && why && why.value === 'group' && group > 0 ? group : (dc[rate] || 0);
-        setText($(tr, '[data-dc-pct]'), pct + '%');
-        dcBox.disabled = !(dc[rate] || 0) && !group;
+        const free = dcBox.checked && why && (window.ROOM_DC_FREE || []).includes(why.value); // 업무예약 = 전액 무료
+        const pct = free ? 100 : dcBox.checked && why && why.value === 'group' && group > 0 ? group : (dc[rate] || 0);
+        setText($(tr, '[data-dc-pct]'), free ? '무료' : pct + '%');
+        dcBox.disabled = false; // 업무예약(전액 무료)은 할인율 설정과 관계없이 고를 수 있음
         if (dcBox.disabled) dcBox.checked = false;
         // 할인사유: 할인에 체크했을 때만 고르고, 비어 있으면 붉게
         if (why) {

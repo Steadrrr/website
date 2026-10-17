@@ -202,9 +202,10 @@ function room_dc_group_pct(): int
     return max(0, min(100, (int) setting('room_dc_group', '0')));
 }
 
-/** 객실 할인에 적용할 할인율: 할인사유가 '단체'이고 단체 할인율이 있으면 그것, 아니면 요금구분별 할인율 */
+/** 객실 할인에 적용할 할인율: 업무예약은 전액 무료(100%), 할인사유가 '단체'이고 단체 할인율이 있으면 그것, 아니면 요금구분별 할인율 */
 function room_dc_pct_for(string $rate, ?string $reason = null): int
 {
+    if (in_array($reason, ROOM_DC_FREE, true)) return 100;
     return $reason === 'group' && room_dc_group_pct() > 0 ? room_dc_group_pct() : room_dc_pct($rate);
 }
 

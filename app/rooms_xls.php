@@ -70,7 +70,7 @@ function rooms_xls_cancelled(string $status): bool
 /** 할인적용 문구 → 할인사유 키 (모르면 null) */
 function rooms_xls_dc_reason(string $dc): ?string
 {
-    foreach ([['다자녀', 'multichild'], ['지역', 'local'], ['군민', 'local'], ['장애', 'disabled'], ['유공', 'disabled'], ['단체', 'group']] as [$kw, $k]) {
+    foreach ([['다자녀', 'multichild'], ['지역', 'local'], ['군민', 'local'], ['장애', 'disabled'], ['유공', 'disabled'], ['단체', 'group'], ['업무', 'work']] as [$kw, $k]) {
         if (str_contains($dc, $kw)) return $k;
     }
     return null;
