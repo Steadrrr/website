@@ -84,9 +84,12 @@
         try { next = JSON.parse(tr.dataset.refundNext || '[]'); } catch (e) { next = []; }
         let expected = num(tr.dataset['refund' + rate.charAt(0).toUpperCase() + rate.slice(1)]);
         let refundWhy = '';
-        if (dcBox.checked) { expected = 0; refundWhy = '할인 · 환급 없음'; }
+        // 할인: 주중(비수기 평일) 할인율 적용은 환급, 주말·성수기·단체 할인율·업무예약은 환급 없음
+        const refundableDc = rate === 'weekday' && !free && !(why && why.value === 'group' && group > 0);
+        if (dcBox.checked && pct > 0 && !refundableDc) { expected = 0; refundWhy = '할인 · 환급 없음'; }
         else if (tr.dataset.cont) { expected = 0; refundWhy = '연박 중 · ' + tr.dataset.cont + ' 지급'; }
         else if (stay >= 2) { for (let k = 0; k < stay - 1; k++) expected += num(next[k]); refundWhy = '연박 ' + stay + '박 합계'; }
+        if (!refundWhy && dcBox.checked && pct > 0 && refundableDc) refundWhy = '주중 할인 · 환급';
         setText($(tr, '[data-refund-base]'), fmt(expected));
         setText($(tr, '[data-refund-why]'), refundWhy);
         const mismatch = sold ? refund !== expected : refund > 0;

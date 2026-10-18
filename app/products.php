@@ -209,6 +209,16 @@ function room_dc_pct_for(string $rate, ?string $reason = null): int
     return $reason === 'group' && room_dc_group_pct() > 0 ? room_dc_group_pct() : room_dc_pct($rate);
 }
 
+/**
+ * 할인 객실이라도 지역상품권을 환급하는가: 비수기 평일(주중) 할인율(기본 30%)을 적용한 할인만 환급.
+ * 주말·성수기 할인, 단체 할인율, 업무예약(전액 무료)은 환급 없음.
+ */
+function room_dc_refundable(string $rate, ?string $reason): bool
+{
+    if ($rate !== 'weekday' || in_array($reason, ROOM_DC_FREE, true)) return false;
+    return !($reason === 'group' && room_dc_group_pct() > 0);
+}
+
 /** 요금구분별 정상 요금 */
 function room_base_price(array $p, string $rate): int
 {
@@ -231,7 +241,7 @@ function room_refund(array $p, string $rate): int
 
 /**
  * 그 날 줄의 기준 지역상품권 환급액 (일일객실판매)
- *  - 할인 객실은 환급 없음 (0)
+ *  - 할인 객실은 환급 없음 (0) — 단 주중(비수기 평일) 할인은 환급 (호출하는 쪽이 room_dc_refundable() 로 판단해 $discounted=false 로 넘김)
  *  - 연박(2·3박 …)은 입실일에 숙박 전체를 한 번에: 1박째는 고른 요금구분, 2박째부터는 그 날짜의 요금구분(주말·성수기) 기준
  *  - 앞선 연박이 이어지는 날($continued)은 입실일에 이미 줬으므로 0
  */

@@ -145,9 +145,10 @@ function items_parse(string $type, string $workDate, int $journalId): array
             $isDc = $dc && $unit !== room_price($p, $rate);
             $sn = ($sn = to_int($row['stay'] ?? 0)) >= 2 && $sn <= 30 ? $sn : 0;
             $isCont = isset($continued[(int) $p['id']]);
-            $expected = room_refund_stay($p, $workDate, $rate, $isDc, $sn, $isCont);
+            $noRefundDc = $isDc && !room_dc_refundable($rate, $dcReason); // 주중 할인은 환급, 그 밖의 할인은 환급 없음
+            $expected = room_refund_stay($p, $workDate, $rate, $noRefundDc, $sn, $isCont);
             if ($refund !== $expected) {
-                $why = $isDc ? '할인 객실은 환급 없음' : ($isCont ? '연박 중(입실일 ' . date('n/j', strtotime($continued[(int) $p['id']])) . '에 지급)' : ($sn ? "연박 {$sn}박 합계" : RATE_TYPES[$rate]));
+                $why = $noRefundDc ? '주중 할인 외 할인 객실은 환급 없음' : ($isCont ? '연박 중(입실일 ' . date('n/j', strtotime($continued[(int) $p['id']])) . '에 지급)' : ($sn ? "연박 {$sn}박 합계" : RATE_TYPES[$rate]));
                 $payload['warnings'][] = "{$p['name']}: 지역상품권 환급액 " . number_format($refund) . "원이 기준 환급액 " . number_format($expected) . "원($why)과 다릅니다.";
             }
             $lines[] = [
@@ -504,9 +505,9 @@ function items_form(string $type, array $payload, string $workDate, ?array $jour
   <h3>객실 판매 · 지역상품권 환급</h3>
   <p class="muted small">
     판매한 객실의 <b>입실인원</b>을 입력하세요. 요금구분은 날짜로 자동 선택됩니다(성수기 기간 → 성수기, 금·토 → 비수기 주말).
-    할인 대상이면 '할인'에 체크하고 <b>할인사유</b>(<?= e(implode('·', ROOM_DC_REASONS)) ?>)를 고르세요 (<?= e(implode(', ', array_map(fn($k, $v) => $v . ' ' . room_dc_pct($k) . '%', array_keys(RATE_TYPES), RATE_TYPES))) ?><?= room_dc_group_pct() ? ', 할인사유가 단체면 ' . room_dc_group_pct() . '%' : '' ?>, <b>업무예약은 전액 무료</b>). 할인 객실은 지역상품권 환급이 없습니다.
+    할인 대상이면 '할인'에 체크하고 <b>할인사유</b>(<?= e(implode('·', ROOM_DC_REASONS)) ?>)를 고르세요 (<?= e(implode(', ', array_map(fn($k, $v) => $v . ' ' . room_dc_pct($k) . '%', array_keys(RATE_TYPES), RATE_TYPES))) ?><?= room_dc_group_pct() ? ', 할인사유가 단체면 ' . room_dc_group_pct() . '%' : '' ?>, <b>업무예약은 전액 무료</b>). 할인 객실의 지역상품권 환급은 <b>주중(비수기 평일) 할인만</b> 하고, 주말·성수기·단체·업무예약 할인은 환급이 없습니다.
     지역상품권은 환급한 권종별 매수를 입력하며, 객실·요금구분별 기준 환급액과 다르면 붉게 표시되고 저장할 때 알려 드립니다.
-    <b>연박</b>(2·3박)은 입실일에 숙박 전체 환급액을 한 번에 주고(2박째부터는 그 날짜의 주말·성수기 기준), 연박 둘째 날부터는 환급하지 않습니다. <b>할인 객실은 환급이 없습니다.</b>
+    <b>연박</b>(2·3박)은 입실일에 숙박 전체 환급액을 한 번에 주고(2박째부터는 그 날짜의 주말·성수기 기준), 연박 둘째 날부터는 환급하지 않습니다. <b>할인 객실은 주중 할인만 환급합니다.</b>
   </p>
   <div class="table-scroll">
   <table class="table room-table" data-room-table>
