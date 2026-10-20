@@ -168,6 +168,7 @@ $docTitle = $att ? '근태 신청 · ' . $att['user_name'] . ' ' . att_kind_name
 <div class="actions no-print">
   <a class="btn ghost" href="<?= e(url($listUrl)) ?>">목록</a>
   <button class="btn ghost" onclick="window.print()">인쇄</button>
+  <?php if ($journal['type'] === 'rooms' && can_menu($user, 'room')): ?><a class="btn ghost" href="<?= e(url('rooms_payout.php?id=' . (int) $journal['id'])) ?>">수불부</a><?php endif ?>
   <?php if (can_edit_journal($journal, $user)): ?>
     <?= edit_button($journal) ?>
   <?php endif ?>

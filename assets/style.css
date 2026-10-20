@@ -1208,3 +1208,29 @@ label .tm-pick { display: flex; margin-top: .25rem; }
 /* 일일객실판매: 기준 환급액 사유는 따로 한 줄, 좁게 줄바꿈 (가로 스크롤 방지) */
 .refund-why { display: block; white-space: normal; max-width: 7.5em; margin-left: auto; line-height: 1.25; font-size: .75rem; }
 .refund-why:empty { display: none; }
+
+/* 일일객실판매 › 지역상품권 수불부 (지급 대장) */
+.payout { max-width: 900px; margin: 0 auto; }
+.payout-head { display: flex; justify-content: space-between; align-items: flex-end; gap: 12px; flex-wrap: wrap; margin-bottom: 10px; }
+.payout-head h1 { margin: 0; }
+.payout-meta { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; }
+.payout-sign th { width: 5.5em; background: #f4f7f4; }
+.payout-sign td { vertical-align: middle; }
+.sign-cell { width: 55%; }
+.sign-name { width: 10em; margin-bottom: 6px; }
+.sign-pad { position: relative; border: 1px dashed #b9c4bc; border-radius: 8px; background: #fff; max-width: 520px; }
+.sign-pad canvas { display: block; width: 100%; height: 110px; touch-action: none; cursor: crosshair; }
+.sign-hint { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: #a3ada6; pointer-events: none; }
+.payout-table th, .payout-table td { padding: 6px 8px; }
+.payout-total { font-size: 1.05rem; margin: 10px 0 4px; }
+@media print {
+  @page { size: A4 portrait; margin: 12mm; }
+  body.payout-printmode .topbar, body.payout-printmode .subnav, body.payout-printmode .help-fab, body.payout-printmode .tab-bar,
+  body.payout-printmode main.container > .print-head { display: none !important; }
+  body.payout-printmode main.container { max-width: none; padding: 0; margin: 0; }
+  .payout { max-width: none; box-shadow: none; border: 0; padding: 0; }
+  .payout .sign-pad { border: 1px solid #555; }
+  .payout input.sign-name { border: 0 !important; border-bottom: 1px solid #555 !important; border-radius: 0; box-shadow: none; background: none; }
+  .payout .sign-name::placeholder { color: transparent; }
+  .payout-table { page-break-inside: avoid; }
+}
