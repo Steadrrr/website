@@ -362,7 +362,7 @@
   const a = document.createElement('a');
   a.href = '#';
   a.className = 'me-tabs';
-  a.textContent = '🗂 탭 켜기';
+  a.innerHTML = '🗂<span class="me-tabs-label"> 탭 켜기</span>'; // 화면이 좁으면 아이콘만 (style.css)
   a.title = '페이지를 하단 탭(최대 5개)으로 열기';
   a.addEventListener('click', (ev) => {
     ev.preventDefault();

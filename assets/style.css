@@ -1260,7 +1260,7 @@ label .tm-pick { display: flex; margin-top: .25rem; }
 .ai-facts h3 { margin-top: 1rem; }
 .ai-rules td:nth-child(1), .ai-rules td:nth-child(2) { white-space: nowrap; }
 /* 상단 메뉴가 10개가 되어(AI 분석) 1366px 화면에서 줄바꿈되지 않게 간격을 조금 줄임 */
-@media (min-width: 761px) and (max-width: 1440px) { .nav { gap: .1rem; } .nav-main { padding: .4rem .45rem; } .topbar { gap: .5rem .9rem; } .me { gap: .5rem; } }
+@media (min-width: 761px) and (max-width: 1440px) { .me-tabs-label { display: none; } .nav { gap: .1rem; } .nav-main { padding: .4rem .45rem; } .topbar { gap: .5rem .9rem; } .me { gap: .5rem; } }
 /* AI 분석: 휴대폰에서는 규칙 예측 표를 카드처럼 */
 @media (max-width: 760px) {
   .ai-rules thead { display: none; }
