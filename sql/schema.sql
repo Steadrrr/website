@@ -747,3 +747,19 @@ CREATE TABLE IF NOT EXISTS push_subs (
   test_at       DATETIME NULL COMMENT '알림 테스트 요청 (앱이 테스트 알림을 띄우면 지움)',
   INDEX idx_user (user_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- AI 분석 결과 (AI 분석 메뉴): 다음 기간 예측을 저장해 두고 나중에 실제와 비교한다. facts = AI에게 준 통계 근거(개인정보 없음), result = AI 응답
+CREATE TABLE IF NOT EXISTS ai_insights (
+  id            INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  kind          VARCHAR(20) NOT NULL COMMENT 'forecast 다음 기간 예측',
+  period_from   DATE NOT NULL,
+  period_to     DATE NOT NULL,
+  facts         MEDIUMTEXT NULL COMMENT 'AI에게 준 통계 근거 JSON',
+  result        MEDIUMTEXT NULL COMMENT 'AI 응답 JSON',
+  model         VARCHAR(50) NULL,
+  input_tokens  INT UNSIGNED NOT NULL DEFAULT 0,
+  output_tokens INT UNSIGNED NOT NULL DEFAULT 0,
+  created_by    INT UNSIGNED NULL,
+  created_at    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_kind (kind, created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

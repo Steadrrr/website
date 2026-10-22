@@ -57,6 +57,12 @@
 - 배포: `contest` 브랜치 push → `.github/workflows/deploy-demo.yml` 이 `/www/demo/` 로 FTP 업로드 (커밋 메시지에 `[데모배포]` 가 있을 때만)
 - 자세한 내용: `dev/demo-setup.md`
 
+## AI 분석 (메인 메뉴 '✨ AI 분석', `ai.php` · `app/ai.php`)
+- 다음 4주 미리 보기: 민원(작년 같은 기간·같은 객실 반복) · 시설(1년 2회 이상 수리·작년 이맘때 고장) · 소모품(재고 ÷ 객실 1박당 사용량 → 남은 주)
+- **숫자는 PHP 가 계산**(`ai_facts`, `ai_rule_items` — API 키 없이도 표시), **해석은 Claude**(`ai_forecast_run`): 근거 숫자만 보내고 결과를 `ai_insights` 표에 저장
+- Claude API 는 PHP curl 로 직접 호출 (모델 `claude-opus-5-5`, structured outputs, `fallbacks: "default"`) — 공식 PHP SDK 는 파일이 많아 FTP 배포에 부담
+- API 키: 서버 `app/anthropic_key.txt`(키 한 줄) 또는 `app/config.php` 의 `'anthropic_api_key'` 에만 (저장소에 올리지 않음, .gitignore) (체험판은 운영 설정을 읽으므로 같은 키 사용). 하루 10회·2분 간격 제한, 주무관 이상만 호출
+
 ## 1. 왜 워드프레스/그누보드를 쓰지 않았나
 
 호스팅의 자동설치(워드프레스, 그누보드)는 **게시판·블로그용**입니다.

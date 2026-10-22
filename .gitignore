@@ -2,3 +2,4 @@ app/config.php
 uploads/*
 !uploads/.htaccess
 __pycache__/
+app/anthropic_key.txt

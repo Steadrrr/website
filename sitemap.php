@@ -8,6 +8,7 @@ $user = require_login();
 const SITEMAP_DESC = [
     'home'       => '공지사항, 오늘의 일정, 판매 현황 그래프, 내 결재 대기, 최근 일지',
     'schedule'   => '행사·공사·대관·기타 일정과 공휴일을 달력으로 공유 (사원 근태도 함께 보기)',
+    'ai'         => '다음 4주 미리 보기: 민원·시설 고장·소모품 구매 (통계 규칙 + AI 해설)',
     'attendance' => '연차·병가·공가·조퇴·외출·결근·초과근무 입력과 결재, 팀·사람별 근태 달력',
     'att_sheet'  => '사원별 한 달 근태표 (엑셀 다운로드·인쇄)',
     'daily'      => '일일 업무일지 작성·결재',
@@ -54,7 +55,7 @@ const SITEMAP_SETTINGS_DESC = [
     'equipment' => '팀별 장비 분류',
 ];
 const SITEMAP_ICON = ['home' => '🏠', 'schedule' => '📅', 'personal' => '🗂', 'ops' => '📋', 'room' => '🛏', 'prog' => '🌲', 'stat' => '📊', 'fac' => '🛠', 'etc' => '📌', 'settings' => '⚙',
-    'b_record' => '📋', 'b_room' => '🛏', 'b_money' => '💳', 'b_fac' => '🛠', 'b_guest' => '🙋', 'b_prog' => '🌲'];
+    'b_record' => '📋', 'b_room' => '🛏', 'b_money' => '💳', 'b_fac' => '🛠', 'b_guest' => '🙋', 'b_prog' => '🌲', 'ai' => '✨'];
 
 $groups = nav_groups($user);
 if (!empty($user['is_admin'])) $groups['settings'] = ['label' => '⚙ 설정', 'href' => 'settings.php']; // 상단바 오른쪽 설정도 사이트맵에 표시

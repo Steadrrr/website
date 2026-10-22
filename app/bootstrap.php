@@ -111,6 +111,7 @@ require __DIR__ . '/changelog.php';
 require __DIR__ . '/help.php';
 require __DIR__ . '/charts.php';
 require __DIR__ . '/sales.php';
+require __DIR__ . '/ai.php';
 require __DIR__ . '/layout.php';
 require __DIR__ . '/demo.php';
 

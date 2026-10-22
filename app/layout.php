@@ -159,6 +159,7 @@ function nav_groups(?array $user): array
     if (!$user || !can_manage_docs($user)) unset($groups['personal']['items']['docs']); // 문서관리는 공무직 이상
     if (!$user || !can_ar($user)) unset($groups['room']['items']['ar']); // AR사용관리는 공무직 이상
     if (!$user || !can_purchase($user)) unset($groups['fac']['items']['purchase']); // 물품구매는 공무직 이상
+    if ($user) $groups['ai'] = ['label' => '✨ AI 분석', 'href' => 'ai.php']; // 다음 4주 예측 (민원·시설·소모품)
     // 기타는 항상 맨 마지막
     $etc = $groups['etc'];
     unset($groups['etc']);
@@ -199,6 +200,7 @@ function nav_bundle(array $groups): array
         }
         if ($items) $out[$bk] = ['label' => $label, 'items' => $items];
     }
+    if (isset($groups['ai'])) $out['ai'] = $groups['ai'];
     $etc = array_diff_key($all, $used); // 묶음에 없는 나머지 (조직도·도움말 등)
     if ($etc) $out['etc'] = ['label' => '기타', 'items' => $etc];
     return $out;
