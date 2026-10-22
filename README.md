@@ -63,6 +63,8 @@
 - Claude API 는 PHP curl 로 직접 호출 (모델 `claude-opus-5-5`, structured outputs, `fallbacks: "default"`) — 공식 PHP SDK 는 파일이 많아 FTP 배포에 부담
 - API 키: `ai_key.php` 화면에서 입력(운영=최고관리자, 체험판=운영 최고관리자 아이디·비밀번호 확인, 5회 틀리면 1시간 잠금) → 서버 `app/anthropic_key.txt`(키 한 줄) 또는 `app/config.php` 의 `'anthropic_api_key'` 에만 (저장소에 올리지 않음, .gitignore) (체험판은 운영 설정을 읽으므로 같은 키 사용). 하루 1회 발행(GET_LOCK 으로 동시 발행 방지, 실패하면 다시 가능), 주무관 이상만 발행
 
+- 지난 예측 되돌아보기 (`ai_review.php` · `app/ai_review.php`): 기준일까지 기록만으로 같은 규칙(작년 같은 4주 2건 이상 분류 / 같은 객실·소분류 120일 2건 이상 / 설비 1년 2회 이상·작년 ±2주 수리) 예측 → 다음 4주 실제 민원(단순문의 제외)·설비 수리와 비교 (✅ 같은 소분류·같은 설비, 🟡 같은 중분류·같은 객실 다른 민원·4주 뒤 90일 안 수리). 지난 AI 발행본(`?id=`)은 제목 속 설비 이름·객실·분류 낱말로 자동 대조. API 호출 없음
+
 ### 민원 분류 제안 (`ai_classify.php` · `app/ai_classify.php`)
 - 업무일지 민원 입력의 '✨ 분류 제안': 내용 → 소분류 코드(+ 글에 나온 객실·시설) 제안, 담당자가 확인 후 저장
 - AI(Claude, effort low, 분류표 전체를 지시문으로, 코드 enum 구조화 응답) → 실패·키 없음·하루 300회 초과면 낱말 규칙(`CPL_RULES`)
