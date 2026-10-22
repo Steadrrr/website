@@ -66,6 +66,9 @@ function layout_header(string $title, string $active = '', array $opt = []): voi
   </div>
   <?php endif ?>
 </header>
+<?php if (is_demo() && !$shell): ?>
+<div class="demo-banner no-print">체험판 · 모든 자료는 가상입니다 · 바꾼 내용은 매일 밤 처음 상태로 돌아갑니다</div>
+<?php endif ?>
 <?php if ($shell): ?>
 <nav class="subbar no-print" data-shell-subbar hidden></nav>
 <?php elseif ($user && $current && !empty($groups[$current]['items'])): ?>
@@ -156,11 +159,51 @@ function nav_groups(?array $user): array
     if (!$user || !can_manage_docs($user)) unset($groups['personal']['items']['docs']); // 문서관리는 공무직 이상
     if (!$user || !can_ar($user)) unset($groups['room']['items']['ar']); // AR사용관리는 공무직 이상
     if (!$user || !can_purchase($user)) unset($groups['fac']['items']['purchase']); // 물품구매는 공무직 이상
+    if ($user) $groups['ai'] = ['label' => '✨ AI 분석', 'href' => 'ai.php']; // 다음 4주 예측 (민원·시설·소모품)
     // 기타는 항상 맨 마지막
     $etc = $groups['etc'];
     unset($groups['etc']);
     $groups['etc'] = $etc;
-    return $groups;
+    return nav_bundled() ? nav_bundle($groups) : $groups;
+}
+
+/** 메뉴를 업무 흐름 묶음으로 보여 줄지 (config 'nav' => 'bundle', 체험판은 기본) */
+function nav_bundled(): bool
+{
+    return config('nav', is_demo() ? 'bundle' : '') === 'bundle';
+}
+
+/**
+ * 업무 흐름 묶음 메뉴: 기록·결재 / 객실 운영 / 재정·상품권 / 시설·안전 / 고객 / 프로그램 (+ 기타).
+ * 화면·권한은 그대로이고 이름·순서만 다시 묶는다. 권한으로 이미 빠진 항목은 그대로 빠진다.
+ */
+const NAV_BUNDLES = [
+    'b_record'  => ['기록·결재', ['schedule', 'daily', 'approval', 'docs', 'notices', 'attendance', 'att_sheet']],
+    'b_room'    => ['객실 운영', ['rooms', 'clean', 'room_ops', 'supplies', 'ar', 'room_stats']],
+    'b_money'   => ['재정·상품권', ['sales', 'voucher', 'stats', 'product_sales']],
+    'b_fac'     => ['시설·안전', ['facility', 'facilities', 'equipment', 'purchase']],
+    'b_guest'   => ['고객', ['complaints', 'cpl_stats', 'lost', 'visit_stats']],
+    'b_prog'    => ['프로그램', ['prog_sched', 'healing', 'kidsforest', 'kidsdirect', 'guide', 'guide2', 'prog_stats']],
+];
+
+function nav_bundle(array $groups): array
+{
+    $all = ['schedule' => ['schedule.php', '일정표']];
+    foreach ($groups as $g) foreach ($g['items'] ?? [] as $k => $item) $all[$k] = $item;
+    $out = ['home' => $groups['home']];
+    $used = ['schedule' => true];
+    foreach (NAV_BUNDLES as $bk => [$label, $keys]) {
+        $items = [];
+        foreach ($keys as $k) {
+            if (isset($all[$k])) $items[$k] = $all[$k];
+            $used[$k] = true;
+        }
+        if ($items) $out[$bk] = ['label' => $label, 'items' => $items];
+    }
+    if (isset($groups['ai'])) $out['ai'] = $groups['ai'];
+    $etc = array_diff_key($all, $used); // 묶음에 없는 나머지 (조직도·도움말 등)
+    if ($etc) $out['etc'] = ['label' => '기타', 'items' => $etc];
+    return $out;
 }
 
 function layout_footer(array $scripts = []): void

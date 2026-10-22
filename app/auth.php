@@ -1,12 +1,28 @@
 <?php
 defined('APP_ROOT') || exit;
 
+/** 이 세션을 만든 사이트 표시: 운영 main / 체험판 demo */
+function session_site(): string
+{
+    return is_demo() ? 'demo' : 'main';
+}
+
+/** 로그인 세션 만들기 (세션 번호 새로 + 사이트 표시) */
+function session_login(int $userId): void
+{
+    session_regenerate_id(true);
+    $_SESSION['uid'] = $userId;
+    $_SESSION['site'] = session_site();
+}
+
 function current_user(): ?array
 {
     static $user = false;
     if ($user !== false) return $user;
 
     $user = null;
+    // 다른 사이트(운영 ↔ 체험판)에서 만든 세션이면 받지 않는다 (예전 운영 세션은 표시가 없어 운영으로 본다)
+    if (!empty($_SESSION['uid']) && ($_SESSION['site'] ?? 'main') !== session_site()) unset($_SESSION['uid']);
     if (empty($_SESSION['uid'])) remember_login(); // 자동 로그인 쿠키가 있으면 세션을 다시 만든다
     if (!empty($_SESSION['uid'])) {
         $st = db()->prepare("SELECT * FROM users WHERE id = ? AND status = 'active'");
@@ -99,8 +115,8 @@ function require_admin(): array
 }
 
 /* ───────────── ID 저장 · 자동 로그인 ───────────── */
-const REMEMBER_COOKIE = 'FORESTLOG_AUTO'; // 자동 로그인 (selector:validator)
-const SAVED_ID_COOKIE = 'FORESTLOG_ID';   // ID 저장
+define('REMEMBER_COOKIE', is_demo() ? 'FORESTLOG_DEMO_AUTO' : 'FORESTLOG_AUTO'); // 자동 로그인 (selector:validator). 데모는 이름을 나눔
+define('SAVED_ID_COOKIE', is_demo() ? 'FORESTLOG_DEMO_ID' : 'FORESTLOG_ID');     // ID 저장
 const REMEMBER_DAYS = 30;
 
 function auth_cookie(string $name, string $value, int $expires): void
@@ -162,8 +178,7 @@ function remember_login(): void
     }
     db()->prepare('UPDATE auth_tokens SET last_used_at = NOW() WHERE id = ?')->execute([$row['id']]);
     db()->prepare('UPDATE users SET last_login_at = NOW() WHERE id = ?')->execute([$row['user_id']]);
-    session_regenerate_id(true);
-    $_SESSION['uid'] = (int) $row['user_id'];
+    session_login((int) $row['user_id']);
 }
 
 /** 이 기기의 자동 로그인 해제 (로그아웃) */
@@ -198,7 +213,6 @@ function attempt_login(string $username, string $password): array|string
     }
     db()->prepare('UPDATE users SET last_login_at = NOW() WHERE id = ?')->execute([$u['id']]);
 
-    session_regenerate_id(true);
-    $_SESSION['uid'] = (int) $u['id'];
+    session_login((int) $u['id']);
     return $u;
 }

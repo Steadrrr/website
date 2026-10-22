@@ -254,6 +254,7 @@ layout_header($title, 'stats');
 <div class="grid2">
   <section class="card">
     <h2>입장권별</h2>
+    <div class="table-scroll">
     <table class="table">
       <thead><tr><th>상품</th><th>구분</th><th class="right">수량(매)</th><th class="right">금액</th></tr></thead>
       <tbody>
@@ -264,9 +265,11 @@ layout_header($title, 'stats');
       </tbody>
       <tfoot><tr><th colspan="2">합계</th><th class="right"><?= number_format(array_sum(array_column($tickets, 'qty'))) ?></th><th class="right"><?= number_format(array_sum(array_column($tickets, 'amount'))) ?></th></tr></tfoot>
     </table>
+    </div>
   </section>
   <section class="card">
     <h2>객실별</h2>
+    <div class="table-scroll">
     <table class="table">
       <?php $rc = ['qty', 'weekday', 'weekend', 'peak', 'dc', 'guests', 'amount']; ?>
       <thead><tr><th>객실</th><th class="right">판매</th><th class="right">비수기<br>평일</th><th class="right">비수기<br>주말</th><th class="right">성수기</th><th class="right">할인</th><th class="right">인원</th><th class="right">금액</th></tr></thead>
@@ -278,6 +281,7 @@ layout_header($title, 'stats');
       </tbody>
       <tfoot><tr><th>합계</th><?php foreach ($rc as $c): ?><th class="right"><?= number_format(array_sum(array_column($rooms, $c))) ?></th><?php endforeach ?></tr></tfoot>
     </table>
+    </div>
   </section>
 </div>
 <?php if ($rentals): $rtc = ['qty', 't2h', 't4h', 'tday', 'night', 'dc', 'amount']; ?>

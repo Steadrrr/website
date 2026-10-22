@@ -6,7 +6,7 @@ defined('APP_ROOT') || exit;
  * 새 버전 파일을 FTP로 덮어쓰기만 하면, 첫 접속 때 부족한 테이블/컬럼을 만든다.
  * (기존 자료는 그대로 유지)
  */
-const DB_VERSION = 52;
+const DB_VERSION = 53;
 
 function db_version(): int
 {
@@ -20,7 +20,7 @@ function db_version(): int
 function column_exists(string $table, string $column): bool
 {
     $st = db()->prepare('SELECT 1 FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?');
-    $st->execute([$table, $column]);
+    $st->execute([db_table($table), $column]);
     return (bool) $st->fetchColumn();
 }
 
@@ -28,7 +28,7 @@ function column_exists(string $table, string $column): bool
 function enum_has(string $table, string $column, string $value): bool
 {
     $st = db()->prepare('SELECT COLUMN_TYPE FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?');
-    $st->execute([$table, $column]);
+    $st->execute([db_table($table), $column]);
     return str_contains((string) $st->fetchColumn(), "'" . $value . "'");
 }
 
@@ -433,6 +433,8 @@ function db_migrate(): void
     if (!column_exists('voucher_issues', 'issuer_id')) {
         $pdo->exec("ALTER TABLE voucher_issues ADD issuer_id INT UNSIGNED NULL COMMENT '불출 담당자 (금고에서 꺼내 준 사람)' AFTER holder_id");
     }
+
+    // 53) v52 → v53: AI 분석 결과 ai_insights (1) 단계에서 생성) — AI 분석 메뉴, 예측을 저장해 두고 실제와 비교
 
     $pdo->prepare("INSERT INTO settings (name, value) VALUES ('db_version', ?) ON DUPLICATE KEY UPDATE value = VALUES(value)")
         ->execute([(string) DB_VERSION]);

@@ -12,6 +12,7 @@ function setup_error(string $message): never
 }
 
 $configFile = __DIR__ . '/config.php';
+if (!is_file($configFile) && is_file(__DIR__ . '/config.demo.php')) $configFile = __DIR__ . '/config.demo.php'; // 체험판(/demo): 운영 설정 + 체험판 값
 if (!is_file($configFile)) {
     setup_error("app/config.php 파일이 없습니다.\napp/config.sample.php 를 config.php 로 복사한 뒤 DB 정보를 입력하세요.");
 }
@@ -86,6 +87,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
 }
 
 require __DIR__ . '/helpers.php';
+require __DIR__ . '/demo_db.php';
 require __DIR__ . '/auth.php';
 require __DIR__ . '/approval.php';
 require __DIR__ . '/migrate.php';
@@ -109,7 +111,9 @@ require __DIR__ . '/changelog.php';
 require __DIR__ . '/help.php';
 require __DIR__ . '/charts.php';
 require __DIR__ . '/sales.php';
+require __DIR__ . '/ai.php';
 require __DIR__ . '/layout.php';
+require __DIR__ . '/demo.php';
 
 // DB 연결 확인 → 새 버전 파일을 올린 뒤 첫 접속 시 DB 자동 업그레이드
 try {
@@ -130,10 +134,26 @@ if ($dbOk && db_version() < DB_VERSION) {
             . "\n\n이 화면을 캡처해서 개발 담당자에게 보내 주세요.");
     }
 }
+if ($dbOk) demo_maybe_reset(); // 체험용 데모 사이트: 날짜가 바뀌면 가상 자료를 새로 만든다 (운영 사이트는 아무것도 안 함)
 unset($dbOk);
 
 $https = ($_SERVER['HTTPS'] ?? '') === 'on' || ($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '') === 'https';
-session_name('FORESTLOG');
+session_name(is_demo() ? 'FORESTLOG_DEMO' : 'FORESTLOG'); // 데모는 같은 도메인의 하위 폴더라 운영 사이트 로그인과 섞이지 않게 이름을 나눈다
+ini_set('session.use_strict_mode', '1'); // 서버가 만들지 않은 세션 번호는 받지 않는다
+if (is_demo()) {
+    // 체험판 세션은 따로 보관한다: 같은 서버의 운영 사이트와 세션 저장소를 같이 쓰면,
+    // 체험판 세션 번호를 운영 사이트 쿠키에 넣어 운영 사용자로 들어갈 수 있다 (app 폴더는 웹 접근 금지)
+    $sessDir = APP_ROOT . '/app/_sessions';
+    if (!is_dir($sessDir)) @mkdir($sessDir, 0700, true);
+    if (is_dir($sessDir) && is_writable($sessDir)) {
+        session_save_path($sessDir);
+        ini_set('session.gc_probability', '1'); // 따로 둔 폴더는 서버의 정리 작업이 지우지 않으므로 PHP 가 직접 정리
+        ini_set('session.gc_divisor', '100');
+    } else {
+        setup_error('체험판 세션 폴더(app/_sessions)를 만들 수 없습니다.'); // 운영과 세션이 섞이지 않게, 못 만들면 체험판을 열지 않는다
+    }
+    unset($sessDir);
+}
 session_set_cookie_params([
     'lifetime' => 0,
     'path'     => config('base_url') === '' ? '/' : config('base_url') . '/',

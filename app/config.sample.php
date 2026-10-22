@@ -28,6 +28,10 @@ return [
     // 대시보드 집계에 포함할 매출보고 상태 (결재완료만 보려면 ['approved'])
     'chart_statuses' => ['pending', 'approved'],
 
+    // AI 분석 메뉴: Claude API 키 (https://console.anthropic.com 에서 발급). 비워 두면 통계 규칙으로 만든 예측만 보입니다.
+    // 키는 이 파일에만 넣고 채팅·카톡·깃허브에 올리지 마세요.
+    'anthropic_api_key' => '',
+
     // 시설 점검결과 선택지 (첫 번째 = 정상. 정상이 아닌 결과는 시설별 '이상 이력'에 모입니다)
     'facility_results' => ['정상', '점검필요', '수리요청', '조치완료'],
 ];

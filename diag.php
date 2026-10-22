@@ -6,6 +6,8 @@
  *   - 프로그램 운영보고 저장 모의 실험 (DB 에 남기지 않고 되돌림)
  *   - 보내기 실험: 운영보고와 같은 모양의 폼(사진 포함)이 서버에 도착하는지
  */
+// 체험판(/demo 폴더)에서는 진단·설치 화면을 쓰지 않는다
+if (is_file(__DIR__ . '/app/config.demo.php') && !is_file(__DIR__ . '/app/config.php')) { header('HTTP/1.1 404 Not Found'); exit; }
 require __DIR__ . '/app/bootstrap.php';
 
 $user = require_admin();

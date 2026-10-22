@@ -63,6 +63,7 @@ settings_nav($kind);
   <?php foreach ($kindTeams as $tid => $team):
       $rows = array_filter($groups, fn($g) => (int) $g['team_id'] === $tid); ?>
     <h2 class="team-head"><?= e($team['name']) ?></h2>
+    <div class="table-scroll">
     <table class="table product-table">
       <thead><tr><th>순서</th><th>이름</th><th>관리팀</th><th class="right">등록 수</th><th>사용</th><th></th></tr></thead>
       <tbody>
@@ -86,6 +87,7 @@ settings_nav($kind);
       <?php endforeach ?>
       </tbody>
     </table>
+    </div>
   <?php endforeach ?>
 </section>
 

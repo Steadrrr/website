@@ -6,6 +6,8 @@
  * ※ 이 파일은 오래된 PHP(5.6·7.x)에서도 열리도록 일부러 옛 문법만 사용한다.
  *   (PHP 버전이 낮아서 사이트가 안 열리는 경우에도 원인을 보여주기 위해)
  */
+// 체험판(/demo 폴더)에서는 진단·설치 화면을 쓰지 않는다
+if (is_file(__DIR__ . '/app/config.demo.php') && !is_file(__DIR__ . '/app/config.php')) { header('HTTP/1.1 404 Not Found'); exit; }
 error_reporting(E_ALL);
 ini_set('display_errors', '1');
 header('Content-Type: text/html; charset=utf-8');

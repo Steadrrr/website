@@ -86,6 +86,12 @@ function config(string $key, mixed $default = null): mixed
     return $GLOBALS['CONFIG'][$key] ?? $default;
 }
 
+/** 경진대회 체험용 데모 사이트인가 (config 'demo' => true). 가상 데이터·매일 밤 초기화·역할별 체험 로그인 */
+function is_demo(): bool
+{
+    return !empty($GLOBALS['CONFIG']['demo']);
+}
+
 /** settings 테이블 값 (요청마다 한 번 읽음) */
 function setting(string $name, ?string $default = null): ?string
 {
@@ -111,7 +117,7 @@ function db(): PDO
     if ($pdo === null) {
         $c = config('db');
         $dsn = sprintf('mysql:host=%s;port=%d;dbname=%s;charset=utf8mb4', $c['host'], $c['port'] ?? 3306, $c['name']);
-        $pdo = new PDO($dsn, $c['user'], $c['pass'], [
+        $pdo = new (is_demo() ? DemoPDO::class : PDO::class)($dsn, $c['user'], $c['pass'], [ // 체험판은 demo_ 표만 쓰도록 SQL을 바꿔 준다 (app/demo_db.php)
             PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
             PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
             PDO::ATTR_EMULATE_PREPARES   => false,

@@ -160,12 +160,14 @@ if ($tab === 'general'): ?>
   </form>
 
   <h2>명절 등 휴관일 <small class="muted">해마다 날짜가 바뀌는 휴관 (설날·추석 등)</small></h2>
+  <div class="table-scroll">
   <table class="table product-table">
     <thead><tr><th>이름</th><th>시작일</th><th>끝나는 날 <small class="muted">(하루면 비움)</small></th><th>일수</th><th></th></tr></thead>
     <tbody>
       <?php $cRow(null); foreach ($list as $c) $cRow($c); ?>
     </tbody>
   </table>
+  </div>
   <?php if (!$list): ?><p class="muted small">등록된 휴관일이 없습니다. 위 첫 줄에 이름과 날짜를 넣고 '추가'를 누르세요.</p><?php endif ?>
   <p class="muted small">지난 휴관일은 흐리게 보입니다. 지난 기간의 통계에도 계속 쓰이므로 지우지 않아도 됩니다.</p>
 </section>
@@ -211,6 +213,7 @@ if ($tab === 'general'): ?>
     시설관리 › 시설점검·시설물 화면과 설정 › 시설 구역·건물에서 빠집니다 (이미 작성한 점검일지와 등록한 시설은 지워지지 않습니다).</p>
 
   <h2>팀</h2>
+  <div class="table-scroll">
   <table class="table product-table">
     <thead><tr><th>순서</th><th>팀 이름</th><th class="center">시설점검·시설물</th><th>현황</th><th></th></tr></thead>
     <tbody>
@@ -221,10 +224,12 @@ if ($tab === 'general'): ?>
     $row('team', null, 0, (count(teams_all()) + 1) * 10, '새 팀 (예: 휴양림팀)', ''); ?>
     </tbody>
   </table>
+  </div>
 
   <?php foreach (teams_all() as $tid => $t):
       $squads = array_filter(squads_all(), fn($s) => (int) $s['team_id'] === $tid); ?>
     <h2 class="team-head" id="team<?= $tid ?>"><?= e($t['name']) ?> · 반</h2>
+    <div class="table-scroll">
     <table class="table product-table">
       <thead><tr><th>순서</th><th>반 이름</th><th>팀</th><th>반장 · 반원</th><th></th></tr></thead>
       <tbody>
@@ -236,6 +241,7 @@ if ($tab === 'general'): ?>
       $row('squad', null, $tid, (count($squads) + 1) * 10, '새 반 (예: 숙박반)', ''); ?>
       </tbody>
     </table>
+    </div>
   <?php endforeach ?>
 </section>
 <?php endif;

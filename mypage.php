@@ -2,6 +2,7 @@
 require __DIR__ . '/app/bootstrap.php';
 
 $user = require_login();
+demo_block_post('내 정보·비밀번호');
 
 if (is_post()) {
     csrf_verify();

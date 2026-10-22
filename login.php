@@ -5,7 +5,11 @@ if (current_user()) redirect('index.php'); // 자동 로그인 쿠키가 있으�
 
 $error = '';
 $savedId = saved_login_id();
-if (is_post()) {
+if (is_post() && post('demo_user') !== '') { // 체험판: 역할 버튼으로 바로 로그인
+    csrf_verify();
+    if (demo_login(post('demo_user'))) redirect('index.php');
+}
+if (is_post() && post('demo_user') === '') {
     csrf_verify();
     $result = attempt_login(post('username'), post('password'));
     if (is_array($result)) {
@@ -26,6 +30,21 @@ $checked = fn(string $k, bool $default) => (is_post() ? post($k) === '1' : $defa
 
 layout_header('로그인');
 ?>
+<?php if (is_demo()): ?>
+<div class="card narrow demo-login">
+  <h1>역할을 골라 체험하기</h1>
+  <p class="muted">비밀번호 없이 바로 들어갑니다. 모든 자료는 가상이며 매일 밤 처음 상태로 돌아갑니다.</p>
+  <form method="post" class="demo-roles">
+    <?= csrf_field() ?>
+    <?php foreach (DEMO_ACCOUNTS as $id => [$name, $rank, $admin, $desc]): ?>
+      <button class="btn demo-role" name="demo_user" value="<?= e($id) ?>">
+        <b><?= e(rank_name($rank)) ?> <?= e($name) ?></b><small><?= e($desc) ?></small>
+      </button>
+    <?php endforeach ?>
+  </form>
+  <p class="muted tiny-text">직접 입력: 아이디 <?= e(implode(' · ', array_keys(DEMO_ACCOUNTS))) ?> / 비밀번호 <?= e(DEMO_PASSWORD) ?></p>
+</div>
+<?php endif ?>
 <div class="card narrow">
   <h1>로그인</h1>
   <?php if ($error): ?><div class="flash flash-error"><?= e($error) ?></div><?php endif ?>
@@ -42,7 +61,7 @@ layout_header('로그인');
     <p class="muted tiny-text login-note" data-pw-note hidden>암호 저장: 비밀번호는 이 사이트가 아니라 <b>브라우저(크롬·엣지 등)의 비밀번호 관리자</b>에 안전하게 저장되고, 다음에 자동으로 채워집니다.</p>
     <button class="btn primary block">로그인</button>
   </form>
-  <p class="center muted">계정이 없으신가요? <a href="<?= e(url('register.php')) ?>">회원가입</a></p>
+  <?php if (!is_demo()): ?><p class="center muted">계정이 없으신가요? <a href="<?= e(url('register.php')) ?>">회원가입</a></p><?php endif ?>
 </div>
 <script>
 (function () {

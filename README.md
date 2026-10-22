@@ -46,6 +46,23 @@
 - `dev/contest-plan.md`: 「매력양평 공무원 AI·데이터 업무혁신 경진대회」 출품 계획
 - `dev/local/`: 로컬 테스트 환경 (`setup_local.sh` 로 DB·테스트 계정 생성, `with_servers.sh` 로 서버를 잠깐 켜서 테스트, `testlib.py` 테스트 도우미)
 
+## 체험판(데모) 사이트 — 경진대회용 (`contest` 브랜치)
+- 같은 코드를 가상 자료로 돌리는 체험판. 서버 `/www/demo/` 폴더, **운영과 같은 DB 안의 `demo_` 표**만 쓴다 (DB 추가 불필요).
+- `'demo' => true` 이면 체험판으로 동작 (`app/config.demo.php` 가 운영 설정을 읽어 체험판 값만 덮어씀):
+  - 모든 SQL 의 표 이름을 `demo_` 표로 바꿔 실행 (`app/demo_db.php`) — 운영 표는 읽지도 쓰지도 않는다
+  - 로그인 화면에 역할별 체험 버튼(사원·공무직·주무관·팀장, 비밀번호 없이), 화면 위 '체험판' 안내 띠
+  - 날짜가 바뀐 뒤 첫 접속 때 모든 자료를 지우고 가상 자료를 다시 만든다 (`app/demo.php`)
+  - 로그인 쿠키 이름을 따로 써서 같은 도메인의 운영 사이트 로그인과 섞이지 않는다
+  - 메뉴를 업무 흐름 6묶음(기록·결재/객실 운영/재정·상품권/시설·안전/고객/프로그램)으로 표시 (`'nav' => 'bundle'` 로 운영 사이트에서도 켤 수 있음, 기본은 꺼짐)
+- 배포: `contest` 브랜치 push → `.github/workflows/deploy-demo.yml` 이 `/www/demo/` 로 FTP 업로드 (커밋 메시지에 `[데모배포]` 가 있을 때만)
+- 자세한 내용: `dev/demo-setup.md`
+
+## AI 분석 (메인 메뉴 '✨ AI 분석', `ai.php` · `app/ai.php`)
+- 어제까지 자료로 오늘부터 4주 미리 보기 (하루 한 번 발행, 발행본은 모두 봄, 발행 안 한 날은 최근 발행본): 민원(작년 같은 기간·같은 객실 반복) · 시설(1년 2회 이상 수리·작년 이맘때 고장) · 소모품(재고 ÷ 객실 1박당 사용량 → 남은 주)
+- **숫자는 PHP 가 계산**(`ai_facts`, `ai_rule_items` — API 키 없이도 표시), **해석은 Claude**(`ai_forecast_run`): 근거 숫자만 보내고 결과를 `ai_insights` 표에 저장
+- Claude API 는 PHP curl 로 직접 호출 (모델 `claude-opus-5-5`, structured outputs, `fallbacks: "default"`) — 공식 PHP SDK 는 파일이 많아 FTP 배포에 부담
+- API 키: `ai_key.php` 화면에서 입력(운영=최고관리자, 체험판=운영 최고관리자 아이디·비밀번호 확인, 5회 틀리면 1시간 잠금) → 서버 `app/anthropic_key.txt`(키 한 줄) 또는 `app/config.php` 의 `'anthropic_api_key'` 에만 (저장소에 올리지 않음, .gitignore) (체험판은 운영 설정을 읽으므로 같은 키 사용). 하루 1회 발행(GET_LOCK 으로 동시 발행 방지, 실패하면 다시 가능), 주무관 이상만 발행
+
 ## 1. 왜 워드프레스/그누보드를 쓰지 않았나
 
 호스팅의 자동설치(워드프레스, 그누보드)는 **게시판·블로그용**입니다.
