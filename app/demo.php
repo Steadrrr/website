@@ -56,10 +56,11 @@ function demo_seed(): void
     @set_time_limit(120);
     mt_srand(20261030); // 매번 같은 모양의 자료 (날짜만 오늘 기준으로 이동)
 
-    // 1) 비우기 (settings 는 DB 버전·기본값이 있어 남긴다)
+    // 1) 비우기
     $pdo->exec('SET FOREIGN_KEY_CHECKS = 0');
     foreach (array_keys(demo_known_tables()) as $t) {
-        if ($t !== 'settings') $pdo->exec("TRUNCATE TABLE `$t`"); // DemoPDO 가 demo_ 표로 바꾼다 (운영 표는 건드릴 수 없음)
+        // settings(DB 버전·기본값)와 ai_insights(발행한 AI 예측 — 발행 안 한 날도 최근 발행본을 보여 준다)는 남긴다
+        if (!in_array($t, ['settings', 'ai_insights'], true)) $pdo->exec("TRUNCATE TABLE `$t`"); // DemoPDO 가 demo_ 표로 바꾼다 (운영 표는 건드릴 수 없음)
     }
     $pdo->exec('SET FOREIGN_KEY_CHECKS = 1');
     demo_clear_uploads();

@@ -2,19 +2,18 @@
 defined('APP_ROOT') || exit;
 
 /*
- * AI 분석 (메인 메뉴 'AI 분석') — 다음 4주 미리 보기: 민원 · 시설 · 소모품
+ * AI 분석 (메인 메뉴 'AI 분석') — 오늘부터 4주 미리 보기: 민원 · 시설 · 소모품
  *  원칙: 숫자 계산은 PHP(아래 ai_facts), 해석·우선순위·할 일 정리는 Claude.
  *   1) ai_facts(): 작년 같은 기간·최근 추세·반복 고장·재고 소진 속도를 숫자로 뽑는다 (사람 이름·연락처·민원 원문은 넣지 않음)
  *   2) ai_rule_items(): 그 숫자만으로 만든 규칙 예측 — API 키가 없어도 보인다
  *   3) ai_forecast_run(): 숫자 + 규칙 예측을 Claude 에 보내 해설·구매 목록·체크리스트를 받고 ai_insights 에 저장
+ *  발행: 어제까지의 자료로 오늘부터 4주를 예측해 하루 한 번 발행(주무관 이상), 발행본은 모두가 본다. 발행하지 않은 날은 최근 발행본을 보여 준다.
  *  Claude API 는 PHP curl 로 직접 부른다 (공식 PHP SDK 는 파일이 많아 FTP 배포에 부담 — 사용자 결정 2026-10-22).
  */
 
 const AI_MODEL = 'claude-opus-5-5';
 const AI_API_VERSION = '2026-10-21';
-const AI_DAILY_LIMIT = 10;   // 하루 최대 AI 호출 (비용 보호)
-const AI_MIN_GAP = 120;      // 연달아 누를 때 최소 간격(초)
-const AI_HORIZON_DAYS = 28;  // 예측 기간: 내일부터 4주
+const AI_HORIZON_DAYS = 28;  // 예측 기간: 오늘부터 4주 (자료는 어제까지 — 하루 한 번 발행)
 
 /**
  * Claude API 키: config.php 의 'anthropic_api_key', 없으면 app/anthropic_key.txt (키 한 줄만 든 파일 — 설정 파일을 고치다 사이트가 멈출 위험이 없다).
@@ -77,16 +76,22 @@ function ai_key_save(string $key): bool
     return $ok;
 }
 
-/** AI 분석 새로 받기: 주무관 이상·최고관리자 (비용이 드는 버튼) */
+/** AI 예측 발행: 주무관 이상·최고관리자 (비용이 드는 버튼, 하루 한 번) */
 function ai_can_run(?array $u): bool
 {
     return $u && (!empty($u['is_admin']) || (int) $u['rank_level'] >= RANK_OFFICER);
 }
 
-/** 예측 기간 [시작, 끝] = 내일부터 4주 */
+/** 예측 기간 [시작, 끝] = 오늘부터 4주 */
 function ai_window(): array
 {
-    return [date('Y-m-d', strtotime('+1 day')), date('Y-m-d', strtotime('+' . AI_HORIZON_DAYS . ' days'))];
+    return [date('Y-m-d'), date('Y-m-d', strtotime('+' . (AI_HORIZON_DAYS - 1) . ' days'))];
+}
+
+/** 자료 기준일 = 어제 (오늘 자료는 아직 다 들어오지 않았으므로) */
+function ai_basis(): string
+{
+    return date('Y-m-d', strtotime('-1 day'));
 }
 
 function ai_minus_year(string $d): string
@@ -115,13 +120,13 @@ function ai_days(string $from, string $to): int
 function ai_facts(): array
 {
     $pdo = db();
-    $today = date('Y-m-d');
+    $today = ai_basis(); // 아래 '최근' 계산은 모두 어제까지
     [$from, $to] = ai_window();
     [$lyFrom, $lyTo] = [ai_minus_year($from), ai_minus_year($to)];
     $roomCount = count(array_filter(products_all(), fn($p) => $p['grp'] === 'room' && $p['is_active']));
 
     // 객실 판매 (작년 같은 기간 · 최근 4주)
-    $recentFrom = date('Y-m-d', strtotime('-28 days'));
+    $recentFrom = date('Y-m-d', strtotime("$today -27 days"));
     $lyRn = ai_room_nights($lyFrom, $lyTo);
     $recentRn = ai_room_nights($recentFrom, $today);
     $rooms = ['객실 수' => $roomCount, '작년 같은 기간 판매(박)' => $lyRn, '최근 4주 판매(박)' => $recentRn,
@@ -139,7 +144,7 @@ function ai_facts(): array
         foreach ($st as $r) $out[cpl_name($r['cat1'])] = (int) $r['n'];
         return $out;
     };
-    $w8 = date('Y-m-d', strtotime('-56 days'));
+    $w8 = date('Y-m-d', strtotime("$today -55 days"));
     // 같은 객실에서 같은 소분류(예: 온수, 배수)가 되풀이된 것
     $st = $pdo->prepare("SELECT place_name, cat3, COUNT(*) n, MAX(work_date) last FROM complaints
                           WHERE place_type = 'room' AND cat1 <> ? AND work_date >= ? GROUP BY place_name, cat3 HAVING n >= 2 ORDER BY n DESC, last DESC LIMIT 10");
@@ -187,17 +192,17 @@ function ai_facts(): array
     foreach ($st as $r) $checks[] = ['구역' => $r['area'], '시설' => $r['facility'], '결과' => $r['result'], '최근 8주 횟수' => (int) $r['n'], '마지막' => $r['last']];
 
     // 소모품: 재고 · 최근 8주 사용량 · 다음 8주 예상 사용량
-    $stock = supply_stock_now();
+    $stock = supply_stock_before(date('Y-m-d')); // 어제까지의 재고
     $rn8 = ai_room_nights($w8, $today);
-    $next8To = date('Y-m-d', strtotime('+56 days'));
-    $lyNext8 = ai_room_nights(ai_minus_year(date('Y-m-d', strtotime('+1 day'))), ai_minus_year($next8To));
+    $next8To = date('Y-m-d', strtotime('+55 days'));
+    $lyNext8 = ai_room_nights(ai_minus_year(date('Y-m-d')), ai_minus_year($next8To));
     $rnNext8 = $lyNext8 > 0 ? $lyNext8 : $rn8; // 작년 자료가 없으면 최근 8주와 같다고 본다
     $out8 = [];
     $st = $pdo->prepare('SELECT supply_id, SUM(out_qty) n FROM supply_moves WHERE move_date BETWEEN ? AND ? GROUP BY supply_id');
     $st->execute([$w8, $today]);
     foreach ($st as $r) $out8[(int) $r['supply_id']] = (int) $r['n'];
     $lastIn = [];
-    foreach ($pdo->query('SELECT supply_id, move_date, in_qty FROM supply_moves WHERE in_qty > 0 ORDER BY move_date') as $r) $lastIn[(int) $r['supply_id']] = [$r['move_date'], (int) $r['in_qty']];
+    foreach ($pdo->query("SELECT supply_id, move_date, in_qty FROM supply_moves WHERE in_qty > 0 AND move_date < CURDATE() ORDER BY move_date") as $r) $lastIn[(int) $r['supply_id']] = [$r['move_date'], (int) $r['in_qty']];
     $supplies = [];
     foreach (supplies_all(true) as $sid => $s) {
         $used = $out8[$sid] ?? 0;
@@ -222,7 +227,7 @@ function ai_facts(): array
     foreach ($st as $r) $purchases[] = ['월' => $r['ym'], '구매액' => (int) $r['t'], '건수' => (int) $r['n']];
 
     return [
-        'period' => ['오늘' => $today, '예측 시작' => $from, '예측 끝' => $to, '작년 같은 기간' => "$lyFrom ~ $lyTo"],
+        'period' => ['자료 기준(어제까지)' => $today, '예측 시작(오늘)' => $from, '예측 끝' => $to, '작년 같은 기간' => "$lyFrom ~ $lyTo"],
         'rooms' => $rooms, 'complaints' => $complaints, 'equipment' => array_map(fn($e) => array_diff_key($e, ['_score' => 1]), $equipment),
         'facility_checks' => $checks, 'supplies' => $supplies, 'purchases' => $purchases,
         'supply_basis' => ['최근 8주 판매(박)' => $rn8, '다음 8주 예상 판매(박)' => $rnNext8, '예상 근거' => $lyNext8 > 0 ? '작년 같은 기간 판매' : '최근 8주와 같다고 가정'],
@@ -326,7 +331,7 @@ function ai_forecast_schema(): array
 
 const AI_FORECAST_SYSTEM = <<<'TXT'
 당신은 경기도 양평군 공공 휴양시설 '쉬자파크'(객실 19개 숙박동 치유의집, 치유센터, 산림교육센터, 공원·숲길, 관정 급수)의 운영 담당 공무원을 돕는 분석가입니다.
-업무 시스템에서 뽑은 통계 숫자와 규칙으로 만든 예측 후보를 받아, 다음 4주 동안 미리 챙길 일을 정리합니다.
+업무 시스템에서 어제까지의 자료로 뽑은 통계 숫자와 규칙으로 만든 예측 후보를 받아, 오늘부터 4주 동안 미리 챙길 일을 정리합니다. 이 정리는 그날 하루 모든 직원이 함께 봅니다.
 
 지켜 주세요:
 - 주어진 숫자에 있는 사실만 근거로 씁니다. 숫자를 지어내거나 확률(%)을 만들지 마세요. why 에는 근거가 된 숫자(건수·날짜·재고)를 그대로 적습니다.
@@ -405,25 +410,40 @@ function ai_mask(string $s): string
     return preg_replace('/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/u', '(이메일)', (string) $s);
 }
 
-/** 오늘 AI 호출 횟수·마지막 호출 시각 */
-function ai_usage_today(): array
+/** 발행 비용 (원, 대략) — 이스터에그: Opus 5.5 단가 입력 $4·출력 $20 / 100만 토큰, 1달러 ≈ 1,400원 */
+function ai_cost_won(array $insight): int
 {
-    $r = db()->query("SELECT COUNT(*) n, MAX(created_at) last FROM ai_insights WHERE created_at >= CURDATE() AND model IS NOT NULL")->fetch();
-    return ['n' => (int) $r['n'], 'last' => $r['last']];
+    $usd = ((int) $insight['input_tokens'] * 4 + (int) $insight['output_tokens'] * 20) / 1000000;
+    return (int) (round($usd * 1400 / 10) * 10);
+}
+
+/** 오늘 발행본이 있는가 */
+function ai_published_today(): bool
+{
+    return (bool) db()->query("SELECT 1 FROM ai_insights WHERE kind = 'forecast' AND created_at >= CURDATE() LIMIT 1")->fetchColumn();
 }
 
 /**
- * 다음 4주 예측 받기 → ai_insights 저장
+ * 오늘 예측 발행 (하루 한 번) → ai_insights 저장
  * @return array{ok: bool, id?: int, error?: string}
  */
 function ai_forecast_run(array $user): array
 {
-    $u = ai_usage_today();
-    if ($u['n'] >= AI_DAILY_LIMIT) return ['ok' => false, 'error' => '오늘은 AI 분석을 ' . AI_DAILY_LIMIT . '번 받아 더 받을 수 없습니다. 내일 다시 받아 주세요.'];
-    if ($u['last'] && time() - strtotime($u['last']) < AI_MIN_GAP) return ['ok' => false, 'error' => '방금 분석을 받았습니다. 2분 뒤에 다시 눌러 주세요.'];
+    // 두 사람이 동시에 눌러도 한 번만 (먼저 누른 사람이 끝날 때까지 기다렸다가 다시 확인)
+    if ((int) db()->query("SELECT GET_LOCK('ai_publish', 200)")->fetchColumn() !== 1) return ['ok' => false, 'error' => '다른 사람이 발행 중입니다. 잠시 뒤 다시 확인해 주세요.'];
+    try {
+        if (ai_published_today()) return ['ok' => false, 'error' => '오늘 예측은 이미 발행되었습니다. 내일 다시 발행할 수 있습니다.'];
+        return ai_forecast_publish($user);
+    } finally {
+        db()->query("SELECT RELEASE_LOCK('ai_publish')");
+    }
+}
+
+function ai_forecast_publish(array $user): array
+{
     $facts = ai_facts();
     $rules = ai_rule_items($facts);
-    $prompt = "아래는 쉬자파크 업무 시스템의 통계입니다. 다음 4주({$facts['period']['예측 시작']} ~ {$facts['period']['예측 끝']})를 미리 챙길 수 있게 정리해 주세요.\n\n"
+    $prompt = "아래는 쉬자파크 업무 시스템의 어제({$facts['period']['자료 기준(어제까지)']})까지 통계입니다. 오늘부터 4주({$facts['period']['예측 시작(오늘)']} ~ {$facts['period']['예측 끝']})를 미리 챙길 수 있게 정리해 주세요.\n\n"
         . "## 통계 근거\n" . json_encode(array_diff_key($facts, ['period' => 1]), JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT)
         . "\n\n## 규칙으로 뽑은 예측 후보 (참고용, 빼거나 합치거나 순서를 바꿔도 됩니다)\n" . json_encode($rules, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT)
         . "\n\n## 기간\n" . json_encode($facts['period'], JSON_UNESCAPED_UNICODE);

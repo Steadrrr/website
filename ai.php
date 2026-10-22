@@ -1,8 +1,8 @@
 <?php
 /**
  * AI 분석 (메인 메뉴) — 다음 4주 미리 보기: 민원 · 시설 · 소모품
- *   ai.php                 최근 AI 해설 + 지금 숫자로 만든 규칙 예측 + AI에게 주는 근거 표
- *   POST action=run        AI 분석 새로 받기 (주무관 이상, 하루 AI_DAILY_LIMIT 번)
+ *   ai.php                 가장 최근 발행된 AI 예측(모두 봄) + 어제까지 숫자로 만든 규칙 예측 + AI에게 주는 근거 표
+ *   POST action=run        오늘 AI 예측 발행 (주무관 이상, 하루 한 번 — 어제까지 자료로 오늘부터 4주)
  * 계산·전송 내용은 app/ai.php
  */
 require __DIR__ . '/app/bootstrap.php';
@@ -12,9 +12,9 @@ $user = require_login();
 if (is_post()) {
     csrf_verify();
     if (post('action') === 'run') {
-        if (!ai_can_run($user)) abort(403, 'AI 분석은 주무관 이상이 받을 수 있습니다.');
+        if (!ai_can_run($user)) abort(403, 'AI 예측 발행은 주무관 이상이 할 수 있습니다.');
         $res = ai_forecast_run($user);
-        $res['ok'] ? flash('AI 분석을 새로 받았습니다.', 'success') : flash($res['error'], 'error');
+        $res['ok'] ? flash('오늘 AI 예측을 발행했습니다. 모든 직원이 이 화면에서 볼 수 있습니다.', 'success') : flash($res['error'], 'error');
     }
     redirect('ai.php');
 }
@@ -23,10 +23,10 @@ $facts = ai_facts();
 $rules = ai_rule_items($facts);
 $latest = ai_latest();
 $hasKey = ai_key() !== '';
-$today = ai_usage_today();
+$publishedToday = ai_published_today();
 [$from, $to] = ai_window();
 $ai = $latest['data'] ?? null;
-$fresh = $latest && $latest['period_from'] === $from;
+$fresh = $latest && substr($latest['created_at'], 0, 10) === date('Y-m-d');
 $lv = ['높음' => 'high', '보통' => 'mid', '낮음' => 'low'];
 $areaIcon = ['민원' => '💬', '시설' => '🛠', '소모품' => '🧴', '객실운영' => '🛏'];
 $md = fn(string $d) => date('n/j', strtotime($d));
@@ -35,16 +35,20 @@ layout_header('AI 분석', 'ai');
 ?>
 <div class="card ai-head">
   <div>
-    <h1>✨ AI 분석 <small class="muted">다음 4주 미리 보기 · <?= e($md($from)) ?> ~ <?= e($md($to)) ?></small></h1>
+    <h1>✨ AI 분석 <small class="muted">오늘부터 4주 미리 보기 · <?= e($md($from)) ?> ~ <?= e($md($to)) ?> · 어제(<?= e($md(ai_basis())) ?>)까지 자료 기준</small></h1>
     <p class="muted">작년 같은 기간의 민원·고장 기록, 최근 반복되는 문제, 소모품이 줄어드는 속도를 숫자로 계산하고, AI가 그 숫자를 읽어 <b>미리 챙길 일</b>을 정리합니다.
-      AI는 아래 '근거 숫자'만 보고 판단하며, 사람 이름·연락처·민원 원문은 보내지 않습니다.</p>
+      AI 예측은 <b>하루 한 번 발행</b>되고 모든 직원이 함께 봅니다. AI는 아래 '근거 숫자'만 보고 판단하며, 사람 이름·연락처·민원 원문은 보내지 않습니다.</p>
   </div>
-  <?php if (ai_can_run($user) && $hasKey): ?>
+  <?php if (ai_can_run($user) && $hasKey && !$publishedToday): ?>
     <form method="post" data-ai-run>
       <?= csrf_field() ?><input type="hidden" name="action" value="run">
-      <button class="btn primary ai-run">✨ AI 분석 <?= $latest ? '새로 ' : '' ?>받기</button>
-      <div class="muted tiny-text">30초~1분 걸립니다 · 오늘 <?= (int) $today['n'] ?>/<?= AI_DAILY_LIMIT ?>회<?php if (is_demo() || !empty($user['is_admin'])): ?> · <a href="<?= e(url('ai_key.php')) ?>">API 키</a><?php endif ?></div>
+      <button class="btn primary ai-run" title="1회 발행 약 150원 — 자판기 커피 반 잔 값 ☕">✨ 오늘 AI 예측 발행</button>
+      <div class="muted tiny-text">하루 한 번 · 30초~1분 걸립니다<?php if (is_demo() || !empty($user['is_admin'])): ?> · <a href="<?= e(url('ai_key.php')) ?>">API 키</a><?php endif ?></div>
     </form>
+  <?php elseif ($publishedToday): ?>
+    <div class="muted tiny-text ai-published">✅ 오늘 예측 발행됨</div>
+  <?php elseif ($hasKey && !ai_can_run($user)): ?>
+    <div class="muted tiny-text ai-published">오늘 예측은 아직 발행 전입니다 (주무관 이상이 발행)</div>
   <?php endif ?>
 </div>
 
@@ -56,8 +60,8 @@ layout_header('AI 분석', 'ai');
 <?php if ($ai): ?>
 <section class="card ai-result">
   <div class="ai-result-head">
-    <h2>AI가 본 다음 4주</h2>
-    <span class="muted tiny-text"><?= e(date('n/j H:i', strtotime($latest['created_at']))) ?> · <?= e($latest['user_name'] ?? '') ?> 요청<?= $fresh ? '' : ' · <b>예전 분석</b>(기간 ' . e($md($latest['period_from'])) . '~' . e($md($latest['period_to'])) . ')' ?></span>
+    <h2>AI 예측 <?= $fresh ? '<span class="chip">오늘 발행</span>' : '<span class="chip">' . e($md($latest['created_at'])) . ' 발행본</span>' ?></h2>
+    <span class="muted tiny-text"><?= e(date('n/j H:i', strtotime($latest['created_at']))) ?> 발행 · <?= e($latest['user_name'] ?? '') ?> · 대상 <?= e($md($latest['period_from'])) ?>~<?= e($md($latest['period_to'])) ?><?= $fresh ? '' : ' · <b>오늘은 아직 발행 전 — 최근 발행본입니다</b>' ?><?php if ($c = ai_cost_won($latest)): ?> · <span title="자판기 커피 반 잔 값으로 4주를 미리 봅니다 ☕">💸 이번 발행 약 <?= number_format($c) ?>원</span><?php endif ?></span>
   </div>
   <p class="ai-summary"><?= nl2br(e($ai['summary'] ?? '')) ?></p>
   <div class="ai-items">
@@ -90,7 +94,7 @@ layout_header('AI 분석', 'ai');
 <?php endif ?>
 
 <section class="card">
-  <h2><?= $ai ? '숫자로 본 예측 (규칙)' : '다음 4주 예측 (통계 규칙)' ?> <small class="muted"><?= count($rules) ?>건 · 지금 자료로 바로 계산</small></h2>
+  <h2><?= $ai ? '숫자로 본 예측 (규칙)' : '오늘부터 4주 예측 (통계 규칙)' ?> <small class="muted"><?= count($rules) ?>건 · 어제까지 자료로 바로 계산</small></h2>
   <?php if (!$rules): ?><p class="muted">눈에 띄는 위험이 없습니다. 자료가 쌓일수록 정확해집니다.</p><?php else: ?>
   <table class="table ai-rules">
     <thead><tr><th>구분</th><th>중요</th><th>예상되는 일</th><th>근거</th><th>미리 할 일</th></tr></thead>
