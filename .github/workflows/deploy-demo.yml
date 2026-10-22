@@ -1,7 +1,8 @@
 # 경진대회 체험용 데모 사이트: contest 브랜치를 웹 서버의 /www/demo/ 폴더로 FTP 업로드
 #   운영 사이트(/www/)와 같은 FTP 계정·Secrets 를 쓰지만, 올리는 곳은 demo 폴더뿐이다.
 #   체험판은 config.php 없이 app/config.demo.php 로 운영 설정을 읽고, 같은 DB 의 demo_ 표만 쓴다 (서버에서 할 일 없음).
-#   진단·설치 화면(check.php·diag.php·install.php)은 체험판에 올리지 않는다.
+#   진단·설치 화면(check.php·diag.php·install.php)은 체험판 폴더에서는 스스로 404 로 막힌다.
+#   주의: 커밋 메시지에 배포 표시 글자를 설명으로라도 쓰면 배포된다.
 #   커밋 메시지에 [데모배포] 가 있을 때만 올린다.
 name: 데모 사이트 배포 (FTP /demo)
 
@@ -49,6 +50,3 @@ jobs:
             CLAUDE.md
             README.md
             dev/**
-            check.php
-            diag.php
-            install.php

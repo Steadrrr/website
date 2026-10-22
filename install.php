@@ -3,6 +3,8 @@
  * 최초 설치: 테이블 생성 + 최고관리자 계정 생성.
  * 설치가 끝나면 이 파일을 반드시 서버에서 삭제하세요.
  */
+// 체험판(/demo 폴더)에서는 진단·설치 화면을 쓰지 않는다
+if (is_file(__DIR__ . '/app/config.demo.php') && !is_file(__DIR__ . '/app/config.php')) { header('HTTP/1.1 404 Not Found'); exit; }
 require __DIR__ . '/app/bootstrap.php';
 
 try {
