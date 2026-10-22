@@ -86,6 +86,12 @@ function config(string $key, mixed $default = null): mixed
     return $GLOBALS['CONFIG'][$key] ?? $default;
 }
 
+/** 경진대회 체험용 데모 사이트인가 (config 'demo' => true). 가상 데이터·매일 밤 초기화·역할별 체험 로그인 */
+function is_demo(): bool
+{
+    return !empty($GLOBALS['CONFIG']['demo']);
+}
+
 /** settings 테이블 값 (요청마다 한 번 읽음) */
 function setting(string $name, ?string $default = null): ?string
 {

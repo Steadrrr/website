@@ -1,5 +1,6 @@
 <?php
 require __DIR__ . '/app/bootstrap.php';
+if (is_demo()) redirect('login.php'); // 체험판은 체험 계정만
 
 if (current_user()) redirect('index.php');
 

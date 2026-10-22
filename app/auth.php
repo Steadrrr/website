@@ -99,8 +99,8 @@ function require_admin(): array
 }
 
 /* ───────────── ID 저장 · 자동 로그인 ───────────── */
-const REMEMBER_COOKIE = 'FORESTLOG_AUTO'; // 자동 로그인 (selector:validator)
-const SAVED_ID_COOKIE = 'FORESTLOG_ID';   // ID 저장
+define('REMEMBER_COOKIE', is_demo() ? 'FORESTLOG_DEMO_AUTO' : 'FORESTLOG_AUTO'); // 자동 로그인 (selector:validator). 데모는 이름을 나눔
+define('SAVED_ID_COOKIE', is_demo() ? 'FORESTLOG_DEMO_ID' : 'FORESTLOG_ID');     // ID 저장
 const REMEMBER_DAYS = 30;
 
 function auth_cookie(string $name, string $value, int $expires): void

@@ -3,6 +3,7 @@
 require dirname(__DIR__) . '/app/bootstrap.php';
 
 $me = require_manager();
+demo_block_post('회원 정보');
 
 if (is_post()) {
     csrf_verify();

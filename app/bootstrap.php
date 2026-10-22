@@ -110,6 +110,7 @@ require __DIR__ . '/help.php';
 require __DIR__ . '/charts.php';
 require __DIR__ . '/sales.php';
 require __DIR__ . '/layout.php';
+require __DIR__ . '/demo.php';
 
 // DB 연결 확인 → 새 버전 파일을 올린 뒤 첫 접속 시 DB 자동 업그레이드
 try {
@@ -130,10 +131,11 @@ if ($dbOk && db_version() < DB_VERSION) {
             . "\n\n이 화면을 캡처해서 개발 담당자에게 보내 주세요.");
     }
 }
+if ($dbOk) demo_maybe_reset(); // 체험용 데모 사이트: 날짜가 바뀌면 가상 자료를 새로 만든다 (운영 사이트는 아무것도 안 함)
 unset($dbOk);
 
 $https = ($_SERVER['HTTPS'] ?? '') === 'on' || ($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '') === 'https';
-session_name('FORESTLOG');
+session_name(is_demo() ? 'FORESTLOG_DEMO' : 'FORESTLOG'); // 데모는 같은 도메인의 하위 폴더라 운영 사이트 로그인과 섞이지 않게 이름을 나눈다
 session_set_cookie_params([
     'lifetime' => 0,
     'path'     => config('base_url') === '' ? '/' : config('base_url') . '/',

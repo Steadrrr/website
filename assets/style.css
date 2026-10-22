@@ -1234,3 +1234,10 @@ label .tm-pick { display: flex; margin-top: .25rem; }
   .payout .sign-name::placeholder { color: transparent; }
   .payout-table { page-break-inside: avoid; }
 }
+
+/* 체험판 (데모 사이트) */
+.demo-banner { background: #fff4d6; color: #6b4e00; text-align: center; font-size: .85rem; padding: .35rem 1rem; border-bottom: 1px solid #f0dca0; }
+.demo-roles { display: grid; gap: .5rem; margin: .8rem 0; }
+.demo-role { display: flex; flex-direction: column; align-items: flex-start; gap: .15rem; text-align: left; padding: .7rem .9rem; }
+.demo-role small { color: var(--muted); font-size: .82rem; }
+.demo-role:hover { border-color: var(--green); background: #f1f8f3; }
