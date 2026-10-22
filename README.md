@@ -63,6 +63,11 @@
 - Claude API 는 PHP curl 로 직접 호출 (모델 `claude-opus-5-5`, structured outputs, `fallbacks: "default"`) — 공식 PHP SDK 는 파일이 많아 FTP 배포에 부담
 - API 키: `ai_key.php` 화면에서 입력(운영=최고관리자, 체험판=운영 최고관리자 아이디·비밀번호 확인, 5회 틀리면 1시간 잠금) → 서버 `app/anthropic_key.txt`(키 한 줄) 또는 `app/config.php` 의 `'anthropic_api_key'` 에만 (저장소에 올리지 않음, .gitignore) (체험판은 운영 설정을 읽으므로 같은 키 사용). 하루 1회 발행(GET_LOCK 으로 동시 발행 방지, 실패하면 다시 가능), 주무관 이상만 발행
 
+### 민원 분류 제안 (`ai_classify.php` · `app/ai_classify.php`)
+- 업무일지 민원 입력의 '✨ 분류 제안': 내용 → 소분류 코드(+ 글에 나온 객실·시설) 제안, 담당자가 확인 후 저장
+- AI(Claude, effort low, 분류표 전체를 지시문으로, 코드 enum 구조화 응답) → 실패·키 없음·하루 300회 초과면 낱말 규칙(`CPL_RULES`)
+- 낱말 규칙은 실제 2026 객실 민원 관리대장 47건 중 46건, 전화 문의의 약 95%를 단순문의로 맞게 분류 (묻는 말 판별 포함)
+
 ## 1. 왜 워드프레스/그누보드를 쓰지 않았나
 
 호스팅의 자동설치(워드프레스, 그누보드)는 **게시판·블로그용**입니다.

@@ -266,7 +266,10 @@ function cpl_row(string $key, array $c, string $workDate): void
       <label class="cpl-field" data-done-box <?= $c['status'] === 'done' ? '' : 'hidden' ?>>처리일자<input type="date" name="<?= $n('done_date') ?>" value="<?= e($c['done_date'] ?? '') ?>" data-done></label>
     </div>
     <div class="cpl-texts">
-      <label>민원 내용<textarea name="<?= $n('content') ?>" rows="2" placeholder="예: 102호 온수가 나오지 않음"><?= e($c['content']) ?></textarea></label>
+      <div class="cpl-content">
+        <label>민원 내용<textarea name="<?= $n('content') ?>" rows="2" placeholder="예: 숲B 온수가 나오지 않음" data-cpl-text><?= e($c['content']) ?></textarea></label>
+        <div class="cpl-ai"><button type="button" class="btn small" data-cpl-ai title="적은 내용을 보고 분류·장소를 골라 줍니다 (확인 후 저장)">✨ 분류 제안</button> <span class="muted tiny-text" data-cpl-ai-note></span></div>
+      </div>
       <label>조치내용·비고<textarea name="<?= $n('action') ?>" rows="2" placeholder="예: 보일러 재가동, 15시 확인 완료"><?= e($c['action'] ?? '') ?></textarea></label>
     </div>
   </div>
@@ -282,7 +285,7 @@ function cpl_form(array $rows, string $workDate): void
     }
     ?>
 <section class="cpl-section" data-cpl-form data-work-date="<?= e($workDate) ?>">
-  <h3>민원 <small class="muted">대분류 → 중분류 → 소분류 순서로 고르세요. 긴급·안전은 빨간색으로 표시되고 '처리중', 단순문의는 '완료'로 기본 설정됩니다.</small></h3>
+  <h3>민원 <small class="muted">대분류 → 중분류 → 소분류 순서로 고르세요 (민원 내용을 먼저 적고 '✨ 분류 제안'을 누르면 자동으로 골라 줍니다). 긴급·안전은 빨간색으로 표시되고 '처리중', 단순문의는 '완료'로 기본 설정됩니다.</small></h3>
   <div data-cpl-list>
     <?php foreach (array_values($rows) as $i => $c) cpl_row((string) $i, $c, $workDate) ?>
   </div>
@@ -290,7 +293,7 @@ function cpl_form(array $rows, string $workDate): void
   <button type="button" class="btn" data-cpl-add>+ 민원 추가</button>
   <?php cpl_summary_html($rows, '오늘 민원 요약') ?>
 </section>
-<script>window.CPL = <?= json_encode(['tree' => $jsTree, 'etc' => array_keys($t['etc']), 'urgent' => CPL_URGENT, 'simple' => CPL_SIMPLE], JSON_UNESCAPED_UNICODE) ?>;</script>
+<script>window.CPL = <?= json_encode(['tree' => $jsTree, 'etc' => array_keys($t['etc']), 'urgent' => CPL_URGENT, 'simple' => CPL_SIMPLE, 'aiUrl' => url('ai_classify.php'), 'csrf' => csrf_token()], JSON_UNESCAPED_UNICODE) ?>;</script>
 <script src="<?= e(asset_url('assets/complaints.js')) ?>" defer></script>
     <?php
 }
