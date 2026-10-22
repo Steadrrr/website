@@ -1274,3 +1274,18 @@ label .tm-pick { display: flex; margin-top: .25rem; }
 .grid2 > *, .grid3 > *, .card { min-width: 0; }
 /* 민원 분류 제안 */
 .cpl-ai { margin-top: .25rem; display: flex; align-items: center; gap: .4rem; flex-wrap: wrap; }
+/* 지난 예측 되돌아보기 */
+.air-pick { display: flex; flex-wrap: wrap; align-items: center; gap: .4rem; }
+.air-pick input, .air-pick select { width: auto; }
+.air-period { margin: .8rem 0; }
+.air-table td:nth-child(1), .air-table td:nth-child(2) { white-space: nowrap; }
+.air-hit td:first-child { color: var(--green); font-weight: bold; }
+.air-miss td:first-child, .air-skip td:first-child { color: var(--muted); }
+@media (max-width: 760px) {
+  .air-table thead { display: none; }
+  .air-table tr { display: block; border: 1px solid var(--line); border-radius: 8px; margin-bottom: .5rem; padding: .4rem .6rem; }
+  .air-table td { display: block; border: 0; padding: .15rem 0; }
+  .air-table td:nth-child(1), .air-table td:nth-child(2) { display: inline-block; margin-right: .4rem; }
+}
+.ai-side { display: flex; flex-direction: column; align-items: flex-end; gap: .6rem; }
+@media (max-width: 760px) { .ai-side { align-items: stretch; } }

@@ -42,6 +42,8 @@ layout_header('AI 분석', 'ai');
     <p class="muted">작년 같은 기간의 민원·고장 기록, 최근 반복되는 문제, 소모품이 줄어드는 속도를 숫자로 계산하고, AI가 그 숫자를 읽어 <b>미리 챙길 일</b>을 정리합니다.
       AI 예측은 <b>하루 한 번 발행</b>되고 모든 직원이 함께 봅니다. AI에게는 아래 '근거 숫자'만 보내며, 민원 원문은 보내지 않고 설비 기록 문구의 전화번호·이메일·이름(호칭 앞)은 가립니다.</p>
   </div>
+  <div class="ai-side">
+  <a class="btn" href="<?= e(url('ai_review.php')) ?>" title="그날 예측했다면 맞았을까? — 지난 예측과 실제 기록 비교">🔁 지난 예측 되돌아보기</a>
   <?php if (ai_can_run($user) && $hasKey && !$publishedToday): ?>
     <form method="post" data-ai-run>
       <?= csrf_field() ?><input type="hidden" name="action" value="run">
@@ -53,6 +55,7 @@ layout_header('AI 분석', 'ai');
   <?php elseif ($hasKey && !ai_can_run($user)): ?>
     <div class="muted tiny-text ai-published">오늘 예측은 아직 발행 전입니다 (주무관 이상이 발행)</div>
   <?php endif ?>
+  </div>
 </div>
 
 <?php if (!$hasKey): ?>
@@ -64,7 +67,7 @@ layout_header('AI 분석', 'ai');
 <section class="card ai-result">
   <div class="ai-result-head">
     <h2>AI 예측 <?= $fresh ? '<span class="chip">오늘 발행</span>' : '<span class="chip">' . e($md($latest['created_at'])) . ' 발행본</span>' ?></h2>
-    <span class="muted tiny-text"><?= e(date('n/j H:i', strtotime($latest['created_at']))) ?> 발행 · <?= e($latest['user_name'] ?? '') ?> · 대상 <?= e($md($latest['period_from'])) ?>~<?= e($md($latest['period_to'])) ?><?= $fresh ? '' : ' · <b>오늘은 아직 발행 전 — 최근 발행본입니다</b>' ?><?php if ($c = ai_cost_won($latest)): ?> · <span title="자판기 커피 반 잔 값으로 4주를 미리 봅니다 ☕">💸 이번 발행 약 <?= number_format($c) ?>원</span><?php endif ?></span>
+    <span class="muted tiny-text"><?= e(date('n/j H:i', strtotime($latest['created_at']))) ?> 발행 · <?= e($latest['user_name'] ?? '') ?> · 대상 <?= e($md($latest['period_from'])) ?>~<?= e($md($latest['period_to'])) ?><?= $fresh ? '' : ' · <b>오늘은 아직 발행 전 — 최근 발행본입니다</b>' ?><?php if ($c = ai_cost_won($latest)): ?> · <span title="자판기 커피 반 잔 값으로 4주를 미리 봅니다 ☕">💸 이번 발행 약 <?= number_format($c) ?>원</span><?php endif ?> · <a href="<?= e(url('ai_review.php?id=' . (int) $latest['id'])) ?>">🔁 실제와 비교</a></span>
   </div>
   <?php if ($canAll): ?><p class="ai-summary"><?= nl2br(e($ai['summary'] ?? '')) ?></p><?php endif ?>
   <div class="ai-items">
