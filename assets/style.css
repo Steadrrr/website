@@ -1269,3 +1269,6 @@ label .tm-pick { display: flex; margin-top: .25rem; }
   .ai-rules td:nth-child(1), .ai-rules td:nth-child(2) { display: inline-block; margin-right: .4rem; }
   .ai-rules td:nth-child(5)::before { content: "👉 "; }
 }
+
+/* 휴대폰: 넓은 표가 있는 카드가 화면 밖으로 밀려나지 않게 (격자 칸이 내용 폭만큼 늘어나는 것 방지 — 표는 .table-scroll 안에서 옆으로 밀어 봄) */
+.grid2 > *, .grid3 > *, .card { min-width: 0; }
