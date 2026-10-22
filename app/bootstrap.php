@@ -139,6 +139,21 @@ unset($dbOk);
 
 $https = ($_SERVER['HTTPS'] ?? '') === 'on' || ($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '') === 'https';
 session_name(is_demo() ? 'FORESTLOG_DEMO' : 'FORESTLOG'); // 데모는 같은 도메인의 하위 폴더라 운영 사이트 로그인과 섞이지 않게 이름을 나눈다
+ini_set('session.use_strict_mode', '1'); // 서버가 만들지 않은 세션 번호는 받지 않는다
+if (is_demo()) {
+    // 체험판 세션은 따로 보관한다: 같은 서버의 운영 사이트와 세션 저장소를 같이 쓰면,
+    // 체험판 세션 번호를 운영 사이트 쿠키에 넣어 운영 사용자로 들어갈 수 있다 (app 폴더는 웹 접근 금지)
+    $sessDir = APP_ROOT . '/app/_sessions';
+    if (!is_dir($sessDir)) @mkdir($sessDir, 0700, true);
+    if (is_dir($sessDir) && is_writable($sessDir)) {
+        session_save_path($sessDir);
+        ini_set('session.gc_probability', '1'); // 따로 둔 폴더는 서버의 정리 작업이 지우지 않으므로 PHP 가 직접 정리
+        ini_set('session.gc_divisor', '100');
+    } else {
+        setup_error('체험판 세션 폴더(app/_sessions)를 만들 수 없습니다.'); // 운영과 세션이 섞이지 않게, 못 만들면 체험판을 열지 않는다
+    }
+    unset($sessDir);
+}
 session_set_cookie_params([
     'lifetime' => 0,
     'path'     => config('base_url') === '' ? '/' : config('base_url') . '/',

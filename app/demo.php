@@ -19,10 +19,10 @@ const DEMO_ACCOUNTS = [
     'demo_leader'  => ['최산림', RANK_LEADER,  1, '팀장(관리자) — 최종 결재·설정 전체'],
 ];
 
-/** 데모 사이트면 날짜가 바뀐 뒤 첫 접속 때 자료를 새로 만든다 (bootstrap 에서 호출) */
 /** uploads 폴더 보호 파일 (배포가 uploads 를 올리지 않아 체험판 폴더에는 없을 수 있다) */
 const DEMO_UPLOADS_HTACCESS = "# 사진 업로드 폴더: 목록 보기와 스크립트 실행 금지\nOptions -Indexes\n<FilesMatch \"\\.(?i:php\\d?|phtml|phar|pl|py|cgi|sh|html?)$\">\n  <IfModule mod_authz_core.c>\n    Require all denied\n  </IfModule>\n</FilesMatch>\n";
 
+/** 데모 사이트면 날짜가 바뀐 뒤 첫 접속 때 자료를 새로 만든다 (bootstrap 에서 호출) */
 function demo_maybe_reset(): void
 {
     if (!is_demo()) return;
@@ -38,13 +38,20 @@ function demo_maybe_reset(): void
     if ($users > 0 && setting('demo_db') !== '1') {
         setup_error("이 DB에는 이미 자료가 있지만 데모용 표시가 없습니다.\n운영 DB를 잘못 연결했을 수 있어 초기화하지 않았습니다. app/config.php 의 DB 정보를 확인하세요.");
     }
-    // 여러 사람이 동시에 열어도 한 번만 만든다
-    if ((int) $pdo->query("SELECT GET_LOCK('demo_reset', 30)")->fetchColumn() !== 1) return;
+    // 방금 실패했으면 10분 동안은 다시 시도하지 않는다 (매 접속마다 지우고 다시 만들지 않게)
+    $busy = "체험판 자료를 새로 만드는 중이거나 잠시 문제가 있습니다.\n잠시 뒤 다시 열어 주세요.";
+    if (time() - (int) setting('demo_seed_fail_at', '0') < 600) setup_error($busy);
+    // 여러 사람이 동시에 열어도 한 번만 만든다 (잠금 이름은 DB 마다 따로)
+    if ((int) $pdo->query("SELECT GET_LOCK(CONCAT(DATABASE(), '_demo_reset'), 30)")->fetchColumn() !== 1) setup_error($busy);
     try {
         $st = $pdo->query("SELECT value FROM settings WHERE name = 'demo_seeded_on'");
         if ($st->fetchColumn() !== $today) demo_seed();
+    } catch (Throwable $e) {
+        error_log('forestlog demo seed: ' . $e->getMessage() . ' (' . basename($e->getFile()) . ':' . $e->getLine() . ')');
+        setting_set('demo_seed_fail_at', (string) time());
+        setup_error($busy);
     } finally {
-        $pdo->query("SELECT RELEASE_LOCK('demo_reset')");
+        $pdo->query("SELECT RELEASE_LOCK(CONCAT(DATABASE(), '_demo_reset'))");
     }
 }
 
@@ -148,8 +155,7 @@ function demo_login(string $username): ?array
     $u = $st->fetch() ?: null;
     if (!$u) return null;
     db()->prepare('UPDATE users SET last_login_at = NOW() WHERE id = ?')->execute([$u['id']]);
-    session_regenerate_id(true);
-    $_SESSION['uid'] = (int) $u['id'];
+    session_login((int) $u['id']);
     return $u;
 }
 
@@ -171,7 +177,19 @@ function demo_block_post(string $what): void
 function demo_verify_main_admin(string $username, string $password): ?string
 {
     if (!is_demo()) return '체험판에서만 쓰는 확인입니다.';
-    $fail = json_decode((string) setting('main_admin_fail', ''), true) ?: ['n' => 0, 't' => 0];
+    // 동시에 여러 번 보내 횟수 제한을 넘지 못하게 확인 전체를 잠근다
+    if ((int) db()->query("SELECT GET_LOCK(CONCAT(DATABASE(), '_main_admin'), 15)")->fetchColumn() !== 1) return '잠시 뒤 다시 해 주세요.';
+    try {
+        return demo_verify_main_admin_locked($username, $password);
+    } finally {
+        db()->query("SELECT RELEASE_LOCK(CONCAT(DATABASE(), '_main_admin'))");
+    }
+}
+
+function demo_verify_main_admin_locked(string $username, string $password): ?string
+{
+    $st = db()->query("SELECT value FROM settings WHERE name = 'main_admin_fail'"); // 잠금 안에서 최신 값을 다시 읽는다
+    $fail = json_decode((string) $st->fetchColumn(), true) ?: ['n' => 0, 't' => 0];
     if ($fail['n'] >= 5 && time() - $fail['t'] < 3600) return '여러 번 틀려 1시간 동안 잠겼습니다. 나중에 다시 해 주세요.';
     if ($fail['n'] >= 5) $fail = ['n' => 0, 't' => 0];
     $c = config('db');
