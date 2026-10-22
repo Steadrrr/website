@@ -33,6 +33,50 @@ function ai_key(): string
     return '';
 }
 
+/** 키 파일 (이 사이트의 app 폴더 — 웹에서 열 수 없음) */
+function ai_key_file(): string
+{
+    return APP_ROOT . '/app/anthropic_key.txt';
+}
+
+/** 화면 표시용: sk-ant-…abcd */
+function ai_key_masked(string $k): string
+{
+    return $k === '' ? '' : substr($k, 0, 7) . '…' . substr($k, -4);
+}
+
+/**
+ * 키가 맞는지 Anthropic 에 확인 (모델 목록 조회 — 토큰을 쓰지 않아 비용 없음)
+ * @return ?string 오류 문구 (맞으면 null)
+ */
+function ai_key_verify(string $key): ?string
+{
+    if (!preg_match('/^sk-ant-[A-Za-z0-9_\-]{20,}$/', $key)) return "키 모양이 맞지 않습니다. 'sk-ant-' 로 시작하는 키 전체를 붙여 넣어 주세요.";
+    $ch = curl_init(rtrim((string) config('anthropic_api_url', 'https://api.anthropic.com'), '/') . '/v1/models?limit=1');
+    curl_setopt_array($ch, [CURLOPT_RETURNTRANSFER => true, CURLOPT_CONNECTTIMEOUT => 10, CURLOPT_TIMEOUT => 20,
+        CURLOPT_HTTPHEADER => ['x-api-key: ' . $key, 'anthropic-version: ' . AI_API_VERSION]]);
+    $raw = curl_exec($ch);
+    $code = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $err = curl_error($ch);
+    curl_close($ch);
+    if ($raw === false) return '서버에서 Anthropic 에 연결하지 못했습니다. (' . $err . ')';
+    return match (true) {
+        $code === 200 => null,
+        $code === 401 || $code === 403 => '키가 올바르지 않거나 사용이 막혀 있습니다. 콘솔에서 키를 다시 확인해 주세요.',
+        default => "확인 중 오류가 났습니다 (HTTP $code). 잠시 뒤 다시 해 주세요.",
+    };
+}
+
+/** 키 저장 ('' 이면 삭제) */
+function ai_key_save(string $key): bool
+{
+    $f = ai_key_file();
+    if ($key === '') return !is_file($f) || @unlink($f);
+    $ok = @file_put_contents($f, $key . "\n", LOCK_EX) !== false;
+    if ($ok) @chmod($f, 0600);
+    return $ok;
+}
+
 /** AI 분석 새로 받기: 주무관 이상·최고관리자 (비용이 드는 버튼) */
 function ai_can_run(?array $u): bool
 {

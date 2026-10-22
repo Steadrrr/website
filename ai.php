@@ -43,13 +43,14 @@ layout_header('AI 분석', 'ai');
     <form method="post" data-ai-run>
       <?= csrf_field() ?><input type="hidden" name="action" value="run">
       <button class="btn primary ai-run">✨ AI 분석 <?= $latest ? '새로 ' : '' ?>받기</button>
-      <div class="muted tiny-text">30초~1분 걸립니다 · 오늘 <?= (int) $today['n'] ?>/<?= AI_DAILY_LIMIT ?>회</div>
+      <div class="muted tiny-text">30초~1분 걸립니다 · 오늘 <?= (int) $today['n'] ?>/<?= AI_DAILY_LIMIT ?>회<?php if (is_demo() || !empty($user['is_admin'])): ?> · <a href="<?= e(url('ai_key.php')) ?>">API 키</a><?php endif ?></div>
     </form>
   <?php endif ?>
 </div>
 
 <?php if (!$hasKey): ?>
-  <div class="flash">AI 연결 전입니다. 지금은 <b>통계 규칙으로 만든 예측</b>만 보입니다. 서버 설정에 Claude API 키를 넣으면 AI 해설·구매 목록·이번 주 할 일이 함께 나옵니다.</div>
+  <div class="flash">AI 연결 전입니다. 지금은 <b>통계 규칙으로 만든 예측</b>만 보입니다. Claude API 키를 넣으면 AI 해설·구매 목록·이번 주 할 일이 함께 나옵니다.
+    <?php if (is_demo() || !empty($user['is_admin'])): ?> <a class="btn" href="<?= e(url('ai_key.php')) ?>">🔑 API 키 넣기</a><?php endif ?></div>
 <?php endif ?>
 
 <?php if ($ai): ?>

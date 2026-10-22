@@ -160,3 +160,30 @@ function demo_block_post(string $what): void
     header('Location: ' . ($_SERVER['REQUEST_URI'] ?? url('index.php'))); // 같은 화면으로 (GET)
     exit;
 }
+
+/**
+ * 체험판에서 운영 사이트 최고관리자 확인 (AI 키 설정처럼 운영자만 할 일).
+ * 체험판 DB 연결은 모든 표를 demo_ 로 바꾸므로, 운영 users 표는 별도 연결로 '읽기만' 한다.
+ * 5번 틀리면 1시간 잠금 (demo_settings.main_admin_fail).
+ * @return ?string 오류 문구 (맞으면 null)
+ */
+function demo_verify_main_admin(string $username, string $password): ?string
+{
+    if (!is_demo()) return '체험판에서만 쓰는 확인입니다.';
+    $fail = json_decode((string) setting('main_admin_fail', ''), true) ?: ['n' => 0, 't' => 0];
+    if ($fail['n'] >= 5 && time() - $fail['t'] < 3600) return '여러 번 틀려 1시간 동안 잠겼습니다. 나중에 다시 해 주세요.';
+    if ($fail['n'] >= 5) $fail = ['n' => 0, 't' => 0];
+    $c = config('db');
+    $main = new PDO(sprintf('mysql:host=%s;port=%d;dbname=%s;charset=utf8mb4', $c['host'], $c['port'] ?? 3306, $c['name']), $c['user'], $c['pass'],
+        [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION, PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC]);
+    $st = $main->prepare("SELECT password_hash, is_admin, status FROM users WHERE username = ?");
+    $st->execute([$username]);
+    $u = $st->fetch();
+    $main = null;
+    if (!$u || !password_verify($password, $u['password_hash']) || empty($u['is_admin']) || $u['status'] !== 'active') {
+        setting_set('main_admin_fail', json_encode(['n' => $fail['n'] + 1, 't' => time()]));
+        return '운영 사이트 최고관리자 아이디 또는 비밀번호가 맞지 않습니다.';
+    }
+    setting_set('main_admin_fail', json_encode(['n' => 0, 't' => 0]));
+    return null;
+}

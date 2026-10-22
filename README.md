@@ -61,7 +61,7 @@
 - 다음 4주 미리 보기: 민원(작년 같은 기간·같은 객실 반복) · 시설(1년 2회 이상 수리·작년 이맘때 고장) · 소모품(재고 ÷ 객실 1박당 사용량 → 남은 주)
 - **숫자는 PHP 가 계산**(`ai_facts`, `ai_rule_items` — API 키 없이도 표시), **해석은 Claude**(`ai_forecast_run`): 근거 숫자만 보내고 결과를 `ai_insights` 표에 저장
 - Claude API 는 PHP curl 로 직접 호출 (모델 `claude-opus-5-5`, structured outputs, `fallbacks: "default"`) — 공식 PHP SDK 는 파일이 많아 FTP 배포에 부담
-- API 키: 서버 `app/anthropic_key.txt`(키 한 줄) 또는 `app/config.php` 의 `'anthropic_api_key'` 에만 (저장소에 올리지 않음, .gitignore) (체험판은 운영 설정을 읽으므로 같은 키 사용). 하루 10회·2분 간격 제한, 주무관 이상만 호출
+- API 키: `ai_key.php` 화면에서 입력(운영=최고관리자, 체험판=운영 최고관리자 아이디·비밀번호 확인, 5회 틀리면 1시간 잠금) → 서버 `app/anthropic_key.txt`(키 한 줄) 또는 `app/config.php` 의 `'anthropic_api_key'` 에만 (저장소에 올리지 않음, .gitignore) (체험판은 운영 설정을 읽으므로 같은 키 사용). 하루 10회·2분 간격 제한, 주무관 이상만 호출
 
 ## 1. 왜 워드프레스/그누보드를 쓰지 않았나
 
