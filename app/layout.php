@@ -166,14 +166,14 @@ function nav_groups(?array $user): array
     return nav_bundled() ? nav_bundle($groups) : $groups;
 }
 
-/** 메뉴를 업무 흐름 5묶음으로 보여 줄지 (config 'nav' => 'bundle', 체험판은 기본) */
+/** 메뉴를 업무 흐름 묶음으로 보여 줄지 (config 'nav' => 'bundle', 체험판은 기본) */
 function nav_bundled(): bool
 {
     return config('nav', is_demo() ? 'bundle' : '') === 'bundle';
 }
 
 /**
- * 업무 흐름 5묶음 메뉴: 기록·결재 / 객실 운영 / 재정·상품권 / 시설·안전 / 고객·프로그램 (+ 기타).
+ * 업무 흐름 묶음 메뉴: 기록·결재 / 객실 운영 / 재정·상품권 / 시설·안전 / 고객 / 프로그램 (+ 기타).
  * 화면·권한은 그대로이고 이름·순서만 다시 묶는다. 권한으로 이미 빠진 항목은 그대로 빠진다.
  */
 const NAV_BUNDLES = [
@@ -181,7 +181,8 @@ const NAV_BUNDLES = [
     'b_room'    => ['객실 운영', ['rooms', 'clean', 'room_ops', 'supplies', 'ar', 'room_stats']],
     'b_money'   => ['재정·상품권', ['sales', 'voucher', 'stats', 'product_sales']],
     'b_fac'     => ['시설·안전', ['facility', 'facilities', 'equipment', 'purchase']],
-    'b_guest'   => ['고객·프로그램', ['complaints', 'cpl_stats', 'lost', 'visit_stats', 'prog_sched', 'healing', 'kidsforest', 'kidsdirect', 'guide', 'guide2', 'prog_stats']],
+    'b_guest'   => ['고객', ['complaints', 'cpl_stats', 'lost', 'visit_stats']],
+    'b_prog'    => ['프로그램', ['prog_sched', 'healing', 'kidsforest', 'kidsdirect', 'guide', 'guide2', 'prog_stats']],
 ];
 
 function nav_bundle(array $groups): array

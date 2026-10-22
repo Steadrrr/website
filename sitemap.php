@@ -54,7 +54,7 @@ const SITEMAP_SETTINGS_DESC = [
     'equipment' => '팀별 장비 분류',
 ];
 const SITEMAP_ICON = ['home' => '🏠', 'schedule' => '📅', 'personal' => '🗂', 'ops' => '📋', 'room' => '🛏', 'prog' => '🌲', 'stat' => '📊', 'fac' => '🛠', 'etc' => '📌', 'settings' => '⚙',
-    'b_record' => '📋', 'b_room' => '🛏', 'b_money' => '💳', 'b_fac' => '🛠', 'b_guest' => '🌲'];
+    'b_record' => '📋', 'b_room' => '🛏', 'b_money' => '💳', 'b_fac' => '🛠', 'b_guest' => '🙋', 'b_prog' => '🌲'];
 
 $groups = nav_groups($user);
 if (!empty($user['is_admin'])) $groups['settings'] = ['label' => '⚙ 설정', 'href' => 'settings.php']; // 상단바 오른쪽 설정도 사이트맵에 표시
