@@ -5,7 +5,8 @@ defined('APP_ROOT') || exit;
  * 경진대회 체험용 데모 사이트 (config 'demo' => true 일 때만 동작)
  *  - 가상 직원·객실·시설·민원 등 약 6개월치 자료를 만든다. 날짜는 '오늘' 기준이라 언제 열어도 최근 자료가 보인다.
  *  - 날짜가 바뀐 뒤 첫 접속 때 전부 지우고 다시 만든다 (매일 밤 초기화). 체험하며 바꾼 내용은 다음 날 사라진다.
- *  - 안전장치: 데모 표시(settings.demo_db)가 없는 DB에 자료가 있으면 운영 DB로 보고 절대 지우지 않는다.
+ *  - 운영 사이트와 같은 DB를 쓰되 표는 demo_ 로 시작하는 것만 쓴다 (app/demo_db.php).
+ *  - 안전장치: 데모 표시(settings.demo_db)가 없는데 자료가 있으면 초기화하지 않는다.
  */
 
 const DEMO_PASSWORD = 'demo1234';
@@ -19,9 +20,17 @@ const DEMO_ACCOUNTS = [
 ];
 
 /** 데모 사이트면 날짜가 바뀐 뒤 첫 접속 때 자료를 새로 만든다 (bootstrap 에서 호출) */
+/** uploads 폴더 보호 파일 (배포가 uploads 를 올리지 않아 체험판 폴더에는 없을 수 있다) */
+const DEMO_UPLOADS_HTACCESS = "# 사진 업로드 폴더: 목록 보기와 스크립트 실행 금지\nOptions -Indexes\n<FilesMatch \"\\.(?i:php\\d?|phtml|phar|pl|py|cgi|sh|html?)$\">\n  <IfModule mod_authz_core.c>\n    Require all denied\n  </IfModule>\n</FilesMatch>\n";
+
 function demo_maybe_reset(): void
 {
     if (!is_demo()) return;
+    $ht = APP_ROOT . '/uploads/.htaccess';
+    if (!is_file($ht)) {
+        @mkdir(dirname($ht), 0755, true);
+        @file_put_contents($ht, DEMO_UPLOADS_HTACCESS);
+    }
     $today = date('Y-m-d');
     if (setting('demo_seeded_on') === $today) return;
     $pdo = db();
@@ -49,9 +58,8 @@ function demo_seed(): void
 
     // 1) 비우기 (settings 는 DB 버전·기본값이 있어 남긴다)
     $pdo->exec('SET FOREIGN_KEY_CHECKS = 0');
-    $tables = $pdo->query("SELECT TABLE_NAME FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_TYPE = 'BASE TABLE'")->fetchAll(PDO::FETCH_COLUMN);
-    foreach ($tables as $t) {
-        if ($t !== 'settings') $pdo->exec("TRUNCATE TABLE `$t`");
+    foreach (array_keys(demo_known_tables()) as $t) {
+        if ($t !== 'settings') $pdo->exec("TRUNCATE TABLE `$t`"); // DemoPDO 가 demo_ 표로 바꾼다 (운영 표는 건드릴 수 없음)
     }
     $pdo->exec('SET FOREIGN_KEY_CHECKS = 1');
     demo_clear_uploads();

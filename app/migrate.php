@@ -20,7 +20,7 @@ function db_version(): int
 function column_exists(string $table, string $column): bool
 {
     $st = db()->prepare('SELECT 1 FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?');
-    $st->execute([$table, $column]);
+    $st->execute([db_table($table), $column]);
     return (bool) $st->fetchColumn();
 }
 
@@ -28,7 +28,7 @@ function column_exists(string $table, string $column): bool
 function enum_has(string $table, string $column, string $value): bool
 {
     $st = db()->prepare('SELECT COLUMN_TYPE FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?');
-    $st->execute([$table, $column]);
+    $st->execute([db_table($table), $column]);
     return str_contains((string) $st->fetchColumn(), "'" . $value . "'");
 }
 

@@ -117,7 +117,7 @@ function db(): PDO
     if ($pdo === null) {
         $c = config('db');
         $dsn = sprintf('mysql:host=%s;port=%d;dbname=%s;charset=utf8mb4', $c['host'], $c['port'] ?? 3306, $c['name']);
-        $pdo = new PDO($dsn, $c['user'], $c['pass'], [
+        $pdo = new (is_demo() ? DemoPDO::class : PDO::class)($dsn, $c['user'], $c['pass'], [ // 체험판은 demo_ 표만 쓰도록 SQL을 바꿔 준다 (app/demo_db.php)
             PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
             PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
             PDO::ATTR_EMULATE_PREPARES   => false,

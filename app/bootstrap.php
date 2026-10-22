@@ -12,6 +12,7 @@ function setup_error(string $message): never
 }
 
 $configFile = __DIR__ . '/config.php';
+if (!is_file($configFile) && is_file(__DIR__ . '/config.demo.php')) $configFile = __DIR__ . '/config.demo.php'; // 체험판(/demo): 운영 설정 + 체험판 값
 if (!is_file($configFile)) {
     setup_error("app/config.php 파일이 없습니다.\napp/config.sample.php 를 config.php 로 복사한 뒤 DB 정보를 입력하세요.");
 }
@@ -86,6 +87,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
 }
 
 require __DIR__ . '/helpers.php';
+require __DIR__ . '/demo_db.php';
 require __DIR__ . '/auth.php';
 require __DIR__ . '/approval.php';
 require __DIR__ . '/migrate.php';
