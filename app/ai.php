@@ -38,6 +38,12 @@ function ai_key_file(): string
     return APP_ROOT . '/app/anthropic_key.txt';
 }
 
+/** 체험판(/demo 폴더)에 저장된 키 파일 — 운영 사이트에서 '체험판 키 가져오기'에 쓴다 */
+function ai_demo_key_file(): string
+{
+    return APP_ROOT . '/demo/app/anthropic_key.txt';
+}
+
 /** 화면 표시용: sk-ant-…abcd */
 function ai_key_masked(string $k): string
 {

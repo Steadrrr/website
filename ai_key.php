@@ -19,7 +19,8 @@ if (is_post()) {
             ai_key_save('') ? flash('API 키를 지웠습니다.', 'success') : flash('키 파일을 지우지 못했습니다.', 'error');
             redirect('ai_key.php');
         }
-        $key = preg_replace('/\s+/', '', (string) ($_POST['api_key'] ?? ''));
+        // 운영 사이트: 체험판(/demo)에 이미 넣은 키를 그대로 가져와 쓰기 (키를 다시 발급받지 않아도 되게)
+        $key = !is_demo() && post('action') === 'import_demo' ? trim((string) @file_get_contents(ai_demo_key_file())) : preg_replace('/\s+/', '', (string) ($_POST['api_key'] ?? ''));
         $error = ai_key_verify($key) ?? '';
         if ($error === '') {
             if (ai_key_save($key)) {
@@ -40,6 +41,14 @@ layout_header('AI 연결 (API 키)', 'ai');
   <?php $local = is_file(ai_key_file()); ?>
   <p>지금 상태: <?= $now !== '' ? '<b>연결됨</b> <code>' . e(ai_key_masked($now)) . '</code>' . ($fromConfig ? ' <span class="muted">(설정 파일에 있는 키 — 여기서 바꿀 수 없음)</span>' : '') : '<b>연결 안 됨</b>' ?></p>
   <?php if ($error): ?><div class="flash flash-error"><?= e($error) ?></div><?php endif ?>
+  <?php if (!$fromConfig && !is_demo() && $now === '' && is_file(ai_demo_key_file())): ?>
+  <form method="post" style="margin-bottom:1rem">
+    <?= csrf_field() ?><input type="hidden" name="action" value="import_demo">
+    <p>체험판(/demo)에 넣어 둔 키가 있습니다. 새로 발급받지 않고 그 키를 운영에서도 쓸 수 있습니다.</p>
+    <button class="btn primary block">체험판 키 가져오기</button>
+  </form>
+  <p class="muted tiny-text">또는 새 키를 아래에 직접 넣으세요.</p>
+  <?php endif ?>
   <?php if (!$fromConfig): ?>
   <form method="post" autocomplete="off">
     <?= csrf_field() ?>
