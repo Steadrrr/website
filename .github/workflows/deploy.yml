@@ -49,3 +49,4 @@ jobs:
             uploads/**
             CLAUDE.md
             README.md
+            dev/**
