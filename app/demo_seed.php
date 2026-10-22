@@ -284,6 +284,7 @@ function demo_seed_data(): void
 
     $dailyIds = [];
     $soldYesterday = [];
+    $roomNights = []; // 날짜 => 판매 객실 수 (소모품 사용량 계산)
     $cplRow = function (int $jid, string $date, string $code, ?array $room, ?int $facGroup, ?string $facName, string $text, ?string $act, int $ago, array $who, int $qty = 1, ?string $channel = null) {
         $c1 = substr($code, 0, 1);
         $status = $c1 === CPL_SIMPLE ? 'done' : ($ago <= 2 ? demo_pick(['open', 'progress']) : ($ago <= 7 && demo_chance(0.3) ? 'progress' : 'done'));
@@ -404,6 +405,7 @@ function demo_seed_data(): void
                     'total' => $tot, 'fee_type' => 'paid', 'fee' => 5000, 'amount' => $tot * 5000, 'activity' => '오감 산책, 명상, 차 마시기']);
             }
         }
+        $roomNights[$date] = count($sold);
         $soldYesterday = $sold;
     }
     // 400일보다 오래된 설비 고장 민원도 붙인다 (그 날 업무일지를 만들어서)
@@ -509,12 +511,113 @@ function demo_seed_data(): void
         demo_ins('lost_items', ['reg_no' => sprintf('%s-%04d', $y, $k + 1), 'name' => $n, 'found_date' => date('Y-m-d', strtotime("-$ago days")), 'place' => $place,
             'finder' => $keeper['name'], 'status' => $st, 'author_id' => $keeper['id']]);
     }
-    foreach ([['수건', '40수 흰색', '욕실용품', '장', 120], ['두루마리 휴지', '30m', '욕실용품', '롤', 80], ['주방세제', '1L', '주방용품', '개', 20],
-              ['요 커버', '싱글', '침구', '장', 70], ['종량제 봉투', '50L', '청소용품', '장', 40]] as $k => [$n, $spec, $cat, $unit, $safe]) {
-        $sid = demo_ins('supplies', ['name' => $n, 'spec' => $spec, 'category' => $cat, 'unit' => $unit, 'safety_stock' => $safe, 'sort_order' => $k]);
-        demo_ins('supply_moves', ['supply_id' => $sid, 'move_date' => date('Y-m-d', strtotime('-30 days')), 'in_qty' => $safe * 3, 'note' => '월초 입고']);
-        for ($w = 4; $w >= 1; $w--) {
-            demo_ins('supply_moves', ['supply_id' => $sid, 'move_date' => date('Y-m-d', strtotime('-' . ($w * 7 - 1) . ' days')), 'out_qty' => (int) round($safe * mt_rand(40, 70) / 100), 'note' => '객실 지급']);
+    demo_seed_supplies($roomNights, $worker, $officer, $byRank);
+}
+
+/*
+ * 객실 소모품·비품 구매 이력 (실제 2025~2026 견적서 8건 중 객실 관리에 쓰는 품목만, 업체명·브랜드는 일반 명칭)
+ *  - 물품구매 문서(결재완료·지출완료)로 남기고, 소모품은 소모품관리 재고(입고 = 구매일, 출고 = 판매 객실 수에 비례)로 만든다.
+ *  - 'b' = 비품(재고 관리 안 함), 그 밖의 값 = 소모품 이름
+ */
+const DEMO_PURCHASES = [
+    ['2025-01-09', '○○상사', '객실 비품·소모품 연초 구매', [
+        ['헤어드라이기 (접이식)', '', 5, 27000, 'b'], ['제습제 (32개입)', '옷장용', 2, 49000, '제습제'], ['갈대 빗자루', '', 10, 5000, 'b'],
+        ['청소용 고무장갑 (얇은형)', 'M', 200, 390, '청소용 장갑'], ['빨아쓰는 행주 (60매)', '', 45, 8500, '행주'], ['페달 휴지통', '20L', 10, 30000, 'b'],
+        ['일회용 비누 10g (1000개)', '', 5, 64000, '일회용 비누']]],
+    ['2025-04-27', '장애인생산품 판매시설', '성수기 전 세탁·청소 세제', [
+        ['액체 세탁세제', '14L', 6, 28000, '세탁세제'], ['섬유유연제', '14L', 5, 28000, '섬유유연제'], ['락스 (대용량)', '', 4, 26400, '락스']]],
+    ['2025-04-28', '○○상사', '객실 주방용품 교체·보충', [
+        ['디스펜서 공병', '550ml', 30, 3150, 'b'], ['주방세제 (거품형)', '350ml', 10, 6800, '주방세제'], ['원목 헤어브러시', '', 30, 6450, 'b'],
+        ['티스푼·포크 세트 (10P)', '', 20, 15500, 'b'], ['수저 세트', '스텐', 100, 900, 'b'], ['기름때 제거 클리너', '750ml', 5, 13000, '청소 세정제'],
+        ['곰팡이 제거 클리너', '750ml', 10, 12300, '청소 세정제'], ['주방 고무장갑', 'L', 100, 2350, '주방 고무장갑'], ['실리콘 냄비 집게 (2개입)', '', 30, 1200, 'b'],
+        ['실리콘 냄비받침', '', 25, 2400, 'b'], ['스텐 채반', '', 20, 5500, 'b'], ['머그컵', '320ml', 150, 1850, 'b'], ['주방 도마', 'TPU', 30, 11300, 'b'],
+        ['프라이팬', '28cm', 25, 17300, 'b'], ['커튼 묶음끈', '', 50, 2400, 'b'], ['모기약 에어졸 (30개입)', '500ml', 2, 79500, '모기약'], ['전동 칼갈이', '', 1, 82200, 'b']]],
+    ['2025-11-03', '장애인생산품 판매시설', '동절기 세제·화장지', [
+        ['섬유유연제', '14L', 3, 27500, '섬유유연제'], ['액체 세탁세제', '14L', 7, 27500, '세탁세제'], ['화장지 50m (100롤)', '2겹', 5, 53000, '화장지'],
+        ['점보롤 화장지 (16롤)', '300m', 3, 42000, '점보롤']]],
+    ['2025-11-03', '○○상사', '욕실 세정제·쓰레기봉투', [
+        ['욕실용 락스 세제 (750ml×4)', '', 10, 4000, '욕실 세정제'], ['재활용 봉투 100L (50매)', '', 25, 3000, '쓰레기봉투'], ['평판 봉투 (100장)', '', 5, 11000, '쓰레기봉투'],
+        ['청소기 원형솔', '32mm', 2, 12000, 'b']]],
+    ['2026-07-03', '장애인생산품 판매시설', '성수기 세제·화장지', [
+        ['액체 세탁세제', '14L', 6, 33600, '세탁세제'], ['섬유유연제', '14L', 5, 29700, '섬유유연제'], ['락스 (2L×6)', '18L', 5, 28000, '락스'],
+        ['점보롤 케이스', '', 10, 4500, 'b'], ['화장지 50m (100롤)', '2겹', 10, 54000, '화장지'], ['점보롤 화장지 (16롤)', '300m', 4, 43000, '점보롤']]],
+    ['2026-07-09', '○○상사', '성수기 객실 청소·주방 보충 (배수 세정제 포함)', [
+        ['배관 세척제 (배수구 기름때)', '18L', 1, 142700, '배수 세정제'], ['극세사 대걸레 세트', '', 4, 14800, 'b'], ['재활용 봉투 20L (80매)', '', 15, 8400, '쓰레기봉투'],
+        ['재활용 봉투 120L (30매)', '', 15, 12600, '쓰레기봉투'], ['거실 벽시계', '', 2, 31450, 'b'], ['붙박이장 도어캐치', '', 120, 375, 'b'], ['원형 밥주걱', '', 20, 2600, 'b'],
+        ['방향제 용액', '', 10, 10900, '방향제'], ['자동 방향제 기기', '', 4, 29175, 'b'], ['욕실 환풍기', '20cm', 4, 19100, 'b'], ['싱크대 칼꽂이', '', 30, 2400, 'b'],
+        ['배수구 세정제 (2L×6)', '', 5, 28600, '배수 세정제'], ['스텐 국자', '', 20, 2700, 'b'], ['욕실용 락스 세제 (750ml×4)', '', 15, 12900, '욕실 세정제'],
+        ['스텐 수세미 (30개입)', '', 2, 124500, '수세미'], ['청소기 연장 파이프', '38mm', 1, 29900, 'b']]],
+    ['2026-10-06', '○○상사', '동절기 전 객실 비품 교체·보충', [
+        ['건전지 AA (40알)', '도어락·리모컨', 10, 20000, '건전지'], ['배수구 세정제 (1kg×12)', '', 1, 78000, '배수 세정제'], ['키친타올 행주 (50매)', '', 9, 16000, '행주'],
+        ['객실 휴지통', '25L', 19, 19000, 'b'], ['파리채', '', 19, 1500, 'b'], ['치약 (125g×4)', '', 15, 9600, '치약'], ['재활용 봉투 55L (100장)', '', 20, 7300, '쓰레기봉투'],
+        ['현관문 도어스토퍼 (말발굽)', '특대', 19, 5000, 'b']]],
+];
+
+/** 소모품 [이름 => [규격, 분류, 단위, 적정재고]] */
+const DEMO_SUPPLIES = [
+    '세탁세제' => ['14L', '세탁', '통', 2], '섬유유연제' => ['14L', '세탁', '통', 2], '락스' => ['대용량', '세탁', '통', 1],
+    '화장지' => ['50m 100롤', '욕실용품', '박스', 2], '점보롤' => ['16롤', '욕실용품', '박스', 1], '일회용 비누' => ['10g 1000개', '욕실용품', '박스', 1],
+    '치약' => ['125g×4', '욕실용품', '팩', 4], '욕실 세정제' => ['750ml×4', '청소용품', '팩', 3], '배수 세정제' => ['', '청소용품', '통', 2],
+    '청소 세정제' => ['750ml', '청소용품', '개', 3], '수세미' => ['30개입', '청소용품', '박스', 1], '쓰레기봉투' => ['', '청소용품', '묶음', 5],
+    '청소용 장갑' => ['M', '청소용품', '켤레', 30], '주방 고무장갑' => ['L', '주방용품', '켤레', 15], '주방세제' => ['350ml', '주방용품', '개', 5],
+    '행주' => ['60매', '주방용품', '팩', 5], '방향제' => ['용액', '객실 관리', '개', 2], '모기약' => ['30개입', '객실 관리', '박스', 1],
+    '제습제' => ['32개입', '객실 관리', '박스', 1], '건전지' => ['AA 40알', '객실 관리', '팩', 2],
+];
+
+function demo_seed_supplies(array $roomNights, array $worker, array $officer, array $byRank): void
+{
+    // 1) 물품구매 문서 (결재완료·지출완료)
+    $ins = []; // 소모품 => [날짜 => 수량]
+    foreach (DEMO_PURCHASES as [$real, $vendor, $title, $items]) {
+        $date = demo_shift($real);
+        $jid = demo_journal('purchase', $date, $worker, 'approved', $byRank, ['content' => $title]);
+        $total = 0;
+        foreach ($items as $k => [$n, $spec, $q, $p, $supply]) {
+            demo_ins('purchase_items', ['journal_id' => $jid, 'sort_no' => $k + 1, 'name' => $n, 'spec' => $spec ?: null, 'qty' => $q, 'unit_price' => $p, 'amount' => $q * $p]);
+            $total += $q * $p;
+            if ($supply !== 'b') $ins[$supply][$date] = ($ins[$supply][$date] ?? 0) + $q;
+        }
+        demo_ins('purchase_meta', ['journal_id' => $jid, 'vendor' => $vendor, 'pay_method' => 'card', 'total' => $total,
+            'paid_at' => date('Y-m-d', strtotime("$date +7 days")), 'paid_by' => $officer['id']]);
+    }
+
+    // 2) 소모품 재고: 첫 구매 전 재고 + 구매 입고, 매주 일요일 사용량(판매 객실 수 비례) 출고
+    $from = demo_shift('2025-01-01');
+    $today = date('Y-m-d');
+    $avg = $roomNights ? array_sum($roomNights) / count($roomNights) : 8; // 자료가 없는 옛날 날짜는 평균으로
+    $rn = fn(string $d) => $roomNights[$d] ?? $avg;
+    $totalRn = 0;
+    for ($t = strtotime($from); $t <= strtotime($today); $t += 86400) $totalRn += $rn(date('Y-m-d', $t));
+    $k = 0;
+    foreach (DEMO_SUPPLIES as $name => [$spec, $cat, $unit, $safe]) {
+        $sid = demo_ins('supplies', ['name' => $name, 'spec' => $spec ?: null, 'category' => $cat, 'unit' => $unit, 'safety_stock' => $safe, 'sort_order' => $k++]);
+        $bought = $ins[$name] ?? [];
+        $opening = (int) max($safe, round((reset($bought) ?: $safe) / 2));
+        $rate = (array_sum($bought) + $opening * 0.6) / max(1, $totalRn); // 기간 끝에는 조금 남도록
+        $moves = [$from => ['in' => $opening, 'out' => 0, 'note' => '기초 재고']];
+        foreach ($bought as $d => $q) $moves[$d] = ['in' => ($moves[$d]['in'] ?? 0) + $q, 'out' => 0, 'note' => '물품구매 입고'];
+        // 주간 사용량
+        $stock = 0;
+        $acc = 0.0;
+        $week = 0.0;
+        for ($t = strtotime($from); $t <= strtotime($today); $t += 86400) {
+            $d = date('Y-m-d', $t);
+            $stock += $moves[$d]['in'] ?? 0;
+            $week += $rn($d) * $rate;
+            if ((int) date('w', $t) === 0 || $d === $today) {
+                $acc += $week;
+                $week = 0.0;
+                $out = min($stock, (int) floor($acc));
+                if ($out > 0) {
+                    $acc -= $out;
+                    $stock -= $out;
+                    $moves[$d] = ['in' => $moves[$d]['in'] ?? 0, 'out' => $out, 'note' => isset($moves[$d]['note']) && $moves[$d]['in'] ? $moves[$d]['note'] . ' · 객실 지급' : '객실 지급'];
+                }
+            }
+        }
+        ksort($moves);
+        foreach ($moves as $d => $m) {
+            if ($m['in'] || $m['out']) demo_ins('supply_moves', ['supply_id' => $sid, 'move_date' => $d, 'in_qty' => $m['in'], 'out_qty' => $m['out'], 'note' => $m['note'], 'user_id' => $worker['id']]);
         }
     }
 }
