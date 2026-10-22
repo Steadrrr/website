@@ -50,6 +50,7 @@ function ai_key_masked(string $k): string
  */
 function ai_key_verify(string $key): ?string
 {
+    if (!function_exists('curl_init')) return '서버에 curl 기능이 없어 AI 에 연결할 수 없습니다.';
     if (!preg_match('/^sk-ant-[A-Za-z0-9_\-]{20,}$/', $key)) return "키 모양이 맞지 않습니다. 'sk-ant-' 로 시작하는 키 전체를 붙여 넣어 주세요.";
     $ch = curl_init(rtrim((string) config('anthropic_api_url', 'https://api.anthropic.com'), '/') . '/v1/models?limit=1');
     curl_setopt_array($ch, [CURLOPT_RETURNTRANSFER => true, CURLOPT_CONNECTTIMEOUT => 10, CURLOPT_TIMEOUT => 20,
@@ -108,6 +109,14 @@ function ai_room_nights(string $from, string $to): int
     return (int) $st->fetchColumn();
 }
 
+/** 그 기간 중 일일객실판매가 있는 날의 비율 (0~1) — 작년 자료가 일부만 있으면 '작년 기준'으로 쓰지 않는다 */
+function ai_coverage(string $from, string $to): float
+{
+    $st = db()->prepare("SELECT COUNT(DISTINCT work_date) FROM journals WHERE type = 'rooms' AND status <> 'rejected' AND work_date BETWEEN ? AND ?");
+    $st->execute([$from, $to]);
+    return (int) $st->fetchColumn() / max(1, ai_days($from, $to));
+}
+
 function ai_days(string $from, string $to): int
 {
     return (int) round((strtotime($to) - strtotime($from)) / 86400) + 1;
@@ -130,7 +139,7 @@ function ai_facts(): array
     $lyRn = ai_room_nights($lyFrom, $lyTo);
     $recentRn = ai_room_nights($recentFrom, $today);
     $rooms = ['객실 수' => $roomCount, '작년 같은 기간 판매(박)' => $lyRn, '최근 4주 판매(박)' => $recentRn,
-              '작년 같은 기간 자료 있음' => $lyRn > 0];
+              '작년 같은 기간 자료 있음' => ai_coverage($lyFrom, $lyTo) >= 0.6]; // 휴관일(주 1회)을 빼면 약 0.85
 
     // 민원: 작년 같은 기간 많았던 분류, 최근 8주 vs 작년 같은 8주, 같은 객실 반복
     $st = $pdo->prepare('SELECT cat1, cat2, cat3, SUM(qty) n FROM complaints WHERE work_date BETWEEN ? AND ? GROUP BY cat1, cat2, cat3 ORDER BY n DESC LIMIT 15');
@@ -147,8 +156,8 @@ function ai_facts(): array
     $w8 = date('Y-m-d', strtotime("$today -55 days"));
     // 같은 객실에서 같은 소분류(예: 온수, 배수)가 되풀이된 것
     $st = $pdo->prepare("SELECT place_name, cat3, COUNT(*) n, MAX(work_date) last FROM complaints
-                          WHERE place_type = 'room' AND cat1 <> ? AND work_date >= ? GROUP BY place_name, cat3 HAVING n >= 2 ORDER BY n DESC, last DESC LIMIT 10");
-    $st->execute([CPL_SIMPLE, date('Y-m-d', strtotime('-120 days'))]);
+                          WHERE place_type = 'room' AND cat1 <> ? AND work_date BETWEEN ? AND ? GROUP BY place_name, cat3 HAVING n >= 2 ORDER BY n DESC, last DESC LIMIT 10");
+    $st->execute([CPL_SIMPLE, date('Y-m-d', strtotime("$today -119 days")), $today]);
     $repeat = [];
     foreach ($st as $r) $repeat[] = ['객실' => $r['place_name'], '분류' => cpl_name($r['cat3']), '최근 120일 건수' => (int) $r['n'], '마지막' => $r['last']];
     $open = (int) $pdo->query("SELECT COUNT(*) FROM complaints WHERE status <> 'done' AND cat1 <> '" . CPL_SIMPLE . "'")->fetchColumn();
@@ -169,14 +178,14 @@ function ai_facts(): array
         $r365 = count(array_filter($repairs, fn($l) => $l['log_date'] >= date('Y-m-d', strtotime('-365 days'))));
         $gaps = [];
         for ($i = 1; $i < count($repairs); $i++) $gaps[] = ai_days($repairs[$i - 1]['log_date'], $repairs[$i]['log_date']) - 1;
-        $lyHit = array_values(array_filter($list, fn($l) => $l['log_date'] >= date('Y-m-d', strtotime("$lyFrom -14 days")) && $l['log_date'] <= date('Y-m-d', strtotime("$lyTo +14 days"))));
+        $lyHit = array_values(array_filter($repairs, fn($l) => $l['log_date'] >= date('Y-m-d', strtotime("$lyFrom -14 days")) && $l['log_date'] <= date('Y-m-d', strtotime("$lyTo +14 days"))));
         $last = end($list);
         $equipment[] = [
             '설비' => $e['name'], '분류' => $e['grp'], '위치' => $e['location'], '사용 연수' => $e['acquired_on'] ? round((time() - strtotime($e['acquired_on'])) / 31557600, 1) : null,
             '상태' => ['active' => '사용중', 'repair' => '수리중'][$e['status']] ?? $e['status'],
             '최근 1년 수리' => $r365, '최근 2년 수리' => count($repairs), '수리 간격(일)' => $gaps,
             '마지막 기록' => $last['log_date'] . ' ' . mb_substr((string) $last['content'], 0, 60),
-            '작년 이맘때(±2주) 기록' => array_map(fn($l) => $l['log_date'] . ' ' . mb_substr((string) $l['content'], 0, 40), $lyHit),
+            '작년 이맘때(±2주) 수리' => array_map(fn($l) => $l['log_date'] . ' ' . mb_substr((string) $l['content'], 0, 40), $lyHit),
             '고장 난 달' => array_values(array_unique(array_map(fn($l) => (int) substr($l['log_date'], 5, 2), $repairs))),
             '_score' => $r365 * 3 + count($lyHit) * 2 + ($e['status'] === 'repair' ? 5 : 0) + (($last['log_date'] >= date('Y-m-d', strtotime('-60 days'))) ? 1 : 0),
         ];
@@ -195,8 +204,8 @@ function ai_facts(): array
     $stock = supply_stock_before(date('Y-m-d')); // 어제까지의 재고
     $rn8 = ai_room_nights($w8, $today);
     $next8To = date('Y-m-d', strtotime('+55 days'));
-    $lyNext8 = ai_room_nights(ai_minus_year(date('Y-m-d')), ai_minus_year($next8To));
-    $rnNext8 = $lyNext8 > 0 ? $lyNext8 : $rn8; // 작년 자료가 없으면 최근 8주와 같다고 본다
+    $lyNext8 = ai_coverage(ai_minus_year(date('Y-m-d')), ai_minus_year($next8To)) >= 0.6 ? ai_room_nights(ai_minus_year(date('Y-m-d')), ai_minus_year($next8To)) : 0;
+    $rnNext8 = $lyNext8 > 0 ? $lyNext8 : $rn8; // 작년 자료가 없거나 일부만 있으면 최근 8주와 같다고 본다
     $out8 = [];
     $st = $pdo->prepare('SELECT supply_id, SUM(out_qty) n FROM supply_moves WHERE move_date BETWEEN ? AND ? GROUP BY supply_id');
     $st->execute([$w8, $today]);
@@ -210,7 +219,7 @@ function ai_facts(): array
         $need = $rn8 > 0 ? $used / $rn8 * $rnNext8 : $used;
         $perWeek = $need / 8;
         $supplies[] = [
-            '품목' => $s['name'] . ($s['spec'] ? " ({$s['spec']})" : ''), '단위' => $s['unit'], '현재 재고' => $now, '적정 재고' => (int) $s['safety_stock'],
+            '품목' => mb_substr($s['name'] . ($s['spec'] ? " ({$s['spec']})" : ''), 0, 40), '단위' => $s['unit'], '현재 재고' => $now, '적정 재고' => (int) $s['safety_stock'],
             '최근 8주 사용' => $used, '다음 8주 예상 사용' => round($need, 1),
             '남은 기간(주)' => $perWeek > 0 ? round($now / $perWeek, 1) : null,
             '마지막 입고' => isset($lastIn[$sid]) ? $lastIn[$sid][0] . ' ' . $lastIn[$sid][1] . $s['unit'] : null,
@@ -218,6 +227,7 @@ function ai_facts(): array
         ];
     }
     usort($supplies, fn($a, $b) => ($a['남은 기간(주)'] ?? 999) <=> ($b['남은 기간(주)'] ?? 999));
+    $supplies = array_slice($supplies, 0, 30);
 
     // 물품구매: 최근 2년 월별 구매액 (구매 시기 패턴)
     $st = $pdo->prepare("SELECT DATE_FORMAT(j.work_date, '%Y-%m') ym, SUM(m.total) t, COUNT(*) n FROM journals j JOIN purchase_meta m ON m.journal_id = j.id
@@ -281,8 +291,8 @@ function ai_rule_items(array $f): array
             $items[] = ['area' => '시설', 'level' => '높음', 'title' => "{$e['설비']} 수리 중", 'why' => $e['마지막 기록'], 'action' => '수리 일정 확인, 대체 설비 준비', 'when' => '이번 주'];
         } elseif ($e['최근 1년 수리'] >= 2) {
             $items[] = ['area' => '시설', 'level' => '높음', 'title' => "{$e['설비']} 반복 고장", 'why' => "최근 1년 수리 {$e['최근 1년 수리']}회, 마지막 {$e['마지막 기록']}", 'action' => '정밀점검 또는 교체 검토, 예비 부품 확보', 'when' => $when];
-        } elseif ($e['작년 이맘때(±2주) 기록']) {
-            $items[] = ['area' => '시설', 'level' => '보통', 'title' => "{$e['설비']} 작년 이맘때 고장", 'why' => implode(', ', $e['작년 이맘때(±2주) 기록']), 'action' => '시기 전에 미리 점검', 'when' => $when];
+        } elseif ($e['작년 이맘때(±2주) 수리']) {
+            $items[] = ['area' => '시설', 'level' => '보통', 'title' => "{$e['설비']} 작년 이맘때 고장", 'why' => implode(', ', $e['작년 이맘때(±2주) 수리']), 'action' => '시기 전에 미리 점검', 'when' => $when];
         }
     }
     foreach ($f['supplies'] as $s) {
@@ -394,20 +404,33 @@ function ai_claude_json(string $system, string $user, array $schema, string $eff
     }
     if (($res['stop_reason'] ?? '') === 'refusal') return ['ok' => false, 'error' => 'AI가 이 요청에 답하지 않았습니다.'];
     if (($res['stop_reason'] ?? '') === 'max_tokens') return ['ok' => false, 'error' => 'AI 답이 너무 길어 잘렸습니다. 다시 눌러 주세요.'];
+    // 안전 분류기 거절 → 다른 모델로 이어서 답한 경우 'fallback' 블록 뒤가 최종 답이다 (앞쪽 일부 답은 버림)
     $text = '';
     foreach ($res['content'] ?? [] as $b) {
-        if (($b['type'] ?? '') === 'text') $text .= $b['text'];
+        if (($b['type'] ?? '') === 'fallback') $text = '';
+        elseif (($b['type'] ?? '') === 'text') $text .= $b['text'];
     }
     $data = json_decode($text, true);
     if (!is_array($data)) return ['ok' => false, 'error' => 'AI 답을 읽지 못했습니다.'];
-    return ['ok' => true, 'data' => $data, 'model' => (string) ($res['model'] ?? AI_MODEL), 'usage' => $res['usage'] ?? []];
+    // 다른 모델로 이어서 답했으면 사용량은 시도별 합계
+    $usage = $res['usage'] ?? [];
+    if (!empty($usage['iterations']) && is_array($usage['iterations'])) {
+        $usage['input_tokens'] = array_sum(array_map(fn($i) => (int) ($i['input_tokens'] ?? 0), $usage['iterations']));
+        $usage['output_tokens'] = array_sum(array_map(fn($i) => (int) ($i['output_tokens'] ?? 0), $usage['iterations']));
+    }
+    return ['ok' => true, 'data' => $data, 'model' => (string) ($res['model'] ?? AI_MODEL), 'usage' => $usage];
 }
 
 /** 혹시 섞여 들어간 전화번호·이메일 가리기 (통계 근거에는 원래 없지만 한 번 더) */
 function ai_mask(string $s): string
 {
-    $s = preg_replace('/\b01[016789][-\s.]?\d{3,4}[-\s.]?\d{4}\b/u', '010-****-****', $s);
-    return preg_replace('/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/u', '(이메일)', (string) $s);
+    $d = '[-\s.\x{2010}-\x{2015}\x{2212}]?'; // 하이픈·공백·점·여러 종류의 대시
+    // 휴대폰·지역번호·+82 (앞뒤가 숫자가 아니면 — 한글 바로 옆에 붙어 있어도 가린다)
+    $s = preg_replace('/(?<!\d)(?:\+?82' . $d . '0?1[016789]|01[016789])' . $d . '\d{3,4}' . $d . '\d{4}(?!\d)/u', '(전화번호)', $s);
+    $s = preg_replace('/(?<!\d)0(?:2|[3-6]\d)' . $d . '\d{3,4}' . $d . '\d{4}(?!\d)/u', '(전화번호)', (string) $s);
+    $s = preg_replace('/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/u', '(이메일)', (string) $s);
+    // 직함·호칭 앞의 이름 (김철수 기사, 이정일주임님, 박 대표 …) — 낱말 첫머리부터 가장 짧게, '고객님·손님'은 그대로
+    return (string) preg_replace('/(?<![가-힣])(?!고객|손님)[가-힣]{1,4}?\s?(?=(?:기사|주임|주무관|팀장|과장|소장|사장|대표|반장|선생님|님)님?(?![가-힣]))/u', '○○ ', (string) $s);
 }
 
 /** 발행 비용 (원, 대략) — 이스터에그: Opus 5.5 단가 입력 $4·출력 $20 / 100만 토큰, 1달러 ≈ 1,400원 */
@@ -430,12 +453,12 @@ function ai_published_today(): bool
 function ai_forecast_run(array $user): array
 {
     // 두 사람이 동시에 눌러도 한 번만 (먼저 누른 사람이 끝날 때까지 기다렸다가 다시 확인)
-    if ((int) db()->query("SELECT GET_LOCK('ai_publish', 200)")->fetchColumn() !== 1) return ['ok' => false, 'error' => '다른 사람이 발행 중입니다. 잠시 뒤 다시 확인해 주세요.'];
+    if ((int) db()->query("SELECT GET_LOCK(CONCAT('ai_publish_', '" . session_site() . "'), 200)")->fetchColumn() !== 1) return ['ok' => false, 'error' => '다른 사람이 발행 중입니다. 잠시 뒤 다시 확인해 주세요.'];
     try {
         if (ai_published_today()) return ['ok' => false, 'error' => '오늘 예측은 이미 발행되었습니다. 내일 다시 발행할 수 있습니다.'];
         return ai_forecast_publish($user);
     } finally {
-        db()->query("SELECT RELEASE_LOCK('ai_publish')");
+        db()->query("SELECT RELEASE_LOCK(CONCAT('ai_publish_', '" . session_site() . "'))");
     }
 }
 
@@ -447,7 +470,12 @@ function ai_forecast_publish(array $user): array
         . "## 통계 근거\n" . json_encode(array_diff_key($facts, ['period' => 1]), JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT)
         . "\n\n## 규칙으로 뽑은 예측 후보 (참고용, 빼거나 합치거나 순서를 바꿔도 됩니다)\n" . json_encode($rules, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT)
         . "\n\n## 기간\n" . json_encode($facts['period'], JSON_UNESCAPED_UNICODE);
+    // 30초~1분 걸리는 호출: 세션을 잠시 풀어 같은 사람의 다른 탭이 멈추지 않게, 브라우저가 끊겨도 끝까지 저장
+    $hadSession = session_status() === PHP_SESSION_ACTIVE;
+    if ($hadSession) session_write_close();
+    ignore_user_abort(true);
     $res = ai_claude_json(AI_FORECAST_SYSTEM, ai_mask($prompt), ai_forecast_schema());
+    if ($hadSession) @session_start(); // 결과 안내(flash)를 남기기 위해 다시 연다
     if (!$res['ok']) return $res;
     [$from, $to] = ai_window();
     db()->prepare('INSERT INTO ai_insights (kind, period_from, period_to, facts, result, model, input_tokens, output_tokens, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)')

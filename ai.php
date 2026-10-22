@@ -20,7 +20,10 @@ if (is_post()) {
 }
 
 $facts = ai_facts();
-$rules = ai_rule_items($facts);
+// 메뉴 권한(회원관리)에 맞춰 보여 줄 구분만: 민원 = 운영관리, 시설 = 시설관리, 소모품·객실 = 객실관리
+$can = ['민원' => can_menu($user, 'ops'), '시설' => can_menu($user, 'fac'), '소모품' => can_menu($user, 'room'), '객실운영' => can_menu($user, 'room')];
+$canAll = !in_array(false, $can, true);
+$rules = array_values(array_filter(ai_rule_items($facts), fn($r) => $can[$r['area']] ?? false));
 $latest = ai_latest();
 $hasKey = ai_key() !== '';
 $publishedToday = ai_published_today();
@@ -37,7 +40,7 @@ layout_header('AI 분석', 'ai');
   <div>
     <h1>✨ AI 분석 <small class="muted">오늘부터 4주 미리 보기 · <?= e($md($from)) ?> ~ <?= e($md($to)) ?> · 어제(<?= e($md(ai_basis())) ?>)까지 자료 기준</small></h1>
     <p class="muted">작년 같은 기간의 민원·고장 기록, 최근 반복되는 문제, 소모품이 줄어드는 속도를 숫자로 계산하고, AI가 그 숫자를 읽어 <b>미리 챙길 일</b>을 정리합니다.
-      AI 예측은 <b>하루 한 번 발행</b>되고 모든 직원이 함께 봅니다. AI는 아래 '근거 숫자'만 보고 판단하며, 사람 이름·연락처·민원 원문은 보내지 않습니다.</p>
+      AI 예측은 <b>하루 한 번 발행</b>되고 모든 직원이 함께 봅니다. AI에게는 아래 '근거 숫자'만 보내며, 민원 원문은 보내지 않고 설비 기록 문구의 전화번호·이메일·이름(호칭 앞)은 가립니다.</p>
   </div>
   <?php if (ai_can_run($user) && $hasKey && !$publishedToday): ?>
     <form method="post" data-ai-run>
@@ -63,9 +66,9 @@ layout_header('AI 분석', 'ai');
     <h2>AI 예측 <?= $fresh ? '<span class="chip">오늘 발행</span>' : '<span class="chip">' . e($md($latest['created_at'])) . ' 발행본</span>' ?></h2>
     <span class="muted tiny-text"><?= e(date('n/j H:i', strtotime($latest['created_at']))) ?> 발행 · <?= e($latest['user_name'] ?? '') ?> · 대상 <?= e($md($latest['period_from'])) ?>~<?= e($md($latest['period_to'])) ?><?= $fresh ? '' : ' · <b>오늘은 아직 발행 전 — 최근 발행본입니다</b>' ?><?php if ($c = ai_cost_won($latest)): ?> · <span title="자판기 커피 반 잔 값으로 4주를 미리 봅니다 ☕">💸 이번 발행 약 <?= number_format($c) ?>원</span><?php endif ?></span>
   </div>
-  <p class="ai-summary"><?= nl2br(e($ai['summary'] ?? '')) ?></p>
+  <?php if ($canAll): ?><p class="ai-summary"><?= nl2br(e($ai['summary'] ?? '')) ?></p><?php endif ?>
   <div class="ai-items">
-    <?php foreach ($ai['items'] ?? [] as $it): ?>
+    <?php foreach ($ai['items'] ?? [] as $it): if (!is_array($it) || !($can[$it['area'] ?? ''] ?? false)) continue; $it += ['level' => '', 'when' => '', 'title' => '', 'why' => '', 'action' => '']; ?>
       <div class="ai-item lv-<?= e($lv[$it['level']] ?? 'low') ?>">
         <div class="ai-item-top"><span class="chip"><?= e(($areaIcon[$it['area']] ?? '') . ' ' . $it['area']) ?></span> <span class="chip lv"><?= e($it['level']) ?></span> <span class="muted tiny-text"><?= e($it['when']) ?></span></div>
         <b><?= e($it['title']) ?></b>
@@ -77,17 +80,17 @@ layout_header('AI 분석', 'ai');
   <div class="grid2">
     <div>
       <h3>🧾 구매 목록 초안</h3>
-      <?php if (empty($ai['purchase_list'])): ?><p class="muted">지금 살 것은 없습니다.</p><?php else: ?>
+      <?php if (!$can['소모품']): ?><p class="muted">객실관리 메뉴 권한이 있는 직원에게 보입니다.</p><?php elseif (empty($ai['purchase_list'])): ?><p class="muted">지금 살 것은 없습니다.</p><?php else: ?>
       <table class="table">
         <thead><tr><th>품목</th><th>수량</th><th>예상 금액</th><th>이유</th></tr></thead>
-        <tbody><?php foreach ($ai['purchase_list'] as $p): ?><tr><td><?= e($p['item']) ?></td><td><?= e($p['qty']) ?></td><td><?= e($p['est_cost']) ?></td><td class="muted"><?= e($p['reason']) ?></td></tr><?php endforeach ?></tbody>
+        <tbody><?php foreach ($ai['purchase_list'] as $p): if (!is_array($p)) continue; $p += ['item' => '', 'qty' => '', 'est_cost' => '', 'reason' => '']; ?><tr><td><?= e($p['item']) ?></td><td><?= e($p['qty']) ?></td><td><?= e($p['est_cost']) ?></td><td class="muted"><?= e($p['reason']) ?></td></tr><?php endforeach ?></tbody>
       </table>
       <?php if (can_purchase($user)): ?><p><a class="btn" href="<?= e(url('write.php?type=purchase')) ?>">물품구매 문서 쓰기 ›</a></p><?php endif ?>
       <?php endif ?>
     </div>
     <div>
       <h3>✅ 이번 주 할 일</h3>
-      <ul class="ai-check"><?php foreach ($ai['checklist'] ?? [] as $c): ?><li><?= e($c) ?></li><?php endforeach ?></ul>
+      <?php if ($canAll): ?><ul class="ai-check"><?php foreach ((array) ($ai['checklist'] ?? []) as $c): if (is_string($c)): ?><li><?= e($c) ?></li><?php endif; endforeach ?></ul><?php else: ?><p class="muted">모든 메뉴 권한이 있는 직원에게 보입니다.</p><?php endif ?>
     </div>
   </div>
 </section>
@@ -112,25 +115,25 @@ layout_header('AI 분석', 'ai');
   <summary><b>AI에게 주는 근거 숫자 보기</b> <span class="muted">— 계산은 시스템이, 해석은 AI가</span></summary>
   <div class="grid2">
     <div>
-      <h3>객실 판매</h3>
-      <ul class="list"><?php foreach ($facts['rooms'] as $k => $v): ?><li><span><?= e($k) ?></span><b><?= e(is_bool($v) ? ($v ? '예' : '아니오') : $v) ?></b></li><?php endforeach ?></ul>
-      <h3>민원 — 작년 같은 기간 (<?= e($facts['period']['작년 같은 기간']) ?>)</h3>
+      <?php if ($can['객실운영']): ?><h3>객실 판매</h3>
+      <ul class="list"><?php foreach ($facts['rooms'] as $k => $v): ?><li><span><?= e($k) ?></span><b><?= e(is_bool($v) ? ($v ? '예' : '아니오') : $v) ?></b></li><?php endforeach ?></ul><?php endif ?>
+      <?php if ($can['민원']): ?><h3>민원 — 작년 같은 기간 (<?= e($facts['period']['작년 같은 기간']) ?>)</h3>
       <table class="table"><tbody><?php foreach ($facts['complaints']['작년 같은 기간 많았던 분류'] as $c): ?><tr><td><?= e($c['분류']) ?></td><td><?= (int) $c['작년 같은 기간 건수'] ?>건</td></tr><?php endforeach ?>
         <?php if (!$facts['complaints']['작년 같은 기간 많았던 분류']): ?><tr><td class="muted">작년 같은 기간 자료가 없습니다.</td></tr><?php endif ?></tbody></table>
       <h3>같은 객실 반복 (최근 120일)</h3>
-      <table class="table"><tbody><?php foreach ($facts['complaints']['같은 객실 반복(최근 120일)'] as $r): ?><tr><td><?= e($r['객실']) ?></td><td><?= e($r['분류']) ?></td><td><?= (int) $r['최근 120일 건수'] ?>건</td><td class="muted"><?= e($r['마지막']) ?></td></tr><?php endforeach ?></tbody></table>
+      <table class="table"><tbody><?php foreach ($facts['complaints']['같은 객실 반복(최근 120일)'] as $r): ?><tr><td><?= e($r['객실']) ?></td><td><?= e($r['분류']) ?></td><td><?= (int) $r['최근 120일 건수'] ?>건</td><td class="muted"><?= e($r['마지막']) ?></td></tr><?php endforeach ?></tbody></table><?php endif ?>
     </div>
     <div>
-      <h3>설비 고장 이력 (위험한 순)</h3>
+      <?php if ($can['시설']): ?><h3>설비 고장 이력 (위험한 순)</h3>
       <table class="table"><thead><tr><th>설비</th><th>1년 수리</th><th>마지막 기록</th></tr></thead><tbody>
         <?php foreach (array_slice($facts['equipment'], 0, 10) as $e): ?><tr><td><?= e($e['설비']) ?><?= $e['상태'] === '수리중' ? ' <span class="chip">수리중</span>' : '' ?></td><td><?= (int) $e['최근 1년 수리'] ?>회</td><td class="muted"><?= e($e['마지막 기록']) ?></td></tr><?php endforeach ?>
-      </tbody></table>
-      <h3>소모품 재고 (빨리 떨어지는 순)</h3>
+      </tbody></table><?php endif ?>
+      <?php if ($can['소모품']): ?><h3>소모품 재고 (빨리 떨어지는 순)</h3>
       <table class="table"><thead><tr><th>품목</th><th>재고</th><th>8주 사용</th><th>남은 기간</th></tr></thead><tbody>
         <?php foreach ($facts['supplies'] as $s): ?><tr><td><?= e($s['품목']) ?></td><td><?= (int) $s['현재 재고'] ?><?= e($s['단위']) ?></td><td><?= (int) $s['최근 8주 사용'] ?></td>
           <td><?= $s['남은 기간(주)'] === null ? '-' : e($s['남은 기간(주)']) . '주' ?></td></tr><?php endforeach ?>
       </tbody></table>
-      <p class="muted tiny-text">다음 8주 예상 판매 <?= (int) $facts['supply_basis']['다음 8주 예상 판매(박)'] ?>박 (<?= e($facts['supply_basis']['예상 근거']) ?>) 기준</p>
+      <p class="muted tiny-text">다음 8주 예상 판매 <?= (int) $facts['supply_basis']['다음 8주 예상 판매(박)'] ?>박 (<?= e($facts['supply_basis']['예상 근거']) ?>) 기준</p><?php endif ?>
     </div>
   </div>
 </details>

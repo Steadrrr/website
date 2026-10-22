@@ -37,6 +37,7 @@ layout_header('AI 연결 (API 키)', 'ai');
 ?>
 <div class="card narrow">
   <h1>AI 연결 — Claude API 키</h1>
+  <?php $local = is_file(ai_key_file()); ?>
   <p>지금 상태: <?= $now !== '' ? '<b>연결됨</b> <code>' . e(ai_key_masked($now)) . '</code>' . ($fromConfig ? ' <span class="muted">(설정 파일에 있는 키 — 여기서 바꿀 수 없음)</span>' : '') : '<b>연결 안 됨</b>' ?></p>
   <?php if ($error): ?><div class="flash flash-error"><?= e($error) ?></div><?php endif ?>
   <?php if (!$fromConfig): ?>
@@ -50,7 +51,8 @@ layout_header('AI 연결 (API 키)', 'ai');
     <?php endif ?>
     <button class="btn primary block">키 확인 후 저장</button>
   </form>
-  <?php if ($now !== ''): ?>
+  <?php if ($now !== '' && !$local): ?><p class="muted tiny-text">지금 키는 운영 사이트에 저장된 키입니다. 여기서 새 키를 저장하면 체험판은 그 키를 쓰고, 지우기는 이 체험판에 저장한 키만 지웁니다.</p><?php endif ?>
+  <?php if ($local): ?>
   <form method="post" style="margin-top:1rem" onsubmit="return confirm('API 키를 지울까요? AI 분석은 규칙 예측만 보이게 됩니다.')">
     <?= csrf_field() ?><input type="hidden" name="action" value="delete">
     <?php if (is_demo()): ?>
