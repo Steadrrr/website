@@ -18,6 +18,15 @@
   화면이 바뀌면 `assets/help/` 의 캡처도 새로 찍는다 (Playwright: `/opt/node22/lib/node_modules/playwright`).
 - DB 구조가 바뀌면 `sql/schema.sql`(CREATE TABLE IF NOT EXISTS) 과 `app/migrate.php`(DB_VERSION + 단계) 를 함께 고친다.
   단계는 여러 번 실행해도 안전해야 한다 (column_exists / enum_has 로 확인 후 ALTER).
+- **새 표는 반드시 `sql/schema.sql` 에 `CREATE TABLE IF NOT EXISTS` 로 넣는다.** 체험판(/demo)이 이 목록을 보고 `demo_` 표로 바꾼다.
+- 표 이름을 SQL 문자열에 직접 이어 붙이지 말고 평소처럼 쓴다. migrate 도우미에서 표 이름이 필요하면 `db_table()` 을 쓴다.
+- 메뉴를 추가·변경하면 `app/layout.php` 의 체험판 6묶음 `NAV_BUNDLES` 에도 넣는다.
+
+## 체험판 (/demo) · 경진대회
+- 경진대회 작업은 `contest` 브랜치에서 한다. 커밋 메시지에 `[데모배포]` 가 있을 때만 체험판(/demo)에 배포된다.
+- 체험판: `app/demo.php`, `demo_db.php`, `demo_seed.php`, `config.demo.php`. 운영과 같은 DB 의 `demo_` 표를 쓰고 세션은 따로 둔다.
+- AI 분석 API 키는 서버의 `app/anthropic_key.txt` 에만 둔다 (gitignore, 절대 커밋 금지). 입력은 `ai_key.php` 화면에서.
+- 경위·진행 기록: `dev/contest-plan.md` 10절.
 
 ## 일하는 방식
 - **사용자가 상황을 설명만 했을 때 기능을 먼저 만들지 않는다.** 만들어 달라는 요청인지 애매하면 먼저 묻는다.
