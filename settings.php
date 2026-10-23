@@ -25,6 +25,7 @@ if (is_post()) {
     if ($target === 'general') {
         setting_set('org_top_name', mb_substr(post('org_top_name'), 0, 100));
         setting_set('org_park_name', mb_substr(post('org_park_name'), 0, 100));
+        if (!is_demo()) setting_set('site_name', mb_substr(post('site_name'), 0, 60));
         flash('기본 정보를 저장했습니다.', 'success');
         redirect('settings.php?tab=general');
     }
@@ -111,7 +112,11 @@ if ($tab === 'general'): ?>
     <label>상위 부서 (팀장·주무관 소속)<input name="org_top_name" value="<?= e(setting('org_top_name', '')) ?>" placeholder="예: 양평군청 산림과 산림휴양팀"></label>
     <label>사업장 (팀들이 속한 곳)<input name="org_park_name" value="<?= e(setting('org_park_name', '')) ?>" placeholder="예: 양평쉬자파크"></label>
   </div>
-  <p class="muted small">사이트 이름(상단 제목)은 서버의 <code>app/config.php</code> 의 <code>site_name</code> 에서 바꿉니다.</p>
+  <?php if (is_demo()): ?>
+  <p class="muted small">사이트 이름: <b><?= e((string) config('site_name', '')) ?></b> (체험판은 바꿀 수 없습니다)</p>
+  <?php else: ?>
+  <label>사이트 이름 (상단 제목·로그인 화면·인쇄 제목)<input name="site_name" value="<?= e(setting('site_name', '')) ?>" maxlength="60" placeholder="비우면 서버 설정 파일의 이름: <?= e((string) config('site_name_file', '')) ?>"></label>
+  <?php endif ?>
   <div class="actions"><button class="btn primary">저장</button></div>
 </form>
 
