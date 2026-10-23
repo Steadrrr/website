@@ -1289,6 +1289,3 @@ label .tm-pick { display: flex; margin-top: .25rem; }
 }
 .ai-side { display: flex; flex-direction: column; align-items: flex-end; gap: .6rem; }
 @media (max-width: 760px) { .ai-side { align-items: stretch; } }
-/* AI 모델 비교 */
-.cmp-cols { align-items: start; }
-.cmp-items { display: grid; gap: .5rem; margin-bottom: 1rem; }
