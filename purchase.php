@@ -102,6 +102,7 @@ layout_header('물품구매', 'purchase');
     <div class="actions no-margin no-print">
       <button class="btn ghost" onclick="window.print()">인쇄</button>
       <a class="btn" href="<?= e(url('purchase_report.php?from=' . $from . '&to=' . $to)) ?>">보고서</a>
+      <a class="btn" href="<?= e(url('purchase_photos.php?from=' . $from . '&to=' . $to)) ?>">검수사진 저장</a>
       <a class="btn primary" href="<?= e(url('write.php?type=purchase&date=' . (substr(date('Y-m-d'), 0, 7) === $ym ? date('Y-m-d') : $from))) ?>">+ 물품구매 등록</a>
     </div>
   </div>

@@ -3,43 +3,17 @@
  * 시설관리 › 물품구매 › 보고서 — purchase_report.php?from=YYYY-MM-DD&to=YYYY-MM-DD[&vendor=구매처&pay=card|credit&st=approved|paid]
  *   기간·구매처(·결제방법·상태)로 골라 구매 내역을 한 페이지 보고서로: 요약, 구매처별 합계, 건별 내역(품목·수량)
  *   인쇄는 A4 세로 한 장 (내용이 많으면 자동으로 줄임). 임시저장·반려는 넣지 않는다.
+ *   같은 조건의 검수사진 모아 받기는 purchase_photos.php. 조건·조회는 app/purchase.php 의 purchase_report_*
  */
 require __DIR__ . '/app/bootstrap.php';
 
 $user = require_login();
 require_menu($user, 'fac');
 if (!can_purchase($user)) abort(403, '물품구매는 공무직 이상만 사용할 수 있습니다.');
-$pdo = db();
 
-$from = valid_date($_GET['from'] ?? '') ? $_GET['from'] : date('Y-m-01');
-$to = valid_date($_GET['to'] ?? '') ? $_GET['to'] : date('Y-m-t');
-if ($to < $from) [$from, $to] = [$to, $from];
-$vendor = mb_substr(trim((string) ($_GET['vendor'] ?? '')), 0, 100);
-$pay = (string) ($_GET['pay'] ?? '');
-if (!isset(PURCHASE_PAY[$pay])) $pay = '';
-$stLabels = ['' => '결재중 + 결재완료', 'approved' => '결재완료', 'paid' => '지출완료'];
-$stF = (string) ($_GET['st'] ?? '');
-if (!isset($stLabels[$stF])) $stF = '';
-
-// 구매처 목록 (임시저장·반려 제외한 구매가 있는 곳)
-$vendors = $pdo->query("SELECT m.vendor, COUNT(*) AS n FROM purchase_meta m JOIN journals j ON j.id = m.journal_id
-                         WHERE j.type = 'purchase' AND j.status IN ('pending', 'approved') AND m.vendor <> '' GROUP BY m.vendor ORDER BY m.vendor")->fetchAll();
-
-$sql = "SELECT j.id, j.work_date, j.status, m.vendor, m.pay_method, m.total, m.paid_at,
-               (SELECT GROUP_CONCAT(CONCAT(i.name, ' ', i.qty) ORDER BY i.sort_no SEPARATOR ', ') FROM purchase_items i WHERE i.journal_id = j.id) AS items
-          FROM journals j JOIN purchase_meta m ON m.journal_id = j.id
-         WHERE j.type = 'purchase' AND j.work_date BETWEEN ? AND ?";
-$args = [$from, $to];
-$sql .= match ($stF) {
-    'approved' => " AND j.status = 'approved'",
-    'paid'     => " AND j.status = 'approved' AND m.paid_at IS NOT NULL",
-    default    => " AND j.status IN ('pending', 'approved')",
-};
-if ($vendor !== '') { $sql .= ' AND m.vendor = ?'; $args[] = $vendor; }
-if ($pay !== '') { $sql .= ' AND m.pay_method = ?'; $args[] = $pay; }
-$st = $pdo->prepare($sql . ' ORDER BY j.work_date, m.vendor, j.id');
-$st->execute($args);
-$rows = $st->fetchAll();
+$f = purchase_report_filter();
+['from' => $from, 'to' => $to, 'vendor' => $vendor, 'pay' => $pay, 'st' => $stF] = $f;
+$rows = purchase_report_rows($f);
 
 $sum = fn(callable $cond) => array_sum(array_map(fn($r) => $cond($r) ? (int) $r['total'] : 0, $rows));
 $total = $sum(fn($r) => true);
@@ -53,46 +27,19 @@ foreach ($rows as $r) {
 }
 uasort($byVendor, fn($a, $b) => ($b['card'] + $b['credit']) <=> ($a['card'] + $a['credit']));
 
-$q = fn(array $p) => 'purchase_report.php?' . http_build_query(array_filter($p + ['from' => $from, 'to' => $to, 'vendor' => $vendor, 'pay' => $pay, 'st' => $stF], fn($v) => $v !== ''));
-$period = fn(string $a, string $b) => url($q(['from' => $a, 'to' => $b]));
-$m0 = new DateTimeImmutable('first day of this month');
-$y = (int) date('Y');
 $dateText = fn(string $d) => date('Y. n. j.', strtotime($d));
-$cond = array_filter([$vendor !== '' ? "구매처 {$vendor}" : '구매처 전체', $pay ? '결제 ' . PURCHASE_PAY[$pay] : '', $stLabels[$stF]]);
+
 
 layout_header('물품구매 보고서', 'purchase');
 ?>
-<section class="card no-print">
-  <form method="get" class="pc-report-form">
-    <div class="row">
-      <label>시작일<input type="date" name="from" value="<?= e($from) ?>" required></label>
-      <label>종료일<input type="date" name="to" value="<?= e($to) ?>" required></label>
-      <label>구매처<select name="vendor">
-        <option value="">전체</option>
-        <?php foreach ($vendors as $v): ?><option value="<?= e($v['vendor']) ?>" <?= $v['vendor'] === $vendor ? 'selected' : '' ?>><?= e($v['vendor']) ?> (<?= (int) $v['n'] ?>건)</option><?php endforeach ?>
-      </select></label>
-      <label>결제<select name="pay"><option value="">전체</option><?php foreach (PURCHASE_PAY as $k => $l): ?><option value="<?= $k ?>" <?= $pay === $k ? 'selected' : '' ?>><?= e($l) ?></option><?php endforeach ?></select></label>
-      <label>상태<select name="st"><?php foreach ($stLabels as $k => $l): ?><option value="<?= $k ?>" <?= $stF === $k ? 'selected' : '' ?>><?= e($l) ?></option><?php endforeach ?></select></label>
-      <button class="btn primary">조회</button>
-    </div>
-    <div class="actions no-margin">
-      <span class="muted small">기간 바로 고르기</span>
-      <a class="btn small ghost" href="<?= e($period($m0->format('Y-m-d'), $m0->format('Y-m-t'))) ?>">이번 달</a>
-      <a class="btn small ghost" href="<?= e($period($m0->modify('-1 month')->format('Y-m-d'), $m0->modify('-1 month')->format('Y-m-t'))) ?>">지난 달</a>
-      <a class="btn small ghost" href="<?= e($period("$y-01-01", "$y-06-30")) ?>">상반기</a>
-      <a class="btn small ghost" href="<?= e($period("$y-07-01", "$y-12-31")) ?>">하반기</a>
-      <a class="btn small ghost" href="<?= e($period("$y-01-01", "$y-12-31")) ?>">올해</a>
-      <a class="btn small ghost" href="<?= e($period(($y - 1) . '-01-01', ($y - 1) . '-12-31')) ?>">작년</a>
-    </div>
-  </form>
-</section>
+<?php purchase_report_form($f, 'purchase_report.php') ?>
 
 <section class="card payout pc-report" data-payout>
   <div class="payout-head">
     <h1>물품구매 보고서</h1>
     <div class="payout-meta">
       <span><b><?= e($dateText($from)) ?> ~ <?= e($dateText($to)) ?></b></span>
-      <span class="muted small"><?= e(implode(' · ', $cond)) ?></span>
+      <span class="muted small"><?= e(purchase_report_cond_text($f)) ?></span>
       <span class="muted small">출력 <?= e(date('Y. n. j.')) ?> · <?= e($user['name']) ?></span>
     </div>
   </div>
@@ -142,6 +89,7 @@ layout_header('물품구매 보고서', 'purchase');
 
   <div class="actions no-print">
     <a class="btn ghost" href="<?= e(url('purchase.php?ym=' . substr($from, 0, 7))) ?>">물품구매로</a>
+    <a class="btn" href="<?= e(url('purchase_photos.php?' . purchase_report_query($f))) ?>">검수사진 저장</a>
     <button type="button" class="btn primary" onclick="window.print()">인쇄</button>
   </div>
   <p class="muted small no-print">임시저장·반려된 구매는 넣지 않습니다. 인쇄는 A4 세로 한 장에 맞춰 나옵니다 (내용이 많으면 글씨가 작아집니다).</p>

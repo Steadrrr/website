@@ -255,3 +255,96 @@ function purchase_snapshot(array $journal): array
         '사진'     => '검수 ' . count(photos_for('purchase_check', $id)) . '장 · 영수증 ' . count(photos_for('purchase_receipt', $id)) . '장',
     ];
 }
+
+/* ───────────── 보고서·검수사진 모아 받기 공통: 기간·구매처·결제·상태 조건 (purchase_report.php, purchase_photos.php) ───────────── */
+
+const PURCHASE_REPORT_ST = ['' => '결재중 + 결재완료', 'approved' => '결재완료', 'paid' => '지출완료'];
+
+/** 주소(GET)의 조건. 기본은 이번 달·전체 */
+function purchase_report_filter(): array
+{
+    $f = [
+        'from'   => valid_date($_GET['from'] ?? '') ? $_GET['from'] : date('Y-m-01'),
+        'to'     => valid_date($_GET['to'] ?? '') ? $_GET['to'] : date('Y-m-t'),
+        'vendor' => mb_substr(trim((string) ($_GET['vendor'] ?? '')), 0, 100),
+        'pay'    => (string) ($_GET['pay'] ?? ''),
+        'st'     => (string) ($_GET['st'] ?? ''),
+    ];
+    if ($f['to'] < $f['from']) [$f['from'], $f['to']] = [$f['to'], $f['from']];
+    if (!isset(PURCHASE_PAY[$f['pay']])) $f['pay'] = '';
+    if (!isset(PURCHASE_REPORT_ST[$f['st']])) $f['st'] = '';
+    return $f;
+}
+
+/** 조건을 주소 뒤 쿼리로 ($p 로 일부만 바꿔서) */
+function purchase_report_query(array $f, array $p = []): string
+{
+    return http_build_query(array_filter($p + $f, fn($v) => $v !== ''));
+}
+
+/** "구매처 전체 · 결재중 + 결재완료" */
+function purchase_report_cond_text(array $f): string
+{
+    return implode(' · ', array_filter([$f['vendor'] !== '' ? "구매처 {$f['vendor']}" : '구매처 전체', $f['pay'] ? '결제 ' . PURCHASE_PAY[$f['pay']] : '', PURCHASE_REPORT_ST[$f['st']]]));
+}
+
+/** 조건에 맞는 구매 (임시저장·반려 제외), 구매일 → 구매처 순 */
+function purchase_report_rows(array $f): array
+{
+    $sql = "SELECT j.id, j.work_date, j.status, m.vendor, m.pay_method, m.total, m.paid_at,
+                   (SELECT GROUP_CONCAT(CONCAT(i.name, ' ', i.qty) ORDER BY i.sort_no SEPARATOR ', ') FROM purchase_items i WHERE i.journal_id = j.id) AS items
+              FROM journals j JOIN purchase_meta m ON m.journal_id = j.id
+             WHERE j.type = 'purchase' AND j.work_date BETWEEN ? AND ?";
+    $args = [$f['from'], $f['to']];
+    $sql .= match ($f['st']) {
+        'approved' => " AND j.status = 'approved'",
+        'paid'     => " AND j.status = 'approved' AND m.paid_at IS NOT NULL",
+        default    => " AND j.status IN ('pending', 'approved')",
+    };
+    if ($f['vendor'] !== '') { $sql .= ' AND m.vendor = ?'; $args[] = $f['vendor']; }
+    if ($f['pay'] !== '') { $sql .= ' AND m.pay_method = ?'; $args[] = $f['pay']; }
+    $st = db()->prepare($sql . ' ORDER BY j.work_date, m.vendor, j.id');
+    $st->execute($args);
+    return $st->fetchAll();
+}
+
+/** 구매처 고르기 목록 (임시저장·반려 제외한 구매가 있는 곳) */
+function purchase_vendor_options(): array
+{
+    return db()->query("SELECT m.vendor, COUNT(*) AS n FROM purchase_meta m JOIN journals j ON j.id = m.journal_id
+                         WHERE j.type = 'purchase' AND j.status IN ('pending', 'approved') AND m.vendor <> '' GROUP BY m.vendor ORDER BY m.vendor")->fetchAll();
+}
+
+/** 보고서·검수사진 화면 위의 조건 고르기 (기간 바로 고르기 포함). $page = 조회할 화면 */
+function purchase_report_form(array $f, string $page): void
+{
+    $period = fn(string $a, string $b) => url($page . '?' . purchase_report_query($f, ['from' => $a, 'to' => $b]));
+    $m0 = new DateTimeImmutable('first day of this month');
+    $y = (int) date('Y');
+    ?>
+<section class="card no-print">
+  <form method="get" action="<?= e(url($page)) ?>" class="pc-report-form">
+    <div class="row">
+      <label>시작일<input type="date" name="from" value="<?= e($f['from']) ?>" required></label>
+      <label>종료일<input type="date" name="to" value="<?= e($f['to']) ?>" required></label>
+      <label>구매처<select name="vendor">
+        <option value="">전체</option>
+        <?php foreach (purchase_vendor_options() as $v): ?><option value="<?= e($v['vendor']) ?>" <?= $v['vendor'] === $f['vendor'] ? 'selected' : '' ?>><?= e($v['vendor']) ?> (<?= (int) $v['n'] ?>건)</option><?php endforeach ?>
+      </select></label>
+      <label>결제<select name="pay"><option value="">전체</option><?php foreach (PURCHASE_PAY as $k => $l): ?><option value="<?= $k ?>" <?= $f['pay'] === $k ? 'selected' : '' ?>><?= e($l) ?></option><?php endforeach ?></select></label>
+      <label>상태<select name="st"><?php foreach (PURCHASE_REPORT_ST as $k => $l): ?><option value="<?= $k ?>" <?= $f['st'] === $k ? 'selected' : '' ?>><?= e($l) ?></option><?php endforeach ?></select></label>
+      <button class="btn primary">조회</button>
+    </div>
+    <div class="actions no-margin">
+      <span class="muted small">기간 바로 고르기</span>
+      <a class="btn small ghost" href="<?= e($period($m0->format('Y-m-d'), $m0->format('Y-m-t'))) ?>">이번 달</a>
+      <a class="btn small ghost" href="<?= e($period($m0->modify('-1 month')->format('Y-m-d'), $m0->modify('-1 month')->format('Y-m-t'))) ?>">지난 달</a>
+      <a class="btn small ghost" href="<?= e($period("$y-01-01", "$y-06-30")) ?>">상반기</a>
+      <a class="btn small ghost" href="<?= e($period("$y-07-01", "$y-12-31")) ?>">하반기</a>
+      <a class="btn small ghost" href="<?= e($period("$y-01-01", "$y-12-31")) ?>">올해</a>
+      <a class="btn small ghost" href="<?= e($period(($y - 1) . '-01-01', ($y - 1) . '-12-31')) ?>">작년</a>
+    </div>
+  </form>
+</section>
+    <?php
+}

@@ -1243,6 +1243,10 @@ label .tm-pick { display: flex; margin-top: .25rem; }
 .pc-report .payout-table td.pc-items { white-space: normal; min-width: 12em; }
 @media print { .pc-report .table-scroll { overflow: visible; } }
 @media print { .pc-report .payout-table { page-break-inside: auto; } }
+.pc-photo-row h3 { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 10px; margin: 0 0 4px; }
+.pc-photo { margin: 0; width: 180px; }
+.pc-photo figcaption { font-size: .78rem; text-align: center; word-break: break-all; margin-top: 2px; }
+.pc-photo figcaption a { color: var(--muted); }
 
 /* 체험판 (데모 사이트) */
 .demo-banner { background: #fff4d6; color: #6b4e00; text-align: center; font-size: .85rem; padding: .35rem 1rem; border-bottom: 1px solid #f0dca0; }
