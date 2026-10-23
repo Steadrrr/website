@@ -9,6 +9,7 @@ defined('APP_ROOT') || exit;
  *  규칙의 낱말은 실제 2026년 객실 민원 관리대장·전화 응대 현황·만족도 조사 문장을 보고 골랐다.
  */
 
+const AI_CLS_MODEL = 'claude-haiku-5-5'; // 분류는 짧고 단순해서 가볍고 싼 Haiku (한 번에 1원 안팎)
 const AI_CLS_DAILY_LIMIT = 300; // 하루 최대 AI 분류 (사이트 전체, 비용 보호 — 넘으면 규칙으로)
 
 /** 키워드 규칙 [소분류 코드, 정규식] — 위에서부터 먼저 맞는 것 */
@@ -135,7 +136,7 @@ function cpl_ai_classify(string $text): array
     $schema = ['type' => 'object', 'additionalProperties' => false, 'required' => ['code', 'etc_text', 'reason'], 'properties' => [
         'code' => ['type' => 'string', 'enum' => array_map('strval', $codes)], 'etc_text' => ['type' => 'string'], 'reason' => ['type' => 'string'],
     ]];
-    $res = ai_claude_json(cpl_ai_system(), "민원 내용: " . ai_mask(mb_substr($text, 0, 500)), $schema, 'low', 2000);
+    $res = ai_claude_json(cpl_ai_system(), "민원 내용: " . ai_mask(mb_substr($text, 0, 500)), $schema, 'low', 2000, AI_CLS_MODEL);
     if (!$res['ok']) return $res;
     $code = (string) ($res['data']['code'] ?? '');
     if (!in_array($code, $codes, true)) return ['ok' => false, 'error' => 'AI가 분류표에 없는 코드를 골랐습니다.'];

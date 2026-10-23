@@ -361,22 +361,24 @@ const AI_FORECAST_SYSTEM = <<<'TXT'
 TXT;
 
 /**
- * Claude 호출 (structured outputs, JSON 응답)
+ * Claude 호출 (structured outputs, JSON 응답). $model 기본은 AI 분석용 AI_MODEL (민원 분류 제안은 가벼운 Haiku)
  * @return array{ok: bool, data?: array, error?: string, model?: string, usage?: array}
  */
-function ai_claude_json(string $system, string $user, array $schema, string $effort = 'medium', int $maxTokens = 16000): array
+function ai_claude_json(string $system, string $user, array $schema, string $effort = 'medium', int $maxTokens = 16000, string $model = AI_MODEL): array
 {
     $key = ai_key();
     if ($key === '') return ['ok' => false, 'error' => 'API 키가 설정되지 않았습니다.'];
     if (!function_exists('curl_init')) return ['ok' => false, 'error' => '서버에 curl 기능이 없습니다.'];
+    // Haiku 는 서버 쪽 대체 모델(fallbacks)이 없다 — 넣으면 오류가 날 수 있어 빼고, 거절은 아래 refusal 처리로
+    $fallback = !str_starts_with($model, 'claude-haiku');
     $body = [
-        'model' => AI_MODEL,
+        'model' => $model,
         'max_tokens' => $maxTokens,
-        'fallbacks' => 'default', // 안전 분류기가 거절하면 서버가 권장 모델로 다시 실행
         'system' => $system,
         'output_config' => ['effort' => $effort, 'format' => ['type' => 'json_schema', 'schema' => $schema]],
         'messages' => [['role' => 'user', 'content' => $user]],
     ];
+    if ($fallback) $body['fallbacks'] = 'default'; // 안전 분류기가 거절하면 서버가 권장 모델로 다시 실행
     @set_time_limit(200);
     $ch = curl_init(rtrim((string) config('anthropic_api_url', 'https://api.anthropic.com'), '/') . '/v1/messages');
     curl_setopt_array($ch, [
@@ -388,7 +390,7 @@ function ai_claude_json(string $system, string $user, array $schema, string $eff
             'Content-Type: application/json',
             'x-api-key: ' . $key,
             'anthropic-version: ' . AI_API_VERSION,
-            'anthropic-beta: server-side-fallback-2026-07-01',
+            ...($fallback ? ['anthropic-beta: server-side-fallback-2026-07-01'] : []),
         ],
         CURLOPT_POSTFIELDS => json_encode($body, JSON_UNESCAPED_UNICODE),
     ]);
@@ -424,7 +426,7 @@ function ai_claude_json(string $system, string $user, array $schema, string $eff
         $usage['input_tokens'] = array_sum(array_map(fn($i) => (int) ($i['input_tokens'] ?? 0), $usage['iterations']));
         $usage['output_tokens'] = array_sum(array_map(fn($i) => (int) ($i['output_tokens'] ?? 0), $usage['iterations']));
     }
-    return ['ok' => true, 'data' => $data, 'model' => (string) ($res['model'] ?? AI_MODEL), 'usage' => $usage];
+    return ['ok' => true, 'data' => $data, 'model' => (string) ($res['model'] ?? $model), 'usage' => $usage];
 }
 
 /** 혹시 섞여 들어간 전화번호·이메일 가리기 (통계 근거에는 원래 없지만 한 번 더) */

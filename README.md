@@ -67,7 +67,9 @@
 
 ### 민원 분류 제안 (`ai_classify.php` · `app/ai_classify.php`)
 - 민원관리 '민원 입력'의 '✨ 분류 제안': 내용 → 소분류 코드(+ 글에 나온 객실·시설) 제안, 담당자가 확인 후 저장
-- AI(Claude, effort low, 분류표 전체를 지시문으로, 코드 enum 구조화 응답) → 실패·키 없음·하루 300회 초과면 낱말 규칙(`CPL_RULES`)
+- AI(**Claude Haiku 5.5** `AI_CLS_MODEL`, effort low, 분류표 전체를 지시문으로, 코드 enum 구조화 응답) → 실패·거절·키 없음·하루 300회 초과면 낱말 규칙(`CPL_RULES`)
+  - 2026-10-23 Opus → Haiku (한 번에 약 3천 토큰 입력·수백 토큰 출력 → Haiku 요금 기준 1원 안팎). Haiku 는 서버 쪽 대체 모델이 없어 `fallbacks`·beta 헤더를 보내지 않음 (`ai_claude_json()` 의 `$model`)
+  - AI 분석(4주 예측)은 그대로 `AI_MODEL`(Opus)
 - 낱말 규칙은 실제 2026 객실 민원 관리대장 47건 중 46건, 전화 문의의 약 95%를 단순문의로 맞게 분류 (묻는 말 판별 포함)
 
 ## 1. 왜 워드프레스/그누보드를 쓰지 않았나
