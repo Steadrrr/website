@@ -78,13 +78,16 @@ if (is_post() && in_array(post('action'), ['add', 'update', 'delete'], true)) {
 if (($_GET['tab'] ?? '') === 'stats') redirect('complaint_stats.php' . (isset($_GET['ym']) ? '?ym=' . urlencode((string) $_GET['ym']) : ''));
 
 /* ═════════════ 목록 (일자·주·월별) ═════════════ */
-$unit = in_array($_GET['unit'] ?? '', ['day', 'week', 'month'], true) ? $_GET['unit'] : 'day';
+$unit = in_array($_GET['unit'] ?? '', ['day', 'week', 'month', 'all'], true) ? $_GET['unit'] : 'day';
 $date = valid_date($_GET['date'] ?? '') ? $_GET['date'] : date('Y-m-d');
 [$from, $to, $label, $prevD, $nextD] = match ($unit) {
     'week'  => [$m = date('Y-m-d', strtotime('monday this week', strtotime($date))), $s = date('Y-m-d', strtotime("$m +6 days")),
                 date('n/j', strtotime($m)) . ' ~ ' . date('n/j', strtotime($s)), date('Y-m-d', strtotime("$m -7 days")), date('Y-m-d', strtotime("$m +7 days"))],
     'month' => [$m = date('Y-m-01', strtotime($date)), date('Y-m-t', strtotime($m)), date('Y년 n월', strtotime($m)),
                 date('Y-m-d', strtotime("$m -1 month")), date('Y-m-d', strtotime("$m +1 month"))],
+    // 전체 기간 (미완료 민원 전체 보기 등) — 가장 이른 민원부터 가장 늦은 민원까지
+    'all'   => [(string) ($pdo->query('SELECT MIN(work_date) FROM complaints')->fetchColumn() ?: $date),
+                max($date, (string) ($pdo->query('SELECT MAX(work_date) FROM complaints')->fetchColumn() ?: $date)), '전체 기간', $date, $date],
     default => [$date, $date, date('Y년 n월 j일', strtotime($date)) . ' (' . weekday_ko($date) . ')',
                 date('Y-m-d', strtotime("$date -1 day")), date('Y-m-d', strtotime("$date +1 day"))],
 };
@@ -141,18 +144,18 @@ layout_header('민원관리', 'complaints');
   </div>
   <?php if ($undone): ?>
     <p class="flash <?= $undoneUrgent ? 'flash-error' : 'flash-warn' ?> no-print">완료되지 않은 민원이 모두 <b><?= $undone ?>건</b> 있습니다<?= $undoneUrgent ? " (긴급·안전 <b>{$undoneUrgent}건</b>)" : '' ?>.
-      <a href="<?= e(url('complaints.php?unit=month&date=' . date('Y-m-d') . '&status=undone')) ?>">이번 달 미완료 보기</a></p>
+      <a href="<?= e(url('complaints.php?unit=all&status=undone')) ?>">미완료 전체 보기</a></p>
   <?php endif ?>
   <div class="cpl-nav no-print">
     <div class="stat-units">
-      <?php foreach (['day' => '일자별', 'week' => '주별', 'month' => '월별'] as $u => $ul): ?>
+      <?php foreach (['day' => '일자별', 'week' => '주별', 'month' => '월별', 'all' => '전체'] as $u => $ul): ?>
         <a href="<?= e(url($qs(['unit' => $u]))) ?>" class="<?= $unit === $u ? 'on' : '' ?>"><?= $ul ?></a>
       <?php endforeach ?>
     </div>
-    <a class="btn small" href="<?= e(url($qs(['date' => $prevD]))) ?>">‹</a>
+    <?php if ($unit !== 'all'): ?><a class="btn small" href="<?= e(url($qs(['date' => $prevD]))) ?>">‹</a><?php endif ?>
     <b><?= e($label) ?></b>
-    <a class="btn small" href="<?= e(url($qs(['date' => $nextD]))) ?>">›</a>
-    <a class="btn small ghost" href="<?= e(url($qs(['date' => date('Y-m-d')]))) ?>">오늘</a>
+    <?php if ($unit !== 'all'): ?><a class="btn small" href="<?= e(url($qs(['date' => $nextD]))) ?>">›</a>
+    <a class="btn small ghost" href="<?= e(url($qs(['date' => date('Y-m-d')]))) ?>">오늘</a><?php endif ?>
   </div>
   <form method="get" class="filters no-print">
     <input type="hidden" name="unit" value="<?= e($unit) ?>">
