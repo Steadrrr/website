@@ -273,6 +273,7 @@ function cpl_row(string $key, array $c, string $workDate, bool $removable = true
     <div class="cpl-texts">
       <div class="cpl-content">
         <label>민원 내용<textarea name="<?= $n('content') ?>" rows="2" placeholder="예: 숲B 온수가 나오지 않음" data-cpl-text><?= e($c['content']) ?></textarea></label>
+        <div class="cpl-ai"><button type="button" class="btn small" data-cpl-ai title="적은 내용을 보고 분류·장소를 골라 줍니다 (확인 후 저장)">✨ 분류 제안</button> <span class="muted tiny-text" data-cpl-ai-note></span></div>
       </div>
       <label>조치내용·비고<textarea name="<?= $n('action') ?>" rows="2" placeholder="예: 보일러 재가동, 15시 확인 완료"><?= e($c['action'] ?? '') ?></textarea></label>
     </div>
@@ -300,7 +301,7 @@ function cpl_entry_form(array $c, string $workDate, string $back): void
     <label class="cpl-date">접수일<input type="date" name="work_date" value="<?= e($workDate) ?>" required></label>
   </div>
   <section class="cpl-section" data-cpl-form data-work-date="<?= e($workDate) ?>">
-    <p class="muted small">대분류 → 중분류 → 소분류 순서로 고르세요. 긴급·안전은 '처리중', 단순문의는 '완료'로 기본 설정됩니다.
+    <p class="muted small">대분류 → 중분류 → 소분류 순서로 고르세요 (민원 내용을 먼저 적고 '✨ 분류 제안'을 누르면 자동으로 골라 줍니다). 긴급·안전은 '처리중', 단순문의는 '완료'로 기본 설정됩니다.
       <b>등록을 누르면 바로 저장</b>되고, 여러 명이 동시에 입력해도 서로 지워지지 않습니다.</p>
     <div data-cpl-list><?php cpl_row('e', $c, $workDate, false) ?></div>
   </section>
@@ -309,7 +310,7 @@ function cpl_entry_form(array $c, string $workDate, string $back): void
     <button class="btn primary"><?= $editing ? '고친 내용 저장' : '등록' ?></button>
   </div>
 </form>
-<script>window.CPL = <?= json_encode(['tree' => $jsTree, 'etc' => array_keys($t['etc']), 'urgent' => CPL_URGENT, 'simple' => CPL_SIMPLE], JSON_UNESCAPED_UNICODE) ?>;</script>
+<script>window.CPL = <?= json_encode(['tree' => $jsTree, 'etc' => array_keys($t['etc']), 'urgent' => CPL_URGENT, 'simple' => CPL_SIMPLE, 'aiUrl' => url('ai_classify.php'), 'csrf' => csrf_token()], JSON_UNESCAPED_UNICODE) ?>;</script>
 <script src="<?= e(asset_url('assets/complaints.js')) ?>" defer></script>
     <?php
 }

@@ -1,4 +1,4 @@
-// 민원 입력 (민원관리 위쪽 칸): 대분류→중분류→소분류 연동, '기타' 직접 입력, 장소(객실·시설), 처리상태 기본값
+// 민원 입력 (민원관리 위쪽 칸): 대분류→중분류→소분류 연동, '기타' 직접 입력, 장소(객실·시설), 처리상태 기본값, ✨ 분류 제안
 // (행 추가·삭제·요약은 칸이 있을 때만 — 예전 업무일지 여러 줄 입력용)
 (function () {
   const box = document.querySelector('[data-cpl-form]');
@@ -92,6 +92,34 @@
     if (($(row, '[data-cat1]').value || $(row, 'textarea').value.trim()) && !confirm('이 민원을 삭제할까요?')) return;
     row.remove();
     summary();
+  });
+  // ✨ 분류 제안: 민원 내용 → 대·중·소분류(+ 글에 나온 객실·시설) 자동 선택. 저장은 담당자가 확인 후
+  list.addEventListener('click', async (ev) => {
+    const btn = ev.target.closest('[data-cpl-ai]');
+    if (!btn) return;
+    const row = btn.closest('[data-cpl-row]'), note = $(row, '[data-cpl-ai-note]');
+    const text = $(row, '[data-cpl-text]').value.trim();
+    if (!text) { note.textContent = '민원 내용을 먼저 적어 주세요.'; $(row, '[data-cpl-text]').focus(); return; }
+    btn.disabled = true; note.textContent = '분류하는 중…';
+    try {
+      const fd = new FormData(); fd.append('_csrf', data.csrf); fd.append('text', text);
+      const res = await fetch(data.aiUrl, { method: 'POST', body: fd, credentials: 'same-origin' });
+      const r = await res.json();
+      if (!r.ok) { note.textContent = r.error || '분류하지 못했습니다.'; return; }
+      const c1 = $(row, '[data-cat1]'), c2 = $(row, '[data-cat2]'), c3 = $(row, '[data-cat3]');
+      c1.value = r.cat1; c2.value = ''; c3.value = ''; syncCats(row); defaults(row);
+      c2.value = r.cat2; syncCats(row);
+      c3.value = r.code; syncCats(row);
+      if (r.etc_text && !$(row, '[data-etc]').hidden) $(row, '[data-etc]').value = r.etc_text;
+      if (r.place) {
+        const pt = $(row, '[data-place-type]'), pid = $(row, '[data-place-id]');
+        pt.value = r.place[0]; syncPlace(row); pid.value = String(r.place[1]);
+      }
+      note.textContent = (r.by === 'ai' ? '✨ AI 제안: ' : '규칙 제안: ') + r.path + (r.reason ? ' — ' + r.reason : '') + ' (맞는지 확인 후 저장하세요)';
+      summary();
+    } catch (e) {
+      note.textContent = '연결에 실패했습니다. 직접 골라 주세요.';
+    } finally { btn.disabled = false; }
   });
   let seq = Date.now();
   const add = $(box, '[data-cpl-add]');
