@@ -1,4 +1,5 @@
-// 일일업무일지 민원: 대분류→중분류→소분류 연동, '기타' 직접 입력, 장소(객실·시설), 처리상태 기본값, 행 추가·삭제, 요약
+// 민원 입력 (민원관리 위쪽 칸): 대분류→중분류→소분류 연동, '기타' 직접 입력, 장소(객실·시설), 처리상태 기본값, ✨ 분류 제안
+// (행 추가·삭제·요약은 칸이 있을 때만 — 예전 업무일지 여러 줄 입력용)
 (function () {
   const box = document.querySelector('[data-cpl-form]');
   if (!box) return;
@@ -121,7 +122,8 @@
     } finally { btn.disabled = false; }
   });
   let seq = Date.now();
-  $(box, '[data-cpl-add]').addEventListener('click', () => {
+  const add = $(box, '[data-cpl-add]');
+  if (add && tpl) add.addEventListener('click', () => {
     list.insertAdjacentHTML('beforeend', tpl.innerHTML.replace(/__KEY__/g, 'n' + seq++));
     const row = list.lastElementChild;
     init(row);

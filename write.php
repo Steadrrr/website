@@ -156,8 +156,7 @@ if (is_post()) {
             flash($saved . ($canSubmit ? ' 결재 올리기를 눌러야 결재가 진행됩니다.' : ' 결재 올리기는 공무직 이상이 합니다.'), 'info');
         }
         // 작성·수정 기록 (결재와 별개)
-        $cplCount = count($payload['complaints'] ?? []);
-        $notes = array_filter([$revision && $reason !== '' ? "사유: $reason" : '', $type === 'daily' && $cplCount ? "민원 {$cplCount}건" : '']);
+        $notes = array_filter([$revision && $reason !== '' ? "사유: $reason" : '']);
         journal_log($id, $user, $revision ? '수정 (결재 다시 올림)' : ($journal ? ($submit ? '수정 후 결재 올리기' : '임시저장 수정') : ($submit ? '작성 · 결재 올리기' : '작성 (임시저장)')),
             implode(' · ', $notes));
         if ($type === 'sales') unset($_SESSION[SALES_FILL_KEY]);
@@ -230,7 +229,10 @@ if ($type === 'rooms') rooms_fill_panel($workDate, $journal, $fillRep);
     <label>업무내용<textarea name="content" rows="10" required placeholder="- 09:00 입장객 안내&#10;- 10:30 산책로 순찰"><?= $v('content') ?></textarea></label>
     <?php else: daily_form($journal, $user); endif ?>
     <label>특이사항<textarea name="remarks" rows="4" placeholder="사고, 인수인계 사항 등"><?= $v('remarks') ?></textarea></label>
-    <?php cpl_form($payload['complaints'] ?? [], $workDate) ?>
+    <?php $dayCpl = valid_date($workDate) ? cpl_by_date($workDate) : []; // 민원은 민원관리에서 따로 입력 (여기서는 보기만) ?>
+    <div class="cpl-daily-note">
+      <b>민원</b> <span class="muted small">— 민원은 <a href="<?= e(url('complaints.php?date=' . $workDate . '#cplEntry')) ?>" target="_blank">고객 › 민원관리</a>에서 한 건씩 입력합니다 (바로 저장, 결재 없음). 이 날 <b><?= count($dayCpl) ?>건</b>.</span>
+    </div>
   <?php else: ?>
     <?php items_form($type, $payload, $workDate, $journal) ?>
     <?php if ($type === 'sales'): ?>

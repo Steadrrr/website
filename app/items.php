@@ -19,7 +19,7 @@ function items_default(string $type, ?int $teamId = null): array
         'sales'    => ['lines' => [], 'ticket_cash' => 0, 'rent_dc_rule' => null, 'rent_dc_pct' => 0, 'rent_youth' => 0, 'vouchers' => array_fill_keys(voucher_denoms(), 0), 'legacy' => []],
         'rooms'    => ['lines' => [], 'vouchers' => array_fill_keys(voucher_denoms(), 0)],
         'voucher'  => ['vouchers' => array_fill_keys(voucher_denoms(), 0)],
-        'daily'    => ['complaints' => []],
+        'daily'    => [], // 민원은 민원관리에서 따로 (complaints.php)
         'vcheck'   => ['checks' => []], // 장부 매수는 폼에서 그 날짜 기준으로 계산
         'arwork'   => ['workers' => []],
         'purchase' => ['vendor' => '', 'pay_method' => 'card', 'items' => [purchase_empty_item()]],
@@ -46,7 +46,7 @@ function items_load(array $journal): array
     if (is_program_type($journal['type'])) return program_load($id);
     if ($journal['type'] === 'arwork') return ar_load($id);
     if ($journal['type'] === 'purchase') return purchase_load($id);
-    if ($journal['type'] === 'daily') return ['complaints' => cpl_load($id)];
+    if ($journal['type'] === 'daily') return [];
 
     if (in_array($journal['type'], SALE_DOC_TYPES, true)) {
         $lines = $q('SELECT * FROM sales_lines WHERE journal_id = ? ORDER BY grp DESC, id');
@@ -85,10 +85,7 @@ function items_parse(string $type, string $workDate, int $journalId): array
     if (is_program_type($type)) return program_parse($type, $workDate, $journalId);
     if ($type === 'arwork') return ar_parse($workDate, $journalId);
     if ($type === 'purchase') return purchase_parse($journalId);
-    if ($type === 'daily') {
-        [$rows, $errors] = cpl_parse($workDate);
-        return [['complaints' => $rows], $errors];
-    }
+    if ($type === 'daily') return [[], []]; // 업무내용은 daily_save, 민원은 민원관리에서
 
     $errors = [];
     $teamId = (int) ($_POST['team_id'] ?? 0);
@@ -321,12 +318,7 @@ function items_save(int $id, string $type, array $payload): void
         sales_sync_programs((string) $st->fetchColumn(), PROGRAM_TYPES[$type] . " 운영보고 저장 (문서 $id)");
         return;
     }
-    if ($type === 'daily') {
-        $st = $pdo->prepare('SELECT work_date FROM journals WHERE id = ?');
-        $st->execute([$id]);
-        cpl_save($id, (string) $st->fetchColumn(), $payload['complaints'] ?? []);
-        return;
-    }
+    if ($type === 'daily') return; // 업무내용은 daily_save, 민원은 민원관리에서 한 건씩
 
     if ($type === 'arwork') {
         ar_save($id, $payload);
@@ -764,7 +756,7 @@ function items_view(array $journal): void
         return;
     }
     if ($journal['type'] === 'daily') {
-        cpl_view(cpl_load((int) $journal['id']));
+        cpl_view(cpl_by_date($journal['work_date']), $journal['work_date']); // 그 날 민원 (민원관리에서 입력한 것, 읽기 전용)
         return;
     }
     $payload = items_load($journal);

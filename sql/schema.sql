@@ -504,8 +504,8 @@ CREATE TABLE IF NOT EXISTS room_types (
 -- 민원 (일일업무일지에 입력, 운영관리 › 민원관리에서 조회·처리). 분류 코드는 app/complaints.php 의 CPL_TREE
 CREATE TABLE IF NOT EXISTS complaints (
   id          INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-  journal_id  INT UNSIGNED NOT NULL,
-  work_date   DATE NOT NULL COMMENT '접수일 (업무일지 일자)',
+  journal_id  INT UNSIGNED NULL COMMENT '예전에 업무일지에서 입력한 민원의 일지 (2026-10-23부터 민원관리에서 따로 입력 = NULL)',
+  work_date   DATE NOT NULL COMMENT '접수일',
   cat1        VARCHAR(10) NOT NULL COMMENT '대분류 (1 단순문의 / 2 요청 / 3 불편·불만 / 4 긴급·안전)',
   cat2        VARCHAR(10) NOT NULL COMMENT '중분류',
   cat3        VARCHAR(12) NOT NULL COMMENT '소분류',
@@ -525,7 +525,7 @@ CREATE TABLE IF NOT EXISTS complaints (
   updated_at  DATETIME NULL,
   INDEX idx_date (work_date),
   INDEX idx_status (status, work_date),
-  CONSTRAINT fk_cpl_journal FOREIGN KEY (journal_id) REFERENCES journals(id) ON DELETE CASCADE
+  CONSTRAINT fk_cpl_journal FOREIGN KEY (journal_id) REFERENCES journals(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- 일지 작성·수정 기록 (결재와 별개로 누가 언제 작성·임시저장·수정·결재 올리기를 했는지)

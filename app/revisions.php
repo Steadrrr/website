@@ -76,9 +76,6 @@ function journal_snapshot(array $journal): array
         fn($d, $q) => $q ? denom_label((int) $d) . '×' . $q : null, array_keys($v), $v
     )));
 
-    if ($journal['type'] === 'daily') {
-        $snap['민원'] = cpl_snapshot((int) $journal['id']);
-    }
     if ($journal['type'] === 'purchase') {
         $snap += purchase_snapshot($journal);
     } elseif ($journal['type'] === 'arwork') {

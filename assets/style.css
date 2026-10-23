@@ -1302,3 +1302,11 @@ label .tm-pick { display: flex; margin-top: .25rem; }
 }
 .ai-side { display: flex; flex-direction: column; align-items: flex-end; gap: .6rem; }
 @media (max-width: 760px) { .ai-side { align-items: stretch; } }
+
+/* 민원관리 위쪽 입력 칸 (한 건씩 바로 저장) · 업무일지의 민원 안내 */
+.cpl-entry .card-head { align-items: center; }
+.cpl-entry .cpl-date { display: flex; align-items: center; gap: 6px; font-weight: 600; }
+.cpl-entry .cpl-date input { width: auto; }
+.cpl-entry .cpl-section { margin: 0; }
+.cpl-row-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; margin-top: 6px; }
+.cpl-daily-note { margin: 12px 0; padding: 10px 12px; border: 1px dashed var(--line); border-radius: 8px; background: #fafcfa; }

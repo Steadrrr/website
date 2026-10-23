@@ -6,7 +6,7 @@ defined('APP_ROOT') || exit;
  * 새 버전 파일을 FTP로 덮어쓰기만 하면, 첫 접속 때 부족한 테이블/컬럼을 만든다.
  * (기존 자료는 그대로 유지)
  */
-const DB_VERSION = 54;
+const DB_VERSION = 55;
 
 function db_version(): int
 {
@@ -22,6 +22,14 @@ function column_exists(string $table, string $column): bool
     $st = db()->prepare('SELECT 1 FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?');
     $st->execute([db_table($table), $column]);
     return (bool) $st->fetchColumn();
+}
+
+/** 컬럼이 NULL 을 받는가 */
+function column_nullable(string $table, string $column): bool
+{
+    $st = db()->prepare('SELECT IS_NULLABLE FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?');
+    $st->execute([db_table($table), $column]);
+    return $st->fetchColumn() === 'YES';
 }
 
 /** ENUM 컬럼에 값이 이미 있는가 (없을 때만 MODIFY — 이미 넓어진 ENUM을 옛 목록으로 좁히지 않도록) */
@@ -439,6 +447,15 @@ function db_migrate(): void
     // 54) v53 → v54: 사이트 이름을 설정(settings.site_name)에서 바꿀 수 있게 — 새 이름 '쉬자!쉼ON' (이미 정해 둔 이름이 있으면 그대로)
     if (db_version() < 54) {
         $pdo->exec("INSERT IGNORE INTO settings (name, value) VALUES ('site_name', '쉬자!쉼ON')");
+    }
+
+    // 55) v54 → v55: 민원을 업무일지와 따로 민원관리에서 입력 — journal_id 없어도 되게, 업무일지를 지워도 민원은 남게 (ON DELETE SET NULL)
+    if (!column_nullable('complaints', 'journal_id')) {
+        $st = $pdo->prepare("SELECT COUNT(*) FROM information_schema.TABLE_CONSTRAINTS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND CONSTRAINT_TYPE = 'FOREIGN KEY' AND CONSTRAINT_NAME LIKE '%fk_cpl_journal'");
+        $st->execute([db_table('complaints')]);
+        if ((int) $st->fetchColumn()) $pdo->exec('ALTER TABLE complaints DROP FOREIGN KEY fk_cpl_journal');
+        $pdo->exec("ALTER TABLE complaints MODIFY journal_id INT UNSIGNED NULL COMMENT '예전에 업무일지에서 입력한 민원의 일지 (민원관리에서 입력 = NULL)'");
+        $pdo->exec('ALTER TABLE complaints ADD CONSTRAINT fk_cpl_journal FOREIGN KEY (journal_id) REFERENCES journals(id) ON DELETE SET NULL');
     }
 
     $pdo->prepare("INSERT INTO settings (name, value) VALUES ('db_version', ?) ON DUPLICATE KEY UPDATE value = VALUES(value)")

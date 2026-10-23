@@ -100,26 +100,6 @@ function cpl_place_options(): array
     return ['room' => $rooms, 'facility' => $fac];
 }
 
-function cpl_load(int $journalId): array
-{
-    $st = db()->prepare('SELECT c.*, u.name AS receiver_name FROM complaints c LEFT JOIN users u ON u.id = c.receiver_id WHERE c.journal_id = ? ORDER BY c.id');
-    $st->execute([$journalId]);
-    return $st->fetchAll();
-}
-
-/**
- * 민원 한 줄의 '내용 지문' — 화면을 열 때와 저장할 때를 비교해 사용자가 고쳤는지 본다.
- * 고치지 않은 줄은 저장하지 않아서, 그 사이 다른 사람(민원관리의 처리상태 변경 등)이 바꾼 내용을 되돌리지 않는다.
- */
-function cpl_fingerprint(array $c): string
-{
-    $done = ($c['status'] ?? '') === 'done' ? (string) ($c['done_date'] ?? '') : '';
-    $f = [(string) $c['cat1'], (string) $c['cat2'], (string) $c['cat3'], trim((string) ($c['etc_text'] ?? '')), (string) $c['channel'],
-          (string) ($c['place_type'] ?? ''), (int) ($c['place_id'] ?? 0), str_replace("\r\n", "\n", trim((string) $c['content'])), (int) $c['qty'],
-          (string) $c['status'], $done, str_replace("\r\n", "\n", trim((string) ($c['action'] ?? '')))];
-    return md5(json_encode($f, JSON_UNESCAPED_UNICODE));
-}
-
 function cpl_empty(): array
 {
     return ['id' => 0, 'cat1' => '', 'cat2' => '', 'cat3' => '', 'etc_text' => '', 'channel' => '', 'place_type' => '', 'place_id' => null,
@@ -136,7 +116,6 @@ function cpl_parse(string $workDate): array
         if (!is_array($r)) continue;
         $c = cpl_empty();
         $c['id'] = (int) ($r['id'] ?? 0);
-        $c['orig'] = (string) ($r['orig'] ?? ''); // 화면을 열 때의 내용 지문 (cpl_fingerprint)
         foreach (['cat1', 'cat2', 'cat3', 'channel', 'place_type', 'status'] as $k) $c[$k] = trim((string) ($r[$k] ?? ''));
         $c['etc_text'] = mb_substr(trim((string) ($r['etc_text'] ?? '')), 0, 100);
         $c['content'] = trim((string) ($r['content'] ?? ''));
@@ -166,43 +145,45 @@ function cpl_parse(string $workDate): array
     return [$rows, $errors];
 }
 
+/** 민원 한 건 (접수자 이름 포함) */
+function cpl_find(int $id): ?array
+{
+    $st = db()->prepare('SELECT c.*, u.name AS receiver_name FROM complaints c LEFT JOIN users u ON u.id = c.receiver_id WHERE c.id = ?');
+    $st->execute([$id]);
+    return $st->fetch() ?: null;
+}
+
+/** 그 날 민원 (업무일지 보기·인쇄에 읽기 전용으로) */
+function cpl_by_date(string $date): array
+{
+    $st = db()->prepare('SELECT c.*, u.name AS receiver_name FROM complaints c LEFT JOIN users u ON u.id = c.receiver_id WHERE c.work_date = ? ORDER BY (c.cat1 = ?) DESC, c.id');
+    $st->execute([$date, CPL_URGENT]);
+    return $st->fetchAll();
+}
+
 /**
- * 트랜잭션 안에서 호출. 기존 민원은 id 로 수정(접수자 유지), 새 민원은 추가, 화면에서 지운 민원은 삭제.
- * 업무일지는 여러 명이 함께 쓰므로 먼저 열어 둔 화면으로 저장해도 다른 사람의 민원이 사라지거나 되돌아가지 않게:
- *  - 삭제는 '화면을 열 때 있던 민원'(cp_loaded) 가운데 화면에서 지운 것만 (그 뒤에 다른 사람이 넣은 민원은 그대로)
- *  - 화면을 연 뒤 고치지 않은 줄은 저장하지 않는다 (지문 cpl_fingerprint 가 그대로면 건너뜀)
+ * 민원 한 건 저장 (민원관리에서 한 건씩 — 여러 명이 동시에 입력해도 서로 지우지 않는다).
+ * $id 가 있으면 고치고(접수자 유지), 없으면 새로 넣는다(접수자 = 저장한 사람). 저장한 민원 id 를 돌려준다.
  */
-function cpl_save(int $journalId, string $workDate, array $rows): void
+function cpl_store(array $c, string $workDate, int $id = 0): int
 {
     $pdo = db();
     $user = current_user();
     $places = cpl_place_options();
-    $existing = array_column(cpl_load($journalId), null, 'id');
-    $keep = [];
-    foreach ($rows as $c) {
-        if ($c['id'] && isset($existing[$c['id']]) && $c['orig'] !== '' && hash_equals($c['orig'], cpl_fingerprint($c))) {
-            $keep[] = $c['id']; // 이 화면에서 고치지 않은 민원
-            continue;
-        }
-        $placeName = $c['place_type'] ? ($places[$c['place_type']][$c['place_id']] ?? ($existing[$c['id']]['place_name'] ?? null)) : null;
-        $vals = [$workDate, $c['cat1'], $c['cat2'], $c['cat3'], $c['etc_text'] ?: null, $c['channel'], $c['place_type'] ?: null, $c['place_id'], $placeName,
-            $c['content'], $c['qty'], $c['status'], $c['done_date'] ?: null, $c['action'] !== '' ? $c['action'] : null];
-        if ($c['id'] && isset($existing[$c['id']])) {
-            $pdo->prepare('UPDATE complaints SET work_date = ?, cat1 = ?, cat2 = ?, cat3 = ?, etc_text = ?, channel = ?, place_type = ?, place_id = ?, place_name = ?,
-                           content = ?, qty = ?, status = ?, done_date = ?, action = ?, updated_by = ?, updated_at = NOW() WHERE id = ? AND journal_id = ?')
-                ->execute([...$vals, $user['id'] ?? null, $c['id'], $journalId]);
-            $keep[] = $c['id'];
-        } else {
-            $pdo->prepare('INSERT INTO complaints (journal_id, work_date, cat1, cat2, cat3, etc_text, channel, place_type, place_id, place_name, content, qty, status, done_date, action, receiver_id)
-                           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
-                ->execute([$journalId, ...$vals, $user['id'] ?? null]);
-            $keep[] = (int) $pdo->lastInsertId();
-        }
+    $old = $id ? cpl_find($id) : null;
+    $placeName = $c['place_type'] ? ($places[$c['place_type']][$c['place_id']] ?? ($old['place_name'] ?? null)) : null;
+    $vals = [$workDate, $c['cat1'], $c['cat2'], $c['cat3'], $c['etc_text'] ?: null, $c['channel'], $c['place_type'] ?: null, $c['place_id'], $placeName,
+        $c['content'], $c['qty'], $c['status'], $c['done_date'] ?: null, $c['action'] !== '' ? $c['action'] : null];
+    if ($old) {
+        $pdo->prepare('UPDATE complaints SET work_date = ?, cat1 = ?, cat2 = ?, cat3 = ?, etc_text = ?, channel = ?, place_type = ?, place_id = ?, place_name = ?,
+                       content = ?, qty = ?, status = ?, done_date = ?, action = ?, updated_by = ?, updated_at = NOW() WHERE id = ?')
+            ->execute([...$vals, $user['id'] ?? null, $id]);
+        return $id;
     }
-    $loaded = isset($_POST['cp_loaded']) ? array_map('intval', (array) $_POST['cp_loaded']) : []; // 화면을 열 때 있던 민원
-    foreach (array_intersect(array_diff(array_keys($existing), $keep), $loaded) as $gone) {
-        $pdo->prepare('DELETE FROM complaints WHERE id = ? AND journal_id = ?')->execute([$gone, $journalId]);
-    }
+    $pdo->prepare('INSERT INTO complaints (journal_id, work_date, cat1, cat2, cat3, etc_text, channel, place_type, place_id, place_name, content, qty, status, done_date, action, receiver_id)
+                   VALUES (NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+        ->execute([...$vals, $user['id'] ?? null]);
+    return (int) $pdo->lastInsertId();
 }
 
 /** 요약: 대분류별·처리상태별 건수 (건수 합계) */
@@ -241,7 +222,7 @@ function cpl_summary_html(array $rows, string $title = '민원 요약'): void
 
 /* ───────────── 입력 폼 (일일업무일지 작성 화면) ───────────── */
 
-function cpl_row(string $key, array $c, string $workDate): void
+function cpl_row(string $key, array $c, string $workDate, bool $removable = true): void
 {
     $n = fn(string $f) => "cp[$key][$f]";
     $t = cpl_tree();
@@ -250,11 +231,10 @@ function cpl_row(string $key, array $c, string $workDate): void
     ?>
   <div class="cpl-row <?= $urgent ? 'urgent' : '' ?>" data-cpl-row>
     <input type="hidden" name="<?= $n('id') ?>" value="<?= (int) $c['id'] ?>">
-    <?php if ($c['id']): ?><input type="hidden" name="<?= $n('orig') ?>" value="<?= e($c['orig'] ?? cpl_fingerprint($c)) ?>"><?php endif ?>
     <div class="cpl-head">
       <b>민원 <span data-cpl-no></span></b>
       <span class="muted small">접수자 <?= e($c['receiver_name'] ?: (current_user()['name'] ?? '')) ?></span>
-      <button type="button" class="btn small ghost danger" data-cpl-remove>삭제</button>
+      <?php if ($removable): ?><button type="button" class="btn small ghost danger" data-cpl-remove>삭제</button><?php endif ?>
     </div>
     <div class="cpl-cats">
       <select name="<?= $n('cat1') ?>" data-cat1 data-value="<?= e($c['cat1']) ?>"><option value="">대분류</option>
@@ -301,26 +281,35 @@ function cpl_row(string $key, array $c, string $workDate): void
     <?php
 }
 
-function cpl_form(array $rows, string $workDate): void
+/**
+ * 민원관리 위쪽의 입력 칸 (한 건): 새 민원 등록 또는 ?edit=id 로 고치기. 대분류→중분류→소분류·장소·처리상태는 assets/complaints.js
+ * $c = 입력값 (입력 오류로 다시 그릴 때는 보낸 값), $back = 저장 뒤 돌아갈 목록 주소
+ */
+function cpl_entry_form(array $c, string $workDate, string $back): void
 {
     $t = cpl_tree();
     $jsTree = [];
     foreach ($t['tree'] as $c1 => $x) {
         foreach ($x['mids'] as $c2 => $m) $jsTree[$c1][] = [$c2, $m['name'], array_map(fn($k, $v) => [$k, $v], array_keys($m['leaves']), $m['leaves'])];
     }
+    $editing = (int) $c['id'] > 0;
     ?>
-<section class="cpl-section" data-cpl-form data-work-date="<?= e($workDate) ?>">
-  <h3>민원 <small class="muted">대분류 → 중분류 → 소분류 순서로 고르세요 (민원 내용을 먼저 적고 '✨ 분류 제안'을 누르면 자동으로 골라 줍니다). 긴급·안전은 빨간색으로 표시되고 '처리중', 단순문의는 '완료'로 기본 설정됩니다.</small></h3>
-  <?php // 화면을 열 때 있던 민원 (저장할 때 이 가운데 지운 것만 삭제). 입력 오류로 다시 그릴 때는 처음 연 때의 목록을 그대로
-    $loaded = is_post() && isset($_POST['cp_loaded']) ? array_map('intval', (array) $_POST['cp_loaded']) : array_filter(array_map(fn($c) => (int) $c['id'], $rows));
-    foreach ($loaded as $lid): ?><input type="hidden" name="cp_loaded[]" value="<?= (int) $lid ?>"><?php endforeach ?>
-  <div data-cpl-list>
-    <?php foreach (array_values($rows) as $i => $c) cpl_row((string) $i, $c, $workDate) ?>
+<form method="post" class="card cpl-entry no-print" id="cplEntry">
+  <?= csrf_field() ?><input type="hidden" name="action" value="<?= $editing ? 'update' : 'add' ?>"><input type="hidden" name="back" value="<?= e($back) ?>">
+  <div class="card-head">
+    <h2><?= $editing ? '민원 고치기' : '민원 입력' ?></h2>
+    <label class="cpl-date">접수일<input type="date" name="work_date" value="<?= e($workDate) ?>" required></label>
   </div>
-  <template id="cplTpl"><?php cpl_row('__KEY__', cpl_empty(), $workDate) ?></template>
-  <button type="button" class="btn" data-cpl-add>+ 민원 추가</button>
-  <?php cpl_summary_html($rows, '오늘 민원 요약') ?>
-</section>
+  <section class="cpl-section" data-cpl-form data-work-date="<?= e($workDate) ?>">
+    <p class="muted small">대분류 → 중분류 → 소분류 순서로 고르세요 (민원 내용을 먼저 적고 '✨ 분류 제안'을 누르면 자동으로 골라 줍니다). 긴급·안전은 '처리중', 단순문의는 '완료'로 기본 설정됩니다.
+      <b>등록을 누르면 바로 저장</b>되고, 여러 명이 동시에 입력해도 서로 지워지지 않습니다.</p>
+    <div data-cpl-list><?php cpl_row('e', $c, $workDate, false) ?></div>
+  </section>
+  <div class="actions">
+    <?php if ($editing): ?><a class="btn ghost" href="<?= e(url($back)) ?>">취소</a><?php endif ?>
+    <button class="btn primary"><?= $editing ? '고친 내용 저장' : '등록' ?></button>
+  </div>
+</form>
 <script>window.CPL = <?= json_encode(['tree' => $jsTree, 'etc' => array_keys($t['etc']), 'urgent' => CPL_URGENT, 'simple' => CPL_SIMPLE, 'aiUrl' => url('ai_classify.php'), 'csrf' => csrf_token()], JSON_UNESCAPED_UNICODE) ?>;</script>
 <script src="<?= e(asset_url('assets/complaints.js')) ?>" defer></script>
     <?php
@@ -328,11 +317,15 @@ function cpl_form(array $rows, string $workDate): void
 
 /* ───────────── 보기 ───────────── */
 
-function cpl_view(array $rows): void
+function cpl_view(array $rows, string $date = ''): void
 {
-    if (!$rows) return;
+    if (!$rows) {
+        if ($date !== '') echo '<p class="muted small no-print">이 날 민원이 없습니다. 민원은 <a href="' . e(url('complaints.php?date=' . $date . '#cplEntry')) . '">고객 › 민원관리</a>에서 입력합니다.</p>';
+        return;
+    }
     ?>
-  <h3>민원 <small class="muted"><?= count($rows) ?>건 입력</small></h3>
+  <h3>민원 <small class="muted">이 날 <?= count($rows) ?>건 · 민원관리에서 입력·처리 (결재와 별개)</small>
+    <?php if ($date !== ''): ?><a class="small no-print" href="<?= e(url('complaints.php?date=' . $date)) ?>">민원관리 ›</a><?php endif ?></h3>
   <div class="table-scroll">
   <table class="table cpl-table">
     <thead><tr><th>분류</th><th>접수</th><th>장소</th><th>민원 내용</th><th class="right">건수</th><th>처리</th><th>조치내용·비고</th><th>접수자</th></tr></thead>
@@ -354,12 +347,4 @@ function cpl_view(array $rows): void
   </div>
   <?php cpl_summary_html($rows, '민원 요약') ?>
     <?php
-}
-
-/** 수정 이력 비교용 */
-function cpl_snapshot(int $journalId): array
-{
-    return array_map(fn($c) => cpl_path($c) . ' · ' . (CPL_CHANNELS[$c['channel']] ?? '') . ($c['place_name'] ? ' · ' . $c['place_name'] : '')
-        . ' · ' . preg_replace('/\s+/', ' ', $c['content']) . ' · ' . $c['qty'] . '건 · ' . (CPL_STATUS[$c['status']][0] ?? '')
-        . ($c['done_date'] ? ' ' . $c['done_date'] : '') . ($c['action'] ? ' · 조치: ' . preg_replace('/\s+/', ' ', $c['action']) : ''), cpl_load($journalId));
 }
