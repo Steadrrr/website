@@ -10,7 +10,7 @@ $isAuthor = (int) $journal['author_id'] === (int) $user['id'];
 $sharedDraft = $journal['status'] === 'draft' && in_array($journal['type'], SHARED_DRAFT_TYPES, true); // 업무일지·매출보고 임시저장은 모두 공유
 if ($journal['status'] === 'draft' && !$isAuthor && !$sharedDraft) abort(403, '임시저장 문서는 작성자만 볼 수 있습니다.');
 $editable = ($isAuthor || $sharedDraft) && in_array($journal['status'], ['draft', 'rejected'], true) && can_submit_journal($user, $journal['type'])
-    && ($journal['status'] === 'draft' || can_edit_submitted($user, $journal['type'])); // 반려된 업무일지를 고쳐 다시 올리는 것은 공무직 이상
+    && ($journal['status'] === 'draft' || can_edit_submitted($user, $journal['type'])); // WORKER_EDIT_TYPES 의 반려 문서를 다시 올리는 것은 공무직 이상
 $deletable = ($isAuthor && in_array($journal['status'], ['draft', 'rejected'], true)) || $user['is_admin'];
 // 근태: 수정·재상신 없이 취소(삭제) 후 다시 입력
 $att = $journal['type'] === 'attendance' ? att_find($id) : null;

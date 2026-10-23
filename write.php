@@ -16,7 +16,7 @@ $journal = null;
 if ($id) {
     $journal = journal_find($id) ?? abort(404, '일지를 찾을 수 없습니다.');
     if (!can_edit_journal($journal, $user)) abort(403, $journal['status'] !== 'draft' && !can_edit_submitted($user, $journal['type'])
-        ? '결재를 올린 업무일지는 공무직 이상만 수정할 수 있습니다.' : '임시저장 문서는 작성자만 수정할 수 있습니다.');
+        ? '결재를 올린 이 문서는 공무직 이상만 수정할 수 있습니다.' : '임시저장 문서는 작성자만 수정할 수 있습니다.');
     $type = $journal['type'];
     $workDate = $journal['work_date'];
     $teamId = $journal['team_id'] ? (int) $journal['team_id'] : null;
