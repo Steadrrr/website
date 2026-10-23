@@ -12,6 +12,9 @@ defined('APP_ROOT') || exit;
  */
 
 const AI_MODEL = 'claude-opus-5-5';
+const AI_COMPARE_MODEL = 'claude-sonnet-5-5'; // '소넷과 비교' 화면에서 같은 자료로 한 번 더 풀어 보는 모델
+/** 모델별 단가 (달러 / 100만 토큰: 입력, 출력) */
+const AI_PRICES = ['claude-opus-5-5' => [4, 20], 'claude-sonnet-5-5' => [2, 10]];
 const AI_API_VERSION = '2026-10-21';
 const AI_HORIZON_DAYS = 28;  // 예측 기간: 오늘부터 4주 (자료는 어제까지 — 하루 한 번 발행)
 
@@ -364,19 +367,20 @@ TXT;
  * Claude 호출 (structured outputs, JSON 응답)
  * @return array{ok: bool, data?: array, error?: string, model?: string, usage?: array}
  */
-function ai_claude_json(string $system, string $user, array $schema, string $effort = 'medium', int $maxTokens = 16000): array
+function ai_claude_json(string $system, string $user, array $schema, string $effort = 'medium', int $maxTokens = 16000, string $model = AI_MODEL): array
 {
     $key = ai_key();
     if ($key === '') return ['ok' => false, 'error' => 'API 키가 설정되지 않았습니다.'];
     if (!function_exists('curl_init')) return ['ok' => false, 'error' => '서버에 curl 기능이 없습니다.'];
     $body = [
-        'model' => AI_MODEL,
+        'model' => $model,
         'max_tokens' => $maxTokens,
-        'fallbacks' => 'default', // 안전 분류기가 거절하면 서버가 권장 모델로 다시 실행
         'system' => $system,
         'output_config' => ['effort' => $effort, 'format' => ['type' => 'json_schema', 'schema' => $schema]],
         'messages' => [['role' => 'user', 'content' => $user]],
     ];
+    $fallback = $model === AI_MODEL; // 기본 모델만: 안전 분류기가 거절하면 서버가 권장 모델로 다시 실행 (비교용 모델은 그 모델 답만 본다)
+    if ($fallback) $body['fallbacks'] = 'default';
     @set_time_limit(200);
     $ch = curl_init(rtrim((string) config('anthropic_api_url', 'https://api.anthropic.com'), '/') . '/v1/messages');
     curl_setopt_array($ch, [
@@ -384,12 +388,11 @@ function ai_claude_json(string $system, string $user, array $schema, string $eff
         CURLOPT_RETURNTRANSFER => true,
         CURLOPT_CONNECTTIMEOUT => 15,
         CURLOPT_TIMEOUT => 180,
-        CURLOPT_HTTPHEADER => [
+        CURLOPT_HTTPHEADER => array_merge([
             'Content-Type: application/json',
             'x-api-key: ' . $key,
             'anthropic-version: ' . AI_API_VERSION,
-            'anthropic-beta: server-side-fallback-2026-07-01',
-        ],
+        ], $fallback ? ['anthropic-beta: server-side-fallback-2026-07-01'] : []),
         CURLOPT_POSTFIELDS => json_encode($body, JSON_UNESCAPED_UNICODE),
     ]);
     $raw = curl_exec($ch);
@@ -424,7 +427,7 @@ function ai_claude_json(string $system, string $user, array $schema, string $eff
         $usage['input_tokens'] = array_sum(array_map(fn($i) => (int) ($i['input_tokens'] ?? 0), $usage['iterations']));
         $usage['output_tokens'] = array_sum(array_map(fn($i) => (int) ($i['output_tokens'] ?? 0), $usage['iterations']));
     }
-    return ['ok' => true, 'data' => $data, 'model' => (string) ($res['model'] ?? AI_MODEL), 'usage' => $usage];
+    return ['ok' => true, 'data' => $data, 'model' => (string) ($res['model'] ?? $model), 'usage' => $usage];
 }
 
 /** 혹시 섞여 들어간 전화번호·이메일 가리기 (통계 근거에는 원래 없지만 한 번 더) */
@@ -439,10 +442,12 @@ function ai_mask(string $s): string
     return (string) preg_replace('/(?<![가-힣])(?!고객|손님)[가-힣]{1,4}?\s?(?=(?:기사|주임|주무관|팀장|과장|소장|사장|대표|반장|선생님|님)님?(?![가-힣]))/u', '○○ ', (string) $s);
 }
 
-/** 발행 비용 (원, 대략) — 이스터에그: Opus 5.5 단가 입력 $4·출력 $20 / 100만 토큰, 1달러 ≈ 1,400원 */
+/** 발행 비용 (원, 대략) — 이스터에그: 모델 단가(AI_PRICES, 모르는 모델은 Opus 5.5 단가) × 토큰, 1달러 ≈ 1,400원 */
 function ai_cost_won(array $insight): int
 {
-    $usd = ((int) $insight['input_tokens'] * 4 + (int) $insight['output_tokens'] * 20) / 1000000;
+    $p = AI_PRICES[AI_MODEL];
+    foreach (AI_PRICES as $m => $price) if (str_starts_with((string) ($insight['model'] ?? ''), $m)) $p = $price;
+    $usd = ((int) $insight['input_tokens'] * $p[0] + (int) $insight['output_tokens'] * $p[1]) / 1000000;
     return (int) (round($usd * 1400 / 10) * 10);
 }
 
@@ -468,14 +473,20 @@ function ai_forecast_run(array $user): array
     }
 }
 
-function ai_forecast_publish(array $user): array
+/** AI에게 보내는 글 (통계 근거 + 규칙 예측 후보) — 같은 근거면 같은 글 (모델 비교에도 그대로 씀) */
+function ai_forecast_prompt(array $facts): string
 {
-    $facts = ai_facts();
     $rules = ai_rule_items($facts);
-    $prompt = "아래는 쉬자파크 업무 시스템의 어제({$facts['period']['자료 기준(어제까지)']})까지 통계입니다. 오늘부터 4주({$facts['period']['예측 시작(오늘)']} ~ {$facts['period']['예측 끝']})를 미리 챙길 수 있게 정리해 주세요.\n\n"
+    return "아래는 쉬자파크 업무 시스템의 어제({$facts['period']['자료 기준(어제까지)']})까지 통계입니다. 오늘부터 4주({$facts['period']['예측 시작(오늘)']} ~ {$facts['period']['예측 끝']})를 미리 챙길 수 있게 정리해 주세요.\n\n"
         . "## 통계 근거\n" . json_encode(array_diff_key($facts, ['period' => 1]), JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT)
         . "\n\n## 규칙으로 뽑은 예측 후보 (참고용, 빼거나 합치거나 순서를 바꿔도 됩니다)\n" . json_encode($rules, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT)
         . "\n\n## 기간\n" . json_encode($facts['period'], JSON_UNESCAPED_UNICODE);
+}
+
+function ai_forecast_publish(array $user): array
+{
+    $facts = ai_facts();
+    $prompt = ai_forecast_prompt($facts);
     // 30초~1분 걸리는 호출: 세션을 잠시 풀어 같은 사람의 다른 탭이 멈추지 않게, 브라우저가 끊겨도 끝까지 저장
     $hadSession = session_status() === PHP_SESSION_ACTIVE;
     if ($hadSession) session_write_close();
@@ -499,4 +510,55 @@ function ai_latest(string $kind = 'forecast'): ?array
     if (!$r) return null;
     $r['data'] = json_decode((string) $r['result'], true) ?: [];
     return $r;
+}
+
+/*
+ * 모델 비교 (최고관리자): 발행본과 '똑같은 근거'를 AI_COMPARE_MODEL 에 한 번 더 보내 두 답을 나란히 본다.
+ *  - 결과는 ai_insights 에 kind = 'compare:<발행본 id>' 로 저장 (모두가 보는 예측에는 섞이지 않음)
+ *  - 발행본 하나당 한 번만 (비용 약 75원)
+ */
+function ai_compare_kind(int $baseId): string
+{
+    return 'compare:' . $baseId;
+}
+
+/** 발행본 id 의 비교 결과 (없으면 null) */
+function ai_compare_get(int $baseId): ?array
+{
+    return ai_latest(ai_compare_kind($baseId));
+}
+
+function ai_compare_run(array $user, array $base): array
+{
+    $lock = "CONCAT('ai_compare_', '" . session_site() . "')";
+    if ((int) db()->query("SELECT GET_LOCK($lock, 200)")->fetchColumn() !== 1) return ['ok' => false, 'error' => '다른 사람이 비교 중입니다. 잠시 뒤 다시 확인해 주세요.'];
+    try {
+        if (ai_compare_get((int) $base['id'])) return ['ok' => false, 'error' => '이 발행본은 이미 비교했습니다.'];
+        $facts = json_decode((string) $base['facts'], true);
+        if (!is_array($facts) || empty($facts['period'])) return ['ok' => false, 'error' => '이 발행본에는 근거 숫자가 남아 있지 않아 비교할 수 없습니다.'];
+        $hadSession = session_status() === PHP_SESSION_ACTIVE;
+        if ($hadSession) session_write_close();
+        ignore_user_abort(true);
+        $t = microtime(true);
+        $res = ai_claude_json(AI_FORECAST_SYSTEM, ai_mask(ai_forecast_prompt($facts)), ai_forecast_schema(), 'medium', 16000, AI_COMPARE_MODEL);
+        $sec = (int) round(microtime(true) - $t);
+        if ($hadSession) @session_start();
+        if (!$res['ok']) return $res;
+        db()->prepare('INSERT INTO ai_insights (kind, period_from, period_to, facts, result, model, input_tokens, output_tokens, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)')
+            ->execute([ai_compare_kind((int) $base['id']), $base['period_from'], $base['period_to'], json_encode(['걸린 시간(초)' => $sec], JSON_UNESCAPED_UNICODE),
+                       json_encode($res['data'], JSON_UNESCAPED_UNICODE), $res['model'], (int) ($res['usage']['input_tokens'] ?? 0), (int) ($res['usage']['output_tokens'] ?? 0), $user['id']]);
+        return ['ok' => true];
+    } finally {
+        db()->query("SELECT RELEASE_LOCK($lock)");
+    }
+}
+
+/** 화면 표시용 모델 이름 */
+function ai_model_label(string $model): string
+{
+    return match (true) {
+        str_starts_with($model, 'claude-opus') => '오퍼스 (' . $model . ')',
+        str_starts_with($model, 'claude-sonnet') => '소넷 (' . $model . ')',
+        default => $model,
+    };
 }

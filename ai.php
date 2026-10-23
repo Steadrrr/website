@@ -67,7 +67,7 @@ layout_header('AI 분석', 'ai');
 <section class="card ai-result">
   <div class="ai-result-head">
     <h2>AI 예측 <?= $fresh ? '<span class="chip">오늘 발행</span>' : '<span class="chip">' . e($md($latest['created_at'])) . ' 발행본</span>' ?></h2>
-    <span class="muted tiny-text"><?= e(date('n/j H:i', strtotime($latest['created_at']))) ?> 발행 · <?= e($latest['user_name'] ?? '') ?> · 대상 <?= e($md($latest['period_from'])) ?>~<?= e($md($latest['period_to'])) ?><?= $fresh ? '' : ' · <b>오늘은 아직 발행 전 — 최근 발행본입니다</b>' ?><?php if ($c = ai_cost_won($latest)): ?> · <span title="자판기 커피 반 잔 값으로 4주를 미리 봅니다 ☕">💸 이번 발행 약 <?= number_format($c) ?>원</span><?php endif ?> · <a href="<?= e(url('ai_review.php?id=' . (int) $latest['id'])) ?>">🔁 실제와 비교</a></span>
+    <span class="muted tiny-text"><?= e(date('n/j H:i', strtotime($latest['created_at']))) ?> 발행 · <?= e($latest['user_name'] ?? '') ?> · 대상 <?= e($md($latest['period_from'])) ?>~<?= e($md($latest['period_to'])) ?><?= $fresh ? '' : ' · <b>오늘은 아직 발행 전 — 최근 발행본입니다</b>' ?><?php if ($c = ai_cost_won($latest)): ?> · <span title="자판기 커피 반 잔 값으로 4주를 미리 봅니다 ☕">💸 이번 발행 약 <?= number_format($c) ?>원</span><?php endif ?> · <a href="<?= e(url('ai_review.php?id=' . (int) $latest['id'])) ?>">🔁 실제와 비교</a><?php if (!empty($user['is_admin'])): ?> · <a href="<?= e(url('ai_compare.php?id=' . (int) $latest['id'])) ?>">🆚 소넷과 비교</a><?php endif ?></span>
   </div>
   <?php if ($canAll): ?><p class="ai-summary"><?= nl2br(e($ai['summary'] ?? '')) ?></p><?php endif ?>
   <div class="ai-items">
