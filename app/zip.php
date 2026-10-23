@@ -30,6 +30,7 @@ function zip_send(string $filename, array $files): never
     }
     $end = pack('VvvvvVVv', 0x06054b50, 0, 0, count($entries), count($entries), strlen($central), $offset, 0);
 
+    if (session_status() === PHP_SESSION_ACTIVE) session_write_close(); // 받는 동안 같은 사람의 다른 탭이 멈추지 않게
     while (ob_get_level()) ob_end_clean();
     @set_time_limit(0);
     header('Content-Type: application/zip');

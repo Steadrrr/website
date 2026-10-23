@@ -8,6 +8,7 @@ require __DIR__ . '/app/bootstrap.php';
 
 $user = require_login();
 header('Content-Type: application/json; charset=utf-8');
+if (!can_menu($user, 'ops')) { http_response_code(403); exit(json_encode(['ok' => false, 'error' => "'운영관리' 메뉴 권한이 있어야 분류 제안을 쓸 수 있습니다."], JSON_UNESCAPED_UNICODE)); }
 header('Cache-Control: no-store');
 if (!is_post()) {
     http_response_code(405);

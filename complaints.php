@@ -44,9 +44,12 @@ if (is_post() && in_array(post('action'), ['add', 'update', 'delete'], true)) {
     // 입력 오류: 아래에서 입력한 값 그대로 다시 그린다
     $entryRow = ($parsed[0] ?? null) ?: array_merge(cpl_empty(), array_map(fn($v) => is_string($v) ? trim($v) : $v, (array) ($_POST['cp']['e'] ?? [])));
     $entryRow['id'] = $editId;
+    $entryRow['receiver_name'] = $editId ? (cpl_find($editId)['receiver_name'] ?? '') : ''; // 고치는 중이면 원래 접수자
     $entryDate = $workDate ?: date('Y-m-d');
 } elseif (is_post()) {
     csrf_verify();
+    $back = (string) ($_POST['back'] ?? 'complaints.php');
+    if (!preg_match('/^complaints\.php(\?|$)/', $back)) $back = 'complaints.php'; // 이 화면 목록으로만 돌아감
     $ids = array_values(array_unique(array_map('intval', (array) ($_POST['ids'] ?? []))));
     $one = (int) post('id');
     if ($one) $ids = [$one];
@@ -55,7 +58,7 @@ if (is_post() && in_array(post('action'), ['add', 'update', 'delete'], true)) {
     $action = trim(post('cpl_action'));
     if (!$ids || !isset(CPL_STATUS[$status]) || ($status === 'done' && !valid_date($doneDate))) {
         flash('처리할 민원과 처리상태(완료면 처리일자)를 확인하세요.', 'error');
-        redirect($_POST['back'] ?? 'complaints.php');
+        redirect($back);
     }
     $n = 0;
     foreach ($ids as $id) {
@@ -71,7 +74,7 @@ if (is_post() && in_array(post('action'), ['add', 'update', 'delete'], true)) {
         $n++;
     }
     flash("민원 {$n}건을 '" . CPL_STATUS[$status][0] . "'(으)로 저장했습니다.", 'success');
-    redirect($_POST['back'] ?? 'complaints.php');
+    redirect($back);
 }
 
 // 예전 주소(월별 통계 탭)는 통계 › 민원통계로 보낸다
