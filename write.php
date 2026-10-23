@@ -98,6 +98,14 @@ if (is_post()) {
         try {
             $teamId = $payload['team_id'] ?? null;
             if ($id) {
+                // 특이사항: 화면을 연 뒤 고치지 않았으면 지금 저장된 값을 그대로 둔다
+                // (여러 명이 함께 쓰는 일지에서 먼저 열어 둔 화면으로 저장해 다른 사람이 적은 특이사항을 지우지 않게)
+                $nl = fn(string $s) => str_replace("\r\n", "\n", $s);
+                if (isset($_POST['remarks_orig']) && $nl($remarks) === $nl(post('remarks_orig'))) {
+                    $st = $pdo->prepare('SELECT remarks FROM journals WHERE id = ? FOR UPDATE');
+                    $st->execute([$id]);
+                    $remarks = (string) $st->fetchColumn();
+                }
                 $pdo->prepare('UPDATE journals SET work_date = ?, team_id = ?, weather = ?, content = ?, remarks = ? WHERE id = ?')
                     ->execute([$workDate, $teamId, $weather ?: null, $content, $remarks, $id]);
             } else {
@@ -158,6 +166,9 @@ if ($type === 'rooms') rooms_fill_panel($workDate, $journal, $fillRep);
 ?>
 <form method="post" class="card" enctype="multipart/form-data">
   <?= csrf_field() ?>
+  <?php if ($journal): // 화면을 열 때의 특이사항 (고치지 않았으면 저장할 때 다른 사람이 그 사이 적은 내용을 지우지 않게) ?>
+  <input type="hidden" name="remarks_orig" value="<?= e(is_post() ? (string) ($_POST['remarks_orig'] ?? '') : (string) ($journal['remarks'] ?? '')) ?>">
+  <?php endif ?>
   <div class="card-head">
     <h1><?= e(JOURNAL_TYPES[$type]) ?> <?= $journal ? '수정' : '작성' ?></h1>
     <?php if (!$canSubmit): ?>
