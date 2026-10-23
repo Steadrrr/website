@@ -88,6 +88,17 @@ if (is_post()) {
         if (valid_date($workDate) && ($dup = daily_find_by_date($workDate, (int) $id))) $errors[] = date('n월 j일', strtotime($workDate)) . ' 업무일지가 이미 있습니다 (문서번호 ' . (int) $dup['id'] . '). 업무일지는 하루에 하나입니다.';
     }
 
+    // 저장 충돌: 화면을 연 뒤 다른 사람이 이 문서를 저장했으면 덮어쓰기 전에 알린다 (업무일지는 각자 내용만 합쳐 저장하므로 제외)
+    $docVer = null;
+    if ($id && $type !== 'daily' && post('doc_ver') !== '') {
+        $docVer = journal_version($id);
+        if (!hash_equals($docVer, post('doc_ver'))) {
+            $who = journal_last_saver($id);
+            $errors[] = '화면을 연 뒤 다른 사람' . ($who !== '' ? "({$who})" : '') . '이 이 문서를 저장했습니다. 지금 저장하면 그 내용을 덮어씁니다. '
+                . '아래 내 입력은 그대로 남아 있습니다 — 다른 탭에서 문서를 확인한 뒤, 그래도 이대로 저장하려면 한 번 더 저장을 누르세요.';
+        }
+    }
+
     diag_trace("write $type #$id 입력 확인");
     [$payload, $itemErrors] = items_parse($type, valid_date($workDate) ? $workDate : date('Y-m-d'), $id);
     $errors = [...$errors, ...$itemErrors];
@@ -168,7 +179,9 @@ if ($type === 'rooms') rooms_fill_panel($workDate, $journal, $fillRep);
   <?= csrf_field() ?>
   <?php if ($journal): // 화면을 열 때의 특이사항 (고치지 않았으면 저장할 때 다른 사람이 그 사이 적은 내용을 지우지 않게) ?>
   <input type="hidden" name="remarks_orig" value="<?= e(is_post() ? (string) ($_POST['remarks_orig'] ?? '') : (string) ($journal['remarks'] ?? '')) ?>">
-  <?php endif ?>
+  <?php if ($type !== 'daily'): // 화면을 열 때의 문서 버전 (충돌 알림 뒤에는 지금 버전 → 한 번 더 누르면 저장) ?>
+  <input type="hidden" name="doc_ver" value="<?= e($docVer ?? (is_post() ? post('doc_ver') : journal_version((int) $journal['id']))) ?>">
+  <?php endif; endif ?>
   <div class="card-head">
     <h1><?= e(JOURNAL_TYPES[$type]) ?> <?= $journal ? '수정' : '작성' ?></h1>
     <?php if (!$canSubmit): ?>

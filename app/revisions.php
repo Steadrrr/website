@@ -44,6 +44,25 @@ function render_journal_logs(int $journalId): void
 }
 
 /** 일지 내용을 비교하기 쉬운 형태로: [항목 => 문자열 | 문자열 목록] */
+/**
+ * 문서 내용 버전 (저장 충돌 확인용): 화면을 열 때와 저장할 때가 다르면 그 사이 다른 사람이 저장한 것.
+ * 업무일지는 사람마다 자기 내용만 저장하므로(민원·특이사항도 합쳐 저장) 쓰지 않는다.
+ */
+function journal_version(int $id): string
+{
+    $j = journal_find($id);
+    return $j ? md5(json_encode([journal_snapshot($j), $j['status']], JSON_UNESCAPED_UNICODE)) : '';
+}
+
+/** 마지막으로 이 문서를 저장한 사람·시각 "박공무 14:32" */
+function journal_last_saver(int $id): string
+{
+    $st = db()->prepare('SELECT u.name, l.created_at FROM journal_logs l LEFT JOIN users u ON u.id = l.user_id WHERE l.journal_id = ? ORDER BY l.id DESC LIMIT 1');
+    $st->execute([$id]);
+    $r = $st->fetch();
+    return $r ? trim(($r['name'] ?? '') . ' ' . date('H:i', strtotime($r['created_at']))) : '';
+}
+
 function journal_snapshot(array $journal): array
 {
     $p = items_load($journal);
