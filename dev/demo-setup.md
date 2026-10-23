@@ -5,7 +5,7 @@
 
 ## 어떻게 동작하나
 - 체험판 폴더에는 `app/config.php` 가 없고, `app/config.demo.php` 가 운영 사이트의 `/www/app/config.php` 를 읽어
-  DB 접속 정보만 빌려 쓴다 (`'demo' => true`, `base_url` `/demo`, 사이트 이름 「쉬자ON」).
+  DB 접속 정보만 빌려 쓴다 (`'demo' => true`, `base_url` `/demo`, 사이트 이름 「쉬자!쉼ON」).
 - 같은 DB 안에서 표 이름 앞에 `demo_` 가 붙은 별도 표(`demo_users`, `demo_journals` …)만 쓴다 (`app/demo_db.php`).
   - 모든 SQL 이 표 이름을 `demo_` 표로 바꾼 뒤 실행된다. 운영 표 이름이 남은 채로 표를 만들거나 지우려 하면 실행하지 않는다.
   - 로컬 검증: 운영·체험판을 같은 DB 로 띄워 체험판 전체 화면 열기·저장·초기화 후 운영 표 50개의 CHECKSUM 이 그대로임을 확인 (2026-10-22).
