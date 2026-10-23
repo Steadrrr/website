@@ -1286,7 +1286,6 @@ label .tm-pick { display: flex; margin-top: .25rem; }
 /* 휴대폰: 넓은 표가 있는 카드가 화면 밖으로 밀려나지 않게 (격자 칸이 내용 폭만큼 늘어나는 것 방지 — 표는 .table-scroll 안에서 옆으로 밀어 봄) */
 .grid2 > *, .grid3 > *, .card { min-width: 0; }
 /* 민원 분류 제안 */
-.cpl-ai { margin-top: .25rem; display: flex; align-items: center; gap: .4rem; flex-wrap: wrap; }
 /* 지난 예측 되돌아보기 */
 .air-pick { display: flex; flex-wrap: wrap; align-items: center; gap: .4rem; }
 .air-pick input, .air-pick select { width: auto; }

@@ -112,7 +112,6 @@ require __DIR__ . '/help.php';
 require __DIR__ . '/charts.php';
 require __DIR__ . '/sales.php';
 require __DIR__ . '/ai.php';
-require __DIR__ . '/ai_classify.php';
 require __DIR__ . '/ai_review.php';
 require __DIR__ . '/layout.php';
 require __DIR__ . '/demo.php';
