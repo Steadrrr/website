@@ -6,7 +6,7 @@ defined('APP_ROOT') || exit;
  * 새 버전 파일을 FTP로 덮어쓰기만 하면, 첫 접속 때 부족한 테이블/컬럼을 만든다.
  * (기존 자료는 그대로 유지)
  */
-const DB_VERSION = 53;
+const DB_VERSION = 54;
 
 function db_version(): int
 {
@@ -435,6 +435,11 @@ function db_migrate(): void
     }
 
     // 53) v52 → v53: AI 분석 결과 ai_insights (1) 단계에서 생성) — AI 분석 메뉴, 예측을 저장해 두고 실제와 비교
+
+    // 54) v53 → v54: 사이트 이름을 설정(settings.site_name)에서 바꿀 수 있게 — 새 이름 '쉬자!쉼ON' (이미 정해 둔 이름이 있으면 그대로)
+    if (db_version() < 54) {
+        $pdo->exec("INSERT IGNORE INTO settings (name, value) VALUES ('site_name', '쉬자!쉼ON')");
+    }
 
     $pdo->prepare("INSERT INTO settings (name, value) VALUES ('db_version', ?) ON DUPLICATE KEY UPDATE value = VALUES(value)")
         ->execute([(string) DB_VERSION]);

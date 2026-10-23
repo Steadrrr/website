@@ -10,6 +10,6 @@ if (!is_file($main)) return null;
 return [
     'demo'      => true,
     'base_url'  => '/demo',
-    'site_name' => '쉬자ON',
+    'site_name' => '쉬자!쉼ON',
     'debug'     => false,
 ] + (require $main);
