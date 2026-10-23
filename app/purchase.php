@@ -62,10 +62,10 @@ function purchase_parse(int $journalId): array
         $items[] = $it;
     }
     if (!$items) $errors[] = '구매 품목을 1개 이상 입력하세요.';
-    // 사진: 이미 있는 것(삭제 체크 제외) + 새로 올리는 것이 1장 이상이어야 결재 요청 가능
+    // 검수사진: 이미 있는 것(삭제 체크 제외) + 새로 올리는 것이 1장 이상이어야 결재 요청 가능 (영수증사진은 없어도 됨)
     if (post('action') === 'submit' || ($journalId && ($j = journal_find($journalId)) && $j['submitted_at'])) {
         $deleted = array_map('intval', (array) ($_POST['delete_photos'] ?? []));
-        foreach (['purchase_check' => ['check_photos', '검수사진'], 'purchase_receipt' => ['receipt_photos', '영수증사진']] as $type => [$field, $label]) {
+        foreach (['purchase_check' => ['check_photos', '검수사진']] as $type => [$field, $label]) {
             $kept = $journalId ? count(array_filter(photos_for($type, $journalId), fn($p) => !in_array((int) $p['id'], $deleted, true))) : 0;
             $new = count(array_filter((array) ($_FILES[$field]['error'] ?? []), fn($e) => (int) $e === UPLOAD_ERR_OK));
             if ($kept + $new === 0) $errors[] = "{$label}을 1장 이상 올리세요.";
@@ -141,10 +141,10 @@ function purchase_form(array $payload, ?array $journal): void
   <div class="grid2 pc-photos">
     <div><h3>검수사진 <small class="muted">같이 구매한 물품을 모아서 1장 이상</small></h3>
       <?php render_photo_editor('purchase_check', $id, PURCHASE_PHOTO_MAX, 'check_photos', '검수사진 추가') ?></div>
-    <div><h3>영수증사진 <small class="muted">외상은 거래명세서</small></h3>
+    <div><h3>영수증사진 <small class="muted">선택 · 외상은 거래명세서</small></h3>
       <?php render_photo_editor('purchase_receipt', $id, PURCHASE_PHOTO_MAX, 'receipt_photos', '영수증사진 추가') ?></div>
   </div>
-  <p class="muted small">결재 요청하면 주무관이 결재하고 지출을 완료합니다. 검수사진·영수증사진은 각각 1장 이상 있어야 결재 요청할 수 있습니다.</p>
+  <p class="muted small">결재 요청하면 주무관이 결재하고 지출을 완료합니다. 검수사진은 1장 이상 있어야 결재 요청할 수 있습니다 (영수증사진은 없어도 됩니다).</p>
 </div>
 <script>
 (function () {
