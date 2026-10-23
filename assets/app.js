@@ -1,3 +1,18 @@
+// PC에서는 숫자칸의 inputmode(휴대폰 숫자 자판용)를 뺀다: 윈도우 한글 입력기가 숫자칸에서 영문으로 바뀌고,
+// 그 상태가 다음 칸(품목명 등)까지 이어져 한/영이 저절로 바뀌는 문제. 휴대폰·태블릿에서는 그대로 둔다.
+(function () {
+  if (!window.matchMedia || !matchMedia('(hover: hover) and (pointer: fine)').matches) return;
+  const SEL = 'input[inputmode="numeric"], input[inputmode="decimal"]';
+  const strip = (root) => {
+    if (root.matches && root.matches(SEL)) root.removeAttribute('inputmode');
+    if (root.querySelectorAll) root.querySelectorAll(SEL).forEach((el) => el.removeAttribute('inputmode'));
+  };
+  strip(document);
+  // 나중에 추가되는 줄(+ 품목 추가 등)에도
+  new MutationObserver((list) => list.forEach((m) => m.addedNodes.forEach((n) => { if (n.nodeType === 1) strip(n); })))
+    .observe(document.documentElement, { childList: true, subtree: true });
+})();
+
 // 숫자 입력칸 천단위 콤마 + 매출보고/상품권 금액 자동계산
 (function () {
   const fmt = (n) => n.toLocaleString('ko-KR');
