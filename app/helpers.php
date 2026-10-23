@@ -36,8 +36,10 @@ const PROGRAM_AGES = ['infant' => '유아', 'elem' => '초등', 'teen' => '중�
 
 // 임시저장을 여러 직원이 함께 보고 이어서 고치는 문서 (업무일지·매출보고)
 const SHARED_DRAFT_TYPES = ['daily', 'sales', 'rooms'];
-/** 결재 올리기와 결재 올린 뒤(결재중·반려·결재완료) 수정은 공무직 이상만 하는 문서 (사원은 임시저장까지) */
-const WORKER_SUBMIT_TYPES = ['daily'];
+/** 결재 올리기를 공무직 이상만 하는 문서 (지금은 없음 — 업무일지도 2026-10-23부터 사원이 결재를 올린다) */
+const WORKER_SUBMIT_TYPES = [];
+/** 결재 올린 뒤(결재중·반려·결재완료) 수정은 공무직 이상만 하는 문서 (사원은 볼 수만) */
+const WORKER_EDIT_TYPES = ['daily'];
 
 // 날씨 입력란이 없는 문서 (상품권입고, 일일매출보고)
 const NO_WEATHER_TYPES = ['daily', 'voucher', 'sales', 'vcheck', 'rooms', 'arwork', 'purchase'];
@@ -294,10 +296,16 @@ function journal_list_url(string $type, ?string $date = null): string
     };
 }
 
-/** 결재 올리기 권한: 업무일지는 공무직 이상·최고관리자, 그 밖의 문서는 모든 직원 */
+/** 결재 올리기 권한: WORKER_SUBMIT_TYPES 는 공무직 이상·최고관리자, 그 밖의 문서는 모든 직원 */
 function can_submit_journal(array $user, string $type): bool
 {
     return !in_array($type, WORKER_SUBMIT_TYPES, true) || !empty($user['is_admin']) || (int) $user['rank_level'] >= RANK_WORKER;
+}
+
+/** 결재 올린 뒤의 문서를 고칠 수 있는가: 업무일지는 공무직 이상·최고관리자, 그 밖의 문서는 모든 직원 */
+function can_edit_submitted(array $user, string $type): bool
+{
+    return !in_array($type, WORKER_EDIT_TYPES, true) || !empty($user['is_admin']) || (int) $user['rank_level'] >= RANK_WORKER;
 }
 
 /** 이 사용자가 이 일지를 수정할 수 있는가: 임시저장은 작성자만, 상신된 일지는 모든 직원 */
@@ -306,7 +314,7 @@ function can_edit_journal(array $journal, array $user): bool
     if (!can_write_type($user, $journal['type'])) return false; // 상품권 입고·금고점검·AR 사용보고·물품구매는 공무직 이상
     if ($journal['type'] === 'purchase' && purchase_is_paid((int) $journal['id'])) return false; // 지출 완료된 구매는 지출 취소 후 수정
     if ($journal['type'] === 'attendance') return false; // 근태는 수정 대신 취소 후 다시 입력
-    if ($journal['status'] !== 'draft' && !can_submit_journal($user, $journal['type'])) return false; // 업무일지: 결재 올린 뒤에는 공무직 이상만 수정
+    if ($journal['status'] !== 'draft' && !can_edit_submitted($user, $journal['type'])) return false; // 업무일지: 결재 올린 뒤에는 공무직 이상만 수정
     if ($journal['status'] === 'draft' && in_array($journal['type'], SHARED_DRAFT_TYPES, true)) return true; // 공유 임시저장
     return $journal['status'] !== 'draft' || (int) $journal['author_id'] === (int) $user['id'];
 }
