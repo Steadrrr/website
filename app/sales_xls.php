@@ -242,7 +242,7 @@ function sales_fill_panel(string $workDate, ?array $journal, ?array $rep): void
   <ul class="small sales-fill-list">
     <?php if ($rep['tickets']): ?><li>입장권: <?= implode(' / ', array_map(fn($r) => $row($r) . ' → ' . e($r['to']), $rep['tickets'])) ?> · 현금 <?= number_format($rep['cash']) ?>원</li><?php endif ?>
     <?php if ($rep['progs']): ?><li>프로그램 판매: <?= implode(' / ', array_map(fn($r) => $row($r) . ' → ' . e($r['to']), $rep['progs'])) ?></li><?php endif ?>
-    <?php if ($rep['stay']): ?><li class="muted">무시: <?= implode(' / ', array_map($row, $rep['stay'])) ?> — 쉬자파크숙박(입실·퇴실)은 객실관리 › 객실판매관리의 입실인원으로 자동 입력됩니다.</li><?php endif ?>
+    <?php if ($rep['stay']): ?><li class="muted">무시: <?= implode(' / ', array_map($row, $rep['stay'])) ?> — 쉬자파크숙박(입실·퇴실)은 객실 운영 › 객실판매관리의 입실인원으로 자동 입력됩니다.</li><?php endif ?>
     <?php if ($rep['rental']): ?><li>시설대관 입장 인원: <?= implode(' / ', array_map(fn($r) => $row($r) . ' → 입장권 시설대관', $rep['rental'])) ?> — 대관 요금은 시설대관 칸에 직접 입력하세요.</li><?php endif ?>
     <?php foreach ($rep['warn'] as $w): ?><li class="warn"><?= e($w) ?></li><?php endforeach ?>
   </ul>

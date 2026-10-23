@@ -44,7 +44,7 @@ function layout_header(string $title, string $active = '', array $opt = []): voi
   <button class="nav-toggle" type="button" aria-label="메뉴" onclick="document.body.classList.toggle('nav-open')">☰</button>
   <nav class="nav">
     <?php foreach ($groups as $gkey => $g):
-        $badge = $gkey === 'personal' && $waiting > 0 ? ' <span class="count">' . $waiting . '</span>' : '';
+        $badge = isset($g['items']['approval']) && $waiting > 0 ? ' <span class="count">' . $waiting . '</span>' : ''; // 결재함이 든 메뉴에 결재 대기 수
         if (empty($g['items'])): ?>
       <a href="<?= e(url($g['href'])) ?>" class="nav-main <?= $current === $gkey ? 'on' : '' ?>"><?= e($g['label']) ?></a>
     <?php else: ?>
@@ -167,10 +167,10 @@ function nav_groups(?array $user): array
     return nav_bundled() ? nav_bundle($groups) : $groups;
 }
 
-/** 메뉴를 업무 흐름 묶음으로 보여 줄지 (config 'nav' => 'bundle', 체험판은 기본) */
+/** 메뉴를 업무 흐름 묶음으로 보여 줄지 — 기본은 묶음 (운영·체험판 모두). 예전 메뉴로 되돌리려면 config 'nav' => 'classic' */
 function nav_bundled(): bool
 {
-    return config('nav', is_demo() ? 'bundle' : '') === 'bundle';
+    return config('nav', 'bundle') === 'bundle';
 }
 
 /**

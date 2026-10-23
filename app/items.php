@@ -439,7 +439,7 @@ function items_form(string $type, array $payload, string $workDate, ?array $jour
     if (!$tickets && !$rooms && !$rentals && !$lodges): ?>
   <div class="flash flash-error">등록된 판매 상품이 없습니다. 관리자에게 <b>상품관리</b>에서 <?= $isRooms ? '객실' : '입장권·시설대관' ?>을 등록해 달라고 요청하세요.</div>
     <?php endif ?>
-    <?php if (!$isRooms): ?><p class="muted small">객실 판매와 지역상품권 환급은 <a href="<?= e(url('journal.php?type=rooms&date=' . $workDate)) ?>">객실관리 › 객실판매관리</a>에서 따로 입력·결재합니다.</p><?php endif ?>
+    <?php if (!$isRooms): ?><p class="muted small">객실 판매와 지역상품권 환급은 <a href="<?= e(url('journal.php?type=rooms&date=' . $workDate)) ?>">객실 운영 › 객실판매관리</a>에서 따로 입력·결재합니다.</p><?php endif ?>
 
 <script>window.STAY_API = <?= json_encode(url('api/stay.php')) ?>;</script>
 <script>window.SEASONS = <?= json_encode(array_values(array_map(
@@ -523,7 +523,7 @@ function items_form(string $type, array $payload, string $workDate, ?array $jour
       <tr data-weekday="<?= (int) $p['price'] ?>" data-weekend="<?= (int) $p['price_weekend'] ?>" data-peak="<?= (int) $p['price_peak'] ?>"
           data-max="<?= (int) $p['max_people'] ?>" data-refund-weekday="<?= room_refund($p, 'weekday') ?>" data-refund-weekend="<?= room_refund($p, 'weekend') ?>" data-refund-peak="<?= room_refund($p, 'peak') ?>" data-name="<?= e($p['name']) ?>"
           data-refund-next="<?= e(json_encode(room_refund_next_nights($p, $workDate, max(3, (int) ($l['stay_nights'] ?? 0))))) ?>"<?= isset($contToday[$pid]) ? ' data-cont="' . e(date('n/j', strtotime($contToday[$pid]))) . '"' : '' ?>>
-        <td><?= e($p['name']) ?> <small class="muted"><?= $p['base_people'] ?? 0 ? '기준 ' . (int) $p['base_people'] . '·' : '' ?>최대 <?= (int) $p['max_people'] ?>인</small><?= $p['is_active'] ? '' : ' <small class="muted">(판매중지)</small>' ?><?= isset($blockedToday[$pid]) ? ' <span class="badge rb-' . e($blockedToday[$pid]) . '" title="객실관리 › 객실운영관리">' . e(ROOM_BLOCK_REASONS[$blockedToday[$pid]] ?? '') . '</span>' : '' ?></td>
+        <td><?= e($p['name']) ?> <small class="muted"><?= $p['base_people'] ?? 0 ? '기준 ' . (int) $p['base_people'] . '·' : '' ?>최대 <?= (int) $p['max_people'] ?>인</small><?= $p['is_active'] ? '' : ' <small class="muted">(판매중지)</small>' ?><?= isset($blockedToday[$pid]) ? ' <span class="badge rb-' . e($blockedToday[$pid]) . '" title="객실 운영 › 객실운영관리">' . e(ROOM_BLOCK_REASONS[$blockedToday[$pid]] ?? '') . '</span>' : '' ?></td>
         <td><select name="room[<?= $pid ?>][rate]" data-rate>
           <?php foreach (RATE_TYPES as $k => $label): ?><option value="<?= $k ?>" <?= $rate === $k ? 'selected' : '' ?>><?= e($label) ?></option><?php endforeach ?>
         </select></td>

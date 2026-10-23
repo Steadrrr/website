@@ -522,6 +522,6 @@ stat_chart('roomChart', '판매 객실 추이 (' . ($cg === 'day' ? '일별' : '
     </table>
     </div>
   </section>
-<p class="muted small">가동률 = 판매 객실(실·박) ÷ (객실 수 <?= $roomCount ?>실 × <b>영업일</b> − <b>미판매 객실·일</b>). 미판매는 <a href="<?= e(url('room_ops.php')) ?>">객실관리 › 객실운영관리</a>에 등록한 예비객실·공사·업무예약 객실과 기간입니다. 영업일은 기간의 날 수에서 <b>휴관일</b>(정기 휴관 요일<?= closed_weekdays() ? ' ' . e(implode('·', array_map(fn($w) => ['일', '월', '화', '수', '목', '금', '토'][$w], closed_weekdays()))) : '' ?> + 명절 등)을 뺀 날입니다<?= $user['is_admin'] ? ' (<a href="' . e(url('settings.php?tab=closed')) . '">설정 › 휴관일</a>)' : ' (설정 › 휴관일, 최고관리자)' ?>. 객실 수는 상품관리에서 '판매' 중인 객실 기준입니다.
+<p class="muted small">가동률 = 판매 객실(실·박) ÷ (객실 수 <?= $roomCount ?>실 × <b>영업일</b> − <b>미판매 객실·일</b>). 미판매는 <a href="<?= e(url('room_ops.php')) ?>">객실 운영 › 객실운영관리</a>에 등록한 예비객실·공사·업무예약 객실과 기간입니다. 영업일은 기간의 날 수에서 <b>휴관일</b>(정기 휴관 요일<?= closed_weekdays() ? ' ' . e(implode('·', array_map(fn($w) => ['일', '월', '화', '수', '목', '금', '토'][$w], closed_weekdays()))) : '' ?> + 명절 등)을 뺀 날입니다<?= $user['is_admin'] ? ' (<a href="' . e(url('settings.php?tab=closed')) . '">설정 › 휴관일</a>)' : ' (설정 › 휴관일, 최고관리자)' ?>. 객실 수는 상품관리에서 '판매' 중인 객실 기준입니다.
   평균 객실단가 = 객실 매출 ÷ 판매 객실, RevPAR(객실당 1일 매출) = 객실 매출 ÷ (객실 수 × 영업일 − 미판매 객실·일). 임시저장·반려된 매출보고는 집계하지 않고, 대관 숙박시설은 제외합니다.</p>
 <?php layout_footer();

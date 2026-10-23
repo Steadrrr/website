@@ -117,7 +117,7 @@ if ($me['is_admin']) settings_nav('users');
             <?php else: ?><span class="muted">-</span><?php endif ?></span>
           <span class="user-opt menu-perms" title="체크한 메인메뉴만 보입니다 (사원에게만 적용)"><b>메뉴 권한</b>
             <?php foreach (MENU_OPTIONAL as $g => $label): ?>
-              <label class="inline-check"><input type="checkbox" name="menu[]" value="<?= $g ?>" form="<?= $fid ?>" <?= can_menu($u, $g) ? 'checked' : '' ?> <?= $locked || $u['is_admin'] || (int) $u['rank_level'] >= RANK_WORKER ? 'disabled' : '' ?>> <?= e($label) ?></label>
+              <label class="inline-check" title="<?= e(MENU_OPTIONAL_SCOPE[$g] ?? '') ?>"><input type="checkbox" name="menu[]" value="<?= $g ?>" form="<?= $fid ?>" <?= can_menu($u, $g) ? 'checked' : '' ?> <?= $locked || $u['is_admin'] || (int) $u['rank_level'] >= RANK_WORKER ? 'disabled' : '' ?>> <?= e($label) ?></label>
             <?php endforeach ?></span>
           <span class="user-opt">
             <label class="inline-check" title="체크하면 조직도에 나오지 않음 (관리자·테스트 계정 등)"><input type="checkbox" name="hide_in_org" value="1" form="<?= $fid ?>" <?= !empty($u['hide_in_org']) ? 'checked' : '' ?> <?= $locked ? 'disabled' : '' ?>> 조직도 숨김</label>

@@ -6,7 +6,7 @@
 require __DIR__ . '/app/bootstrap.php';
 
 $user = require_login();
-$tree = help_tree();
+$tree = help_tree_nav(); // 목차는 지금 상단 메뉴 묶음과 같게
 layout_header('도움말', 'help');
 ?>
 <div class="help-layout">

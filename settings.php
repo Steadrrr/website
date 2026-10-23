@@ -154,7 +154,7 @@ if ($tab === 'general'): ?>
     <?php }; ?>
 <section class="card">
   <h1>휴관일</h1>
-  <p class="muted small">여기 등록한 휴관일은 <b>통계 › 객실이용통계</b>의 가동률 계산에서 뺍니다 (가동률 = 판매 객실 ÷ (객실 수 × <b>영업일</b>)).</p>
+  <p class="muted small">여기 등록한 휴관일은 <b>객실 운영 › 객실이용통계</b>의 가동률 계산에서 뺍니다 (가동률 = 판매 객실 ÷ (객실 수 × <b>영업일</b>)).</p>
   <form method="post" class="dc-form">
     <?= csrf_field() ?><input type="hidden" name="target" value="closed_weekdays">
     <b>정기 휴관 요일 (매주)</b>
@@ -188,7 +188,7 @@ if ($tab === 'general'): ?>
         <td><input form="<?= $fid ?>" name="sort_order" value="<?= e($r['sort_order'] ?? $sort) ?>" class="num tiny"></td>
         <td><input form="<?= $fid ?>" name="name" value="<?= e($r['name'] ?? '') ?>" placeholder="<?= e($placeholder) ?>" required></td>
         <?php if ($target === 'team'): ?>
-          <td class="center"><label class="inline-check check-cell" title="끄면 시설관리 › 시설점검·시설물에서 이 팀이 보이지 않습니다"><input form="<?= $fid ?>" type="checkbox" name="use_facility" value="1" <?= !$r || (int) ($r['use_facility'] ?? 1) === 1 ? 'checked' : '' ?>> 사용</label></td>
+          <td class="center"><label class="inline-check check-cell" title="끄면 시설·안전 › 시설점검·시설물에서 이 팀이 보이지 않습니다"><input form="<?= $fid ?>" type="checkbox" name="use_facility" value="1" <?= !$r || (int) ($r['use_facility'] ?? 1) === 1 ? 'checked' : '' ?>> 사용</label></td>
         <?php endif ?>
         <?php if ($target === 'squad'): ?>
           <td><select form="<?= $fid ?>" name="team_id"><?php foreach (teams_all() as $t): ?><option value="<?= (int) $t['id'] ?>" <?= (int) $t['id'] === $teamId ? 'selected' : '' ?>><?= e($t['name']) ?></option><?php endforeach ?></select></td>
@@ -215,7 +215,7 @@ if ($tab === 'general'): ?>
   </div>
   <p class="muted small">직원을 팀·반에 배치하고 반장을 지정하는 것은 <a href="<?= e(url('admin/users.php')) ?>">회원관리</a>에서 합니다.
     팀은 시설물·장비의 관리팀으로도 쓰입니다. 시설을 관리하지 않는 팀(프로그램만 운영하는 팀 등)은 <b>시설점검·시설물</b> 체크를 끄면
-    시설관리 › 시설점검·시설물 화면과 설정 › 시설 구역·건물에서 빠집니다 (이미 작성한 점검일지와 등록한 시설은 지워지지 않습니다).</p>
+    시설·안전 › 시설점검·시설물 화면과 설정 › 시설 구역·건물에서 빠집니다 (이미 작성한 점검일지와 등록한 시설은 지워지지 않습니다).</p>
 
   <h2>팀</h2>
   <div class="table-scroll">

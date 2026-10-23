@@ -221,7 +221,7 @@ layout_header($C['label'] . ' ' . $heading, $isMain ? 'schedule' : 'prog_sched')
       </form>
       <a class="small" href="<?= e(url('attendance.php?ym=' . $ym . ($attTeam ? '&team=' . $attTeam : ''))) ?>">근태관리에서 보기 ›</a>
       <?php else: ?>
-      <p class="muted small">운영보고는 메뉴 프로그램 › 각 분야에서 작성합니다.</p>
+      <p class="muted small">운영보고는 메뉴 프로그램의 각 분야에서 작성합니다.</p>
       <?php endif ?>
     </div>
   </aside>
