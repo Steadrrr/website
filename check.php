@@ -2,6 +2,8 @@
 /**
  * 서버 점검 페이지 — 사이트가 "HTTP ERROR 500" 등으로 열리지 않을 때 원인을 찾는다.
  * 사용법: 브라우저에서 https://도메인/check.php 접속. 점검이 끝나면 이 파일은 지워도 된다.
+ * 보안: 문제가 있을 때(사이트가 안 열릴 때)는 누구나 자세한 내용을 보지만, 사이트가 정상이면
+ *       PHP 버전·확장 같은 서버 정보는 로그인한 최고관리자에게만 보여 준다 (공격자에게 서버 정보를 주지 않게).
  *
  * ※ 이 파일은 오래된 PHP(5.6·7.x)에서도 열리도록 일부러 옛 문법만 사용한다.
  *   (PHP 버전이 낮아서 사이트가 안 열리는 경우에도 원인을 보여주기 위해)
@@ -130,6 +132,14 @@ if (is_file(APP_ROOT . '/install.php')) {
 
 $allOk = true;
 foreach ($results as $r) if (!$r['ok']) $allOk = false;
+
+// 사이트가 정상이면(PHP·설정·DB 모두 정상) 자세한 서버 정보는 최고관리자만. 정상일 때만 bootstrap 을 불러 로그인을 확인한다
+$hidden = false;
+if ($allOk) {
+    require __DIR__ . '/app/bootstrap.php';
+    $me = current_user();
+    $hidden = !$me || empty($me['is_admin']);
+}
 ?>
 <!doctype html>
 <html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>서버 점검</title>
@@ -149,12 +159,14 @@ h1 { font-size: 1.3rem; }
 <div class="sum <?php echo $allOk ? 'ok' : 'bad'; ?>">
   <?php echo $allOk ? '문제가 발견되지 않았습니다. 사이트 첫 화면(index.php)을 다시 열어 보세요.' : '빨간색 항목을 아래 안내대로 고친 뒤 이 페이지를 새로고침하세요.'; ?>
 </div>
-<?php foreach ($results as $r): ?>
+<?php if ($hidden): ?>
+  <p>자세한 서버 정보는 <a href="index.php">최고관리자로 로그인</a>한 뒤 이 페이지를 다시 열면 보입니다.</p>
+<?php else: foreach ($results as $r): ?>
   <div class="item <?php echo $r['ok'] ? '' : 'bad'; ?>">
     <b><?php echo $r['ok'] ? '✔' : '✘'; ?> <?php echo h($r['title']); ?></b>
     <?php echo h($r['detail']); ?>
     <?php if (!$r['ok'] && $r['fix']): ?><div class="fix">→ <?php echo h($r['fix']); ?></div><?php endif; ?>
   </div>
-<?php endforeach; ?>
+<?php endforeach; endif; ?>
 <p style="color:#6b7a70;font-size:.85rem">비밀번호는 화면에 표시하지 않습니다. 점검이 끝나면 check.php 는 서버에서 지워도 됩니다.</p>
 </div></body></html>

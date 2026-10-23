@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 
-define('APP_ROOT', dirname(__DIR__));
+defined('APP_ROOT') || define('APP_ROOT', dirname(__DIR__)); // check.php 가 먼저 정해 둘 수 있음
 
 /** 사이트를 열 수 없을 때 빈 500 화면 대신 원인을 보여준다 */
 function setup_error(string $message): never
