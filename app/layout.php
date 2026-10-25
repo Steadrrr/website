@@ -116,6 +116,7 @@ function nav_groups(?array $user): array
             'room_ops' => ['room_ops.php', '객실운영관리'],
             'supplies' => ['supplies.php', '소모품관리'],
             'ar'       => ['ar.php', 'AR사용관리'],
+            'ar_stats' => ['ar_stats.php', 'AR사용현황'],
         ]],
         'prog'     => ['label' => '프로그램', 'items' => [
             'prog_sched' => ['program_schedule.php', '프로그램일정'],
@@ -157,7 +158,7 @@ function nav_groups(?array $user): array
     }
     if (!can_menu($user, 'att')) unset($groups['personal']['items']['attendance'], $groups['personal']['items']['att_sheet']); // 근태는 메뉴 권한
     if (!$user || !can_manage_docs($user)) unset($groups['personal']['items']['docs']); // 문서관리는 공무직 이상
-    if (!$user || !can_ar($user)) unset($groups['room']['items']['ar']); // AR사용관리는 공무직 이상
+    if (!$user || !can_ar($user)) unset($groups['room']['items']['ar'], $groups['room']['items']['ar_stats']); // AR사용관리·현황은 공무직 이상
     if (!$user || !can_purchase($user)) unset($groups['fac']['items']['purchase']); // 물품구매는 공무직 이상
     if ($user) $groups['ai'] = ['label' => '✨ AI 분석', 'href' => 'ai.php']; // 다음 4주 예측 (민원·시설·소모품)
     // 기타는 항상 맨 마지막
@@ -179,7 +180,7 @@ function nav_bundled(): bool
  */
 const NAV_BUNDLES = [
     'b_record'  => ['기록·결재', ['schedule', 'daily', 'approval', 'docs', 'notices', 'attendance', 'att_sheet']],
-    'b_room'    => ['객실 운영', ['rooms', 'clean', 'room_ops', 'supplies', 'ar', 'room_stats']],
+    'b_room'    => ['객실 운영', ['rooms', 'clean', 'room_ops', 'supplies', 'ar', 'ar_stats', 'room_stats']],
     'b_money'   => ['재정·상품권', ['sales', 'voucher', 'stats', 'product_sales']],
     'b_fac'     => ['시설·안전', ['facility', 'facilities', 'equipment', 'purchase']],
     'b_guest'   => ['고객', ['complaints', 'cpl_stats', 'lost', 'visit_stats']],

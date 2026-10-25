@@ -936,6 +936,7 @@ tr.recur td { background: #fff4e0; }
 .ar-calendar .cal-d .num { color: var(--text); text-decoration: none; }
 .ar-calendar .cal-d .num:hover { color: var(--green); }
 .ar-plan-in { display: flex; align-items: center; gap: .2rem; margin: 0; font-size: .75rem; font-weight: 400; color: var(--muted); }
+.ar-stat-cal .ar-who { font-size: .78rem; background: #eef5f0; border-radius: 4px; padding: 0 .3rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .ar-plan-in input { width: 3.2rem; padding: .1rem .3rem; margin: 0; font-size: .85rem; min-height: 0; height: 1.7rem; }
 .ar-memo { font-size: .75rem; cursor: help; }
 .ar-table td, .ar-table th { white-space: nowrap; }
