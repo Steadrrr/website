@@ -387,6 +387,23 @@ function voucher_denoms(): array
     return config('voucher_denoms', [1000, 5000, 10000]);
 }
 
+/**
+ * 금액을 큰 권종부터 나눈 매수 (일일객실판매 '금일 출고 필요'와 같은 규칙, assets/app.js)
+ * @return array{0: array<int,int>, 1: int} [권종 => 매수, 가장 작은 권종으로도 나눌 수 없는 나머지 금액]
+ */
+function voucher_split(int $amount): array
+{
+    $denoms = voucher_denoms();
+    $qty = array_fill_keys($denoms, 0);
+    rsort($denoms);
+    foreach ($denoms as $d) {
+        if ($d <= 0) continue;
+        $qty[$d] = intdiv(max(0, $amount), $d);
+        $amount -= $qty[$d] * $d;
+    }
+    return [$qty, max(0, $amount)];
+}
+
 function denom_label(int $denom): string
 {
     return $denom >= 10000 && $denom % 10000 === 0 ? ($denom / 10000) . '만원권' : number_format($denom / 1000) . '천원권';
