@@ -1308,3 +1308,7 @@ label .tm-pick { display: flex; margin-top: .25rem; }
 .cpl-entry .cpl-section { margin: 0; }
 .cpl-row-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; margin-top: 6px; }
 .cpl-daily-note { margin: 12px 0; padding: 10px 12px; border: 1px dashed var(--line); border-radius: 8px; background: #fafcfa; }
+
+/* 객실운영관리: 고치는 중인 미판매 등록 (입력 칸 · 목록 줄) */
+.card.rb-editing { border: 2px solid #e0c46e; background: #fffbea; }
+.rb-edit-row td { background: #fff8e1; }

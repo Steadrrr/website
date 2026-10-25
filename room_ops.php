@@ -119,9 +119,13 @@ layout_header('객실운영관리', 'room_ops');
   </div>
 </section>
 
-<form method="post" class="card" id="form">
+<form method="post" class="card <?= $edit ? 'rb-editing' : '' ?>" id="form" <?= $edit ? 'data-rb-editing' : '' ?>>
   <?= csrf_field() ?><input type="hidden" name="id" value="<?= (int) ($edit['id'] ?? 0) ?>">
-  <h2><?= $edit ? '미판매 등록 고치기' : '미판매 등록' ?></h2>
+  <?php if ($edit): ?>
+    <h2>✎ <?= e($rooms[(int) $edit['product_id']]['name'] ?? '객실') ?> 미판매 고치기 <small class="muted">아래 목록에서 고른 줄을 고칩니다</small></h2>
+  <?php else: ?>
+    <h2>미판매 등록</h2>
+  <?php endif ?>
   <?php if ($edit): ?>
     <label>객실<select name="product_id">
       <?php foreach ($rooms as $p): ?><option value="<?= (int) $p['id'] ?>" <?= (int) $val('product_id') === (int) $p['id'] ? 'selected' : '' ?>><?= e($p['name']) ?></option><?php endforeach ?>
@@ -147,7 +151,7 @@ layout_header('객실운영관리', 'room_ops');
   </div>
   <div class="actions">
     <?php if ($edit): ?><a class="btn ghost" href="<?= e(url('room_ops.php')) ?>">취소</a><?php endif ?>
-    <button class="btn primary"><?= $edit ? '고치기' : '등록' ?></button>
+    <button class="btn primary"><?= $edit ? '고친 내용 저장' : '등록' ?></button>
   </div>
 </form>
 
@@ -167,7 +171,7 @@ layout_header('객실운영관리', 'room_ops');
     <?php foreach ($list as $b):
         $state = $b['date_from'] > $today ? '예정' : ($b['date_to'] !== null && $b['date_to'] < $today ? '지남' : '진행 중');
         $days = $b['date_to'] ? (int) round((strtotime($b['date_to']) - strtotime($b['date_from'])) / 86400) + 1 : null; ?>
-      <tr class="<?= $state === '지남' ? 'zero' : '' ?>">
+      <tr class="<?= $state === '지남' ? 'zero' : '' ?> <?= $edit && (int) $edit['id'] === (int) $b['id'] ? 'rb-edit-row' : '' ?>">
         <td><b><?= e($rooms[(int) $b['product_id']]['name'] ?? '(삭제된 객실)') ?></b></td>
         <td><span class="badge rb-<?= e($b['reason']) ?>"><?= e(ROOM_BLOCK_REASONS[$b['reason']] ?? $b['reason']) ?></span></td>
         <td class="nowrap"><?= e($fmtRange($b['date_from'], $b['date_to'])) ?> <small class="muted"><?= $state ?></small></td>
@@ -175,7 +179,8 @@ layout_header('객실운영관리', 'room_ops');
         <td class="small"><?= e((string) $b['note']) ?></td>
         <td class="small muted nowrap"><?= e((string) $b['user_name']) ?><br><?= e(substr((string) ($b['updated_at'] ?? $b['created_at']), 0, 10)) ?></td>
         <td class="nowrap">
-          <a class="btn small" href="<?= e(url('room_ops.php?edit=' . (int) $b['id'])) ?>#form">고치기</a>
+          <?php if ($edit && (int) $edit['id'] === (int) $b['id']): ?><span class="badge st-pending">고치는 중</span>
+          <?php else: ?><a class="btn small" href="<?= e(url('room_ops.php?edit=' . (int) $b['id'])) ?>#form">고치기</a><?php endif ?>
           <?php if ($state === '진행 중'): ?>
             <form method="post" class="inline" onsubmit="return confirm('오늘부터 판매하는 것으로 바꿀까요? (종료일 = 어제)')"><?= csrf_field() ?><input type="hidden" name="id" value="<?= (int) $b['id'] ?>"><button class="btn small" name="act" value="release">오늘부터 판매</button></form>
           <?php endif ?>
@@ -188,4 +193,14 @@ layout_header('객실운영관리', 'room_ops');
   </table>
   </div>
 </section>
+<script>
+// 고치기를 누르면 입력 칸으로 옮겨 가 첫 칸에 커서 (탭 화면 안에서도 확실히 보이게)
+(function () {
+  const f = document.querySelector('[data-rb-editing]');
+  if (!f) return;
+  f.scrollIntoView({ block: 'start' });
+  const first = f.querySelector('select, input:not([type=hidden])');
+  if (first) first.focus({ preventScroll: true });
+})();
+</script>
 <?php layout_footer();
