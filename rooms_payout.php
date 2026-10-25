@@ -3,8 +3,9 @@
  * 일일객실판매 › 지역상품권 수불부 (지급 대장) — rooms_payout.php?id=일일객실판매 문서
  *   그 날 상품권을 '지급할' 객실 = 객실별 기준 환급액(요금구분·연박·할인 규칙, sales_lines.refund_expected)을
  *   큰 권종부터 나눈 매수(voucher_split — 일일객실판매의 '금일 출고 필요'와 같은 규칙)와 금액, 총 매수·금액.
- *   (실제로 입력한 환급 매수가 아니라 지급해야 할 양. 지급자 = 로그인한 사람(자동), 수령자 = 화면에서 서명.)
- *   A4 세로 한 장으로 인쇄 (내용이 많으면 자동으로 줄임). 서명은 저장하지 않고 인쇄에만 쓴다.
+ *   (실제로 입력한 환급 매수가 아니라 지급해야 할 양. 지급자 = 로그인한 사람(자동), 수령자 = 운영관리 권한 직원 중에서 고름
+ *    — 그 날 불출의 받는 담당자가 있으면 미리 선택, 서명은 인쇄한 종이에 손으로 쓰는 빈칸.)
+ *   A4 세로 한 장으로 인쇄 (내용이 많으면 자동으로 줄임). 고른 수령자는 저장하지 않고 인쇄에만 쓴다.
  */
 require __DIR__ . '/app/bootstrap.php';
 
@@ -29,6 +30,10 @@ foreach ($payload['lines'] as $l) {
 $total = array_fill_keys($denoms, 0);
 foreach ($rows as $r) foreach ($denoms as $d) $total[$d] += (int) ($r['qty'][$d] ?? 0);
 $date = $journal['work_date'];
+// 수령자: 상품권 받는 담당자와 같은 기준(운영관리 메뉴 권한), 그 날 불출 기록의 받는 담당자를 미리 고름
+$holders = vault_holders();
+$dayHolder = 0;
+foreach (vault_records($date, $date) as $rec) if ($rec['kind'] === 'issue' && $rec['holder_id']) $dayHolder = (int) $rec['holder_id'];
 
 layout_header('지역상품권 수불부', 'rooms');
 ?>
@@ -41,21 +46,24 @@ layout_header('지역상품권 수불부', 'rooms');
     </div>
   </div>
 
+  <div class="table-scroll">
   <table class="table payout-sign">
     <tr>
       <th>지급자</th><td><b><?= e($user['name']) ?></b> <small class="muted"><?= e(rank_name($user['rank_level'])) ?></small></td>
       <th>수령자</th>
-      <td class="sign-cell">
-        <input class="sign-name" placeholder="수령자 이름" aria-label="수령자 이름">
-        <div class="sign-pad"><canvas data-sign width="520" height="120" aria-label="수령자 서명"></canvas><span class="sign-hint no-print">여기에 서명</span></div>
-        <button type="button" class="btn small ghost no-print" data-sign-clear>서명 지우기</button>
-      </td>
+      <td><select class="payout-receiver" aria-label="수령자">
+        <option value="">- 수령자 -</option>
+        <?php foreach ($holders as $h): ?><option <?= (int) $h['id'] === $dayHolder ? 'selected' : '' ?>><?= e($h['name']) ?> (<?= e(rank_name($h['rank_level'])) ?>)</option><?php endforeach ?>
+      </select></td>
+      <th>서명</th><td class="sign-box" aria-label="수령자 서명 (인쇄 후 손으로)"></td>
     </tr>
   </table>
+  </div>
 
   <?php if (!$rows): ?>
     <p class="muted">이 날 지역상품권을 지급할 객실이 없습니다 (입실인원을 입력한 객실의 기준 환급액이 모두 0원).</p>
   <?php else: ?>
+  <div class="table-scroll">
   <table class="table payout-table">
     <thead><tr><th class="center">No</th><th>객실명</th><?php foreach ($denoms as $d): ?><th class="right"><?= e(denom_label($d)) ?></th><?php endforeach ?><th class="right">지급수량</th><th class="right">지급금액</th></tr></thead>
     <tbody>
@@ -69,6 +77,7 @@ layout_header('지역상품권 수불부', 'rooms');
       <?php foreach ($denoms as $d): ?><th class="right"><?= number_format($total[$d]) ?></th><?php endforeach ?>
       <th class="right"><?= number_format(array_sum($total)) ?>매</th><th class="right"><?= e(won(voucher_amount($total))) ?></th></tr></tfoot>
   </table>
+  </div>
   <p class="payout-total">총 지급수량 <b><?= number_format(array_sum($total)) ?>매</b> · 총 지급금액 <b><?= e(won(voucher_amount($total))) ?></b>
     <small class="muted">(<?= e(implode(' · ', array_map(fn($d) => denom_label($d) . ' ' . number_format($total[$d]) . '매', array_filter($denoms, fn($d) => $total[$d] > 0)))) ?>)</small></p>
   <?php endif ?>
@@ -80,22 +89,10 @@ layout_header('지역상품권 수불부', 'rooms');
     <a class="btn ghost" href="<?= e(url('view.php?id=' . (int) $journal['id'])) ?>">일일객실판매로</a>
     <button type="button" class="btn primary" onclick="window.print()">인쇄</button>
   </div>
-  <p class="muted small no-print">서명은 저장되지 않습니다. 서명한 뒤 인쇄하세요. 인쇄는 A4 세로 한 장에 맞춰 나옵니다.</p>
+  <p class="muted small no-print">수령자를 고른 뒤 인쇄하고, 서명은 종이에 손으로 받습니다 (고른 수령자는 저장되지 않습니다). 인쇄는 A4 세로 한 장에 맞춰 나옵니다.</p>
 </section>
 <script>
 (function () {
-  // 수령자 서명 (마우스·손가락·펜)
-  const cv = document.querySelector('[data-sign]');
-  const ctx = cv.getContext('2d');
-  const hint = document.querySelector('.sign-hint');
-  ctx.lineWidth = 2.5; ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.strokeStyle = '#111';
-  let drawing = false;
-  const pos = (e) => { const r = cv.getBoundingClientRect(); return [(e.clientX - r.left) * cv.width / r.width, (e.clientY - r.top) * cv.height / r.height]; };
-  cv.addEventListener('pointerdown', (e) => { drawing = true; cv.setPointerCapture(e.pointerId); const [x, y] = pos(e); ctx.beginPath(); ctx.moveTo(x, y); if (hint) hint.hidden = true; e.preventDefault(); });
-  cv.addEventListener('pointermove', (e) => { if (!drawing) return; const [x, y] = pos(e); ctx.lineTo(x, y); ctx.stroke(); e.preventDefault(); });
-  ['pointerup', 'pointercancel', 'pointerleave'].forEach((t) => cv.addEventListener(t, () => { drawing = false; }));
-  document.querySelector('[data-sign-clear]').addEventListener('click', () => { ctx.clearRect(0, 0, cv.width, cv.height); if (hint) hint.hidden = false; });
-
   // 인쇄: A4 세로 한 장 — 넘치면 줄여서 맞춘다
   const box = document.querySelector('[data-payout]');
   window.addEventListener('beforeprint', () => {
