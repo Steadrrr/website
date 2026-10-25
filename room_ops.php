@@ -2,7 +2,7 @@
 /**
  * 객실관리 › 객실운영관리: 판매하지 않는 객실(예비객실·공사·업무예약)과 기간 등록
  *   room_ops.php[?show=now|past|all]   목록 (기본: 진행 중·예정)
- *   room_ops.php?edit=3                 한 건 고치기
+ *   room_ops.php?edit=3                 한 건 수정
  * 객실이용통계의 가동률에서 이 객실·날짜(실·일)를 뺀다. 종료일을 비우면 해제할 때까지 계속 (예비객실처럼 자주 바뀌는 경우).
  * 객실관리 메뉴 권한이 있으면 누구나 등록·수정·해제·삭제.
  */
@@ -71,7 +71,7 @@ if (is_post()) {
     if ($id) {
         $pdo->prepare('UPDATE room_blocks SET product_id = ?, reason = ?, date_from = ?, date_to = ?, note = ?, updated_by = ? WHERE id = ?')
             ->execute([$pids[0], $reason, $from, $to, $note ?: null, $user['id'], $id]);
-        flash('고쳤습니다.', 'success');
+        flash('수정했습니다.', 'success');
     } else {
         $ins = $pdo->prepare('INSERT INTO room_blocks (product_id, reason, date_from, date_to, note, created_by) VALUES (?, ?, ?, ?, ?, ?)');
         foreach ($pids as $pid) $ins->execute([$pid, $reason, $from, $to, $note ?: null, $user['id']]);
@@ -122,7 +122,7 @@ layout_header('객실운영관리', 'room_ops');
 <form method="post" class="card <?= $edit ? 'rb-editing' : '' ?>" id="form" <?= $edit ? 'data-rb-editing' : '' ?>>
   <?= csrf_field() ?><input type="hidden" name="id" value="<?= (int) ($edit['id'] ?? 0) ?>">
   <?php if ($edit): ?>
-    <h2>✎ <?= e($rooms[(int) $edit['product_id']]['name'] ?? '객실') ?> 미판매 고치기 <small class="muted">아래 목록에서 고른 줄을 고칩니다</small></h2>
+    <h2>✎ <?= e($rooms[(int) $edit['product_id']]['name'] ?? '객실') ?> 미판매 수정 <small class="muted">아래 목록에서 고른 줄을 수정합니다</small></h2>
   <?php else: ?>
     <h2>미판매 등록</h2>
   <?php endif ?>
@@ -151,7 +151,7 @@ layout_header('객실운영관리', 'room_ops');
   </div>
   <div class="actions">
     <?php if ($edit): ?><a class="btn ghost" href="<?= e(url('room_ops.php')) ?>">취소</a><?php endif ?>
-    <button class="btn primary"><?= $edit ? '고친 내용 저장' : '등록' ?></button>
+    <button class="btn primary"><?= $edit ? '수정 내용 저장' : '등록' ?></button>
   </div>
 </form>
 
@@ -179,8 +179,8 @@ layout_header('객실운영관리', 'room_ops');
         <td class="small"><?= e((string) $b['note']) ?></td>
         <td class="small muted nowrap"><?= e((string) $b['user_name']) ?><br><?= e(substr((string) ($b['updated_at'] ?? $b['created_at']), 0, 10)) ?></td>
         <td class="nowrap">
-          <?php if ($edit && (int) $edit['id'] === (int) $b['id']): ?><span class="badge st-pending">고치는 중</span>
-          <?php else: ?><a class="btn small" href="<?= e(url('room_ops.php?edit=' . (int) $b['id'])) ?>#form">고치기</a><?php endif ?>
+          <?php if ($edit && (int) $edit['id'] === (int) $b['id']): ?><span class="badge st-pending">수정 중</span>
+          <?php else: ?><a class="btn small" href="<?= e(url('room_ops.php?edit=' . (int) $b['id'])) ?>#form">수정</a><?php endif ?>
           <?php if ($state === '진행 중'): ?>
             <form method="post" class="inline" onsubmit="return confirm('오늘부터 판매하는 것으로 바꿀까요? (종료일 = 어제)')"><?= csrf_field() ?><input type="hidden" name="id" value="<?= (int) $b['id'] ?>"><button class="btn small" name="act" value="release">오늘부터 판매</button></form>
           <?php endif ?>
@@ -194,7 +194,7 @@ layout_header('객실운영관리', 'room_ops');
   </div>
 </section>
 <script>
-// 고치기를 누르면 입력 칸으로 옮겨 가 첫 칸에 커서 (탭 화면 안에서도 확실히 보이게)
+// 수정을 누르면 입력 칸으로 옮겨 가 첫 칸에 커서 (탭 화면 안에서도 확실히 보이게)
 (function () {
   const f = document.querySelector('[data-rb-editing]');
   if (!f) return;
