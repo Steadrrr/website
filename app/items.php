@@ -103,6 +103,7 @@ function items_parse(string $type, string $workDate, int $journalId): array
                 'facility' => $f ? $f['name'] : mb_substr(trim((string) ($row['facility'] ?? '')), 0, 100),
                 'result'   => in_array($row['result'] ?? '', $results, true) ? $row['result'] : $results[0],
                 'note'     => mb_substr(trim((string) ($row['note'] ?? '')), 0, 500),
+                'keep'     => !empty($row['keep']), // 해결될 때까지 계속 (진행 중 이상)
             ];
             if ($item['facility'] === '' || ($f && empty($row['chk']))) continue; // 등록 시설은 '점검' 체크한 것만
             $rows[] = $item;
@@ -343,6 +344,10 @@ function items_save(int $id, string $type, array $payload): void
         foreach ($payload['facility'] as $it) {
             $ins->execute([$id, $it['facility_id'] ?? null, $it['area'] ?? null, $it['facility'], $it['result'], $it['note']]);
         }
+        // 진행 중 이상 맞추기 ('해결될 때까지 계속')
+        $st = $pdo->prepare('SELECT work_date FROM journals WHERE id = ?');
+        $st->execute([$id]);
+        facility_issue_sync((string) $st->fetchColumn(), $payload['facility'], (int) (current_user()['id'] ?? 0));
     }
 
     if (in_array($type, ['sales', 'rooms', 'voucher'], true)) {
@@ -678,6 +683,9 @@ function facility_form_rows(array $payload, string $workDate, ?array $journal): 
     $results = config('facility_results', ['정상']);
     $teamId = (int) ($payload['team_id'] ?? 0);
     $due = $teamId ? facility_due($teamId, $workDate, $journal ? (int) $journal['id'] : null) : [];
+    // 진행 중 이상: 맨 위에 따로, 기본 체크 + 이상 결과·내용 + '계속'
+    $teamFacs = $teamId ? facilities_list($teamId) : [];
+    $issues = facility_open_issues($workDate, array_keys($teamFacs));
     $fresh = !$payload['facility']; // 새로 쓰는 일지: 일일은 모두 체크해 둔다
     $mine = $free = [];
     foreach ($payload['facility'] as $r) {
@@ -686,7 +694,9 @@ function facility_form_rows(array $payload, string $workDate, ?array $journal): 
     $blank = ['facility_id' => null, 'area' => null, 'facility' => '', 'result' => $normal, 'note' => ''];
     $i = 0;
     // 한 줄: 체크(점검함) · 시설 · 결과 · 내용
-    $row = function (array $it, bool $checked, bool $isFree = false) use (&$i, $results) {
+    $row = function (array $it, bool $checked, bool $isFree = false) use (&$i, $results, $normal, $issues) {
+        $iss = $issues[(int) ($it['facility_id'] ?? 0)] ?? null;
+        $keep = $it['keep'] ?? (bool) $iss;
         ?>
     <tr data-fac-row>
       <td class="center"><?php if (!$isFree): ?><input type="checkbox" name="fac[<?= $i ?>][chk]" value="1" <?= $checked ? 'checked' : '' ?> data-fac-chk aria-label="점검함"><?php endif ?></td>
@@ -695,9 +705,11 @@ function facility_form_rows(array $payload, string $workDate, ?array $journal): 
           <?php else: ?>
             <input type="hidden" name="fac[<?= $i ?>][facility_id]" value="<?= (int) $it['facility_id'] ?>"><?= e($it['facility']) ?>
           <?php endif ?></td>
-      <td><select name="fac[<?= $i ?>][result]" data-result>
+      <td><select name="fac[<?= $i ?>][result]" data-result data-normal="<?= e($normal) ?>">
         <?php foreach ($results as $r): ?><option <?= $it['result'] === $r ? 'selected' : '' ?>><?= e($r) ?></option><?php endforeach ?>
-      </select></td>
+      </select>
+        <?php if (!$isFree): ?><label class="fac-keep small" <?= $it['result'] === $normal || $it['result'] === '조치완료' ? 'hidden' : '' ?>><input type="checkbox" name="fac[<?= $i ?>][keep]" value="1" <?= $keep ? 'checked' : '' ?>> 해결될 때까지 계속</label><?php endif ?>
+        <?php if ($iss): ?><small class="warn nowrap">진행 중 <?= e(date('n/j', strtotime($iss['start_date']))) ?>~</small><?php endif ?></td>
       <td><input name="fac[<?= $i ?>][note]" value="<?= e($it['note']) ?>"></td>
     </tr>
         <?php
@@ -728,7 +740,24 @@ function facility_form_rows(array $payload, string $workDate, ?array $journal): 
 <?php if ($teamId && !array_filter(array_column($due, 'items'))): ?>
   <div class="flash flash-info">이 관리팀에 점검할 세부시설이 없습니다. <a href="<?= e(url('facilities.php')) ?>">시설물</a>에서 등록하거나 점검 주기를 확인하세요. 지금은 아래에 직접 입력할 수 있습니다.</div>
 <?php endif ?>
-<?php foreach ($due as $c => $d):
+<?php
+    // 진행 중 이상 (해결될 때까지 매번 나옴)
+    if ($issues) {
+        $rows = [];
+        foreach ($issues as $fid => $iss) {
+            $f = $teamFacs[$fid];
+            $rows[] = [$mine[$fid] ?? ['result' => $iss['result'], 'note' => (string) $iss['note']] + $asRow($f), isset($mine[$fid]) || $fresh, false];
+            unset($mine[$fid]);
+            foreach ($due as &$d) unset($d['items'][$fid]);
+            unset($d);
+        }
+        ?>
+  <details class="fac-cycle fac-issue" open>
+    <summary><b>진행 중인 이상 (<?= count($issues) ?>)</b> <span class="muted small">해결될 때까지 매번 나옵니다 — 해결되면 결과를 '<?= e($normal) ?>'이나 '조치완료'로 바꾸세요</span></summary>
+    <?php $table($rows) ?>
+  </details>
+<?php }
+foreach ($due as $c => $d):
     if (!$d['items']) continue;
     $rows = [];
     foreach ($d['items'] as $fid => $f) {
@@ -737,15 +766,15 @@ function facility_form_rows(array $payload, string $workDate, ?array $journal): 
         unset($mine[$fid]);
     }
     $total = count($d['items']);
-    $left = $total - count($d['done']);
+    $left = count(array_diff_key($d['items'], $d['done']));
     $head = FACILITY_CYCLES[$c] . ($c === 'day' ? " 점검 ({$total})" : " 점검 · {$d['label']} — 남은 {$left} / {$total}");
     $open = $c === 'day' || $c === 'week' || array_filter($rows, fn($r) => $r[1]);
     ?>
   <details class="fac-cycle fac-<?= $c ?>" <?= $open ? 'open' : '' ?>>
     <summary><b><?= e($head) ?></b><?php if ($c !== 'day' && $rows): ?> <button type="button" class="btn small ghost" data-fac-all>모두 체크</button><?php endif ?></summary>
     <?php if ($rows): $table($rows); elseif ($c !== 'day'): ?><p class="muted small">이 기간 점검을 모두 마쳤습니다.</p><?php endif ?>
-    <?php if ($c !== 'day' && $d['done']): ?>
-      <p class="muted small">이미 점검: <?= e(implode(', ', array_map(fn($fid, $dt) => $d['items'][$fid]['name'] . '(' . date('n/j', strtotime($dt)) . ')', array_keys($d['done']), $d['done']))) ?></p>
+    <?php $doneHere = array_intersect_key($d['done'], $d['items']); if ($c !== 'day' && $doneHere): ?>
+      <p class="muted small">이미 점검: <?= e(implode(', ', array_map(fn($fid, $dt) => $d['items'][$fid]['name'] . '(' . date('n/j', strtotime($dt)) . ')', array_keys($doneHere), $doneHere))) ?></p>
     <?php endif ?>
   </details>
 <?php endforeach;
@@ -761,7 +790,11 @@ function facility_form_rows(array $payload, string $workDate, ?array $journal): 
   document.querySelectorAll('[data-fac-row]').forEach(function (tr) {
     var chk = tr.querySelector('[data-fac-chk]');
     if (!chk) return;
-    tr.querySelector('[data-result]').addEventListener('change', function () { chk.checked = true; });
+    var sel = tr.querySelector('[data-result]'), keep = tr.querySelector('.fac-keep');
+    sel.addEventListener('change', function () {
+      chk.checked = true;
+      if (keep) keep.hidden = sel.value === sel.dataset.normal || sel.value === '조치완료';
+    });
     tr.querySelector('input[name$="[note]"]').addEventListener('input', function () { if (this.value) chk.checked = true; });
   });
   document.querySelectorAll('[data-fac-all]').forEach(function (b) {

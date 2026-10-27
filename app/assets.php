@@ -202,6 +202,49 @@ function facility_due(int $teamId, string $date, ?int $exceptJournalId = null): 
     return $out;
 }
 
+/**
+ * 그 날 진행 중인 이상: facility_id => 이슈 (같은 시설에 여럿이면 가장 늦게 시작한 것)
+ * @param int[]|null $facilityIds 이 시설들만 (null = 전체)
+ */
+function facility_open_issues(string $date, ?array $facilityIds = null): array
+{
+    if ($facilityIds === []) return [];
+    $in = $facilityIds === null ? '' : ' AND facility_id IN (' . implode(',', array_map('intval', $facilityIds)) . ')';
+    $st = db()->prepare("SELECT * FROM facility_issues WHERE start_date <= ? AND (end_date IS NULL OR end_date >= ?)$in ORDER BY start_date, id");
+    $st->execute([$date, $date]);
+    $out = [];
+    foreach ($st as $r) $out[(int) $r['facility_id']] = $r;
+    return $out;
+}
+
+/**
+ * 점검일지 저장 뒤 진행 중 이상 맞추기 (그 날 기준)
+ *  - 이상 + '해결될 때까지 계속' → 진행 중 이상이 없으면 새로 (그 날부터), 있으면 결과·내용만 고침
+ *  - 이상인데 '계속' 해제 → 그 날까지로 끝냄
+ *  - 정상 → 전날까지로 끝냄 (그 날 시작한 것이면 지움), 조치완료 → 그 날까지로 끝냄
+ */
+function facility_issue_sync(string $date, array $rows, int $userId): void
+{
+    $normal = normal_result();
+    $ids = array_values(array_filter(array_map(fn($r) => (int) ($r['facility_id'] ?? 0), $rows)));
+    $open = facility_open_issues($date, $ids);
+    $pdo = db();
+    foreach ($rows as $r) {
+        $fid = (int) ($r['facility_id'] ?? 0);
+        if (!$fid) continue;
+        $iss = $open[$fid] ?? null;
+        $bad = $r['result'] !== $normal && $r['result'] !== '조치완료';
+        if ($bad && !empty($r['keep'])) {
+            if ($iss) $pdo->prepare('UPDATE facility_issues SET result = ?, note = ? WHERE id = ?')->execute([$r['result'], $r['note'] !== '' ? $r['note'] : $iss['note'], $iss['id']]);
+            else $pdo->prepare('INSERT INTO facility_issues (facility_id, result, note, start_date, created_by) VALUES (?, ?, ?, ?, ?)')->execute([$fid, $r['result'], $r['note'] !== '' ? $r['note'] : null, $date, $userId]);
+        } elseif ($iss) {
+            $end = $r['result'] === $normal ? date('Y-m-d', strtotime("$date -1 day")) : $date;
+            if ($end < $iss['start_date']) $pdo->prepare('DELETE FROM facility_issues WHERE id = ?')->execute([$iss['id']]);
+            else $pdo->prepare('UPDATE facility_issues SET end_date = ? WHERE id = ?')->execute([$end, $iss['id']]);
+        }
+    }
+}
+
 /** 시설점검 진행률: 관리팀마다 그 날이 들어 있는 주·달·분기에 점검한 수 / 전체, 남은 시설 */
 function facility_progress(array $teamIds, string $date): void
 {
@@ -222,6 +265,7 @@ function facility_progress(array $teamIds, string $date): void
         </details>
       <?php endforeach ?>
       <?php if ($n = count($due['day']['items'])): ?><span class="muted small">일일 <?= $n ?>곳은 매일</span><?php endif ?>
+      <?php if ($oi = facility_open_issues($date, array_keys(facilities_list((int) $tid)))): ?><span class="small warn"> · 진행 중 이상 <?= count($oi) ?>곳</span><?php endif ?>
       <?php if (!empty($outs[$tid])): ?><span class="muted small"> · 위탁 <?= (int) $outs[$tid] ?>곳은 업체 일지</span><?php endif ?>
     </div>
   <?php endforeach ?>

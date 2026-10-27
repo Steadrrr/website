@@ -326,6 +326,20 @@ CREATE TABLE IF NOT EXISTS facilities (
   CONSTRAINT fk_fac_group FOREIGN KEY (group_id) REFERENCES asset_groups(id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- 진행 중 이상 (기간 이상): 해결될 때까지 점검일지에 계속 '이상'으로 나온다. 일지에서 '해결될 때까지 계속'을 체크하거나 시설 상세에서 기간을 정해 만든다
+CREATE TABLE IF NOT EXISTS facility_issues (
+  id          INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  facility_id INT UNSIGNED NOT NULL,
+  result      VARCHAR(20)  NOT NULL COMMENT '점검결과 (정상이 아닌 것)',
+  note        VARCHAR(500) NULL,
+  start_date  DATE NOT NULL,
+  end_date    DATE NULL COMMENT '마지막으로 이상이었던 날 (NULL = 진행 중)',
+  created_by  INT UNSIGNED NULL,
+  created_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_fac (facility_id, start_date),
+  CONSTRAINT fk_fiss_fac FOREIGN KEY (facility_id) REFERENCES facilities(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 -- 장비
 CREATE TABLE IF NOT EXISTS equipment (
   id             INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,

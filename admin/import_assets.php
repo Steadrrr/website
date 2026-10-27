@@ -241,6 +241,12 @@ if (is_post()) {
 
 layout_header('시설물 가져오기', 'settings');
 settings_nav('asset_import');
+?>
+<div class="tabs team-tabs no-print">
+  <a href="<?= e(url('admin/import_assets.php')) ?>" class="on">시설물·장비·점검 주기</a>
+  <a href="<?= e(url('admin/import_facility_logs.php')) ?>">지난 점검일지</a>
+</div>
+<?php
 if (!$imp): ?>
 <section class="card">
   <h1>시설물 가져오기 <small class="muted">시설물·장비 목록 엑셀 → 시설 구역·세부시설·장비 한 번에 등록</small></h1>

@@ -10,6 +10,36 @@ $from = valid_date($_GET['from'] ?? '') ? $_GET['from'] : '';
 $to = valid_date($_GET['to'] ?? '') ? $_GET['to'] : '';
 $normal = normal_result();
 
+// 진행 중 이상(기간 이상) 만들기·끝내기·지우기 — 주무관 이상 (일지에서는 '해결될 때까지 계속'으로 누구나)
+if (is_post()) {
+    csrf_verify();
+    if (!can_manage_assets($user)) abort(403, '진행 중 이상은 주무관 이상이 직접 정합니다. 점검일지에서 \'해결될 때까지 계속\'을 체크해도 됩니다.');
+    $act = post('act');
+    $iid = (int) post('issue_id');
+    if ($act === 'issue_add') {
+        $start = post('start_date');
+        $end = post('end_date');
+        $res = post('result');
+        if (!valid_date($start) || ($end !== '' && (!valid_date($end) || $end < $start)) || !in_array($res, config('facility_results', []), true) || $res === $normal) {
+            flash('시작일·끝나는 날(선택)·결과(정상 아닌 것)를 확인해 주세요.', 'error');
+        } else {
+            db()->prepare('INSERT INTO facility_issues (facility_id, result, note, start_date, end_date, created_by) VALUES (?, ?, ?, ?, ?, ?)')
+                ->execute([$f['id'], $res, mb_substr(post('note'), 0, 500) ?: null, $start, $end ?: null, $user['id']]);
+            flash('진행 중 이상을 등록했습니다. 그 기간의 점검일지에 계속 이상으로 나옵니다.', 'success');
+        }
+    } elseif ($act === 'issue_close' && valid_date(post('end_date'))) {
+        db()->prepare('UPDATE facility_issues SET end_date = GREATEST(start_date, ?) WHERE id = ? AND facility_id = ?')->execute([post('end_date'), $iid, $f['id']]);
+        flash('해결된 날을 저장했습니다.', 'success');
+    } elseif ($act === 'issue_delete') {
+        db()->prepare('DELETE FROM facility_issues WHERE id = ? AND facility_id = ?')->execute([$iid, $f['id']]);
+        flash('진행 중 이상을 지웠습니다 (점검일지 기록은 그대로).', 'success');
+    }
+    redirect('facility.php?id=' . $f['id']);
+}
+$st = db()->prepare('SELECT i.*, u.name AS user_name FROM facility_issues i LEFT JOIN users u ON u.id = i.created_by WHERE i.facility_id = ? ORDER BY (i.end_date IS NULL) DESC, i.start_date DESC');
+$st->execute([$f['id']]);
+$issues = $st->fetchAll();
+
 $sql = "SELECT fi.*, j.work_date, j.id AS journal_id, j.status, u.name AS author_name
           FROM facility_items fi
           JOIN journals j ON j.id = fi.journal_id
@@ -51,6 +81,40 @@ layout_header($f['name'], 'facilities');
 
   <?php render_gallery(photos_for('facility', (int) $f['id'])) ?>
 
+  <section class="fac-issues">
+    <h3>진행 중 이상 · 기간 이상 <small class="muted">이 기간에는 점검일지에 계속 이상으로 나옵니다</small></h3>
+    <?php if ($issues): ?>
+    <div class="table-scroll"><table class="table">
+      <thead><tr><th>기간</th><th>결과</th><th>내용</th><th>등록</th><?php if (can_manage_assets($user)): ?><th class="no-print"></th><?php endif ?></tr></thead>
+      <tbody>
+      <?php foreach ($issues as $is): $open = !$is['end_date'] || $is['end_date'] >= date('Y-m-d'); ?>
+        <tr class="<?= $open ? 'issue' : '' ?>">
+          <td class="nowrap"><?= e(date('Y.n.j', strtotime($is['start_date']))) ?> ~ <?= $is['end_date'] ? e(date('Y.n.j', strtotime($is['end_date']))) : '<b class="warn">진행 중</b>' ?></td>
+          <td><span class="result r-<?= e($is['result']) ?>"><?= e($is['result']) ?></span></td><td><?= e((string) $is['note']) ?></td>
+          <td class="small muted nowrap"><?= e($is['user_name'] ?? '') ?></td>
+          <?php if (can_manage_assets($user)): ?><td class="no-print nowrap">
+            <?php if (!$is['end_date']): ?><form method="post" class="inline"><?= csrf_field() ?><input type="hidden" name="act" value="issue_close"><input type="hidden" name="issue_id" value="<?= (int) $is['id'] ?>">
+              <input type="date" name="end_date" value="<?= e(date('Y-m-d')) ?>" required><button class="btn small">해결</button></form><?php endif ?>
+            <form method="post" class="inline" onsubmit="return confirm('이 진행 중 이상을 지울까요? (점검일지 기록은 그대로)')"><?= csrf_field() ?><input type="hidden" name="act" value="issue_delete"><input type="hidden" name="issue_id" value="<?= (int) $is['id'] ?>"><button class="btn small ghost">지우기</button></form>
+          </td><?php endif ?>
+        </tr>
+      <?php endforeach ?>
+      </tbody></table></div>
+    <?php else: ?><p class="muted small">진행 중인 이상이 없습니다.</p><?php endif ?>
+    <?php if (can_manage_assets($user)): ?>
+    <details class="no-print"><summary class="small">+ 기간 이상 등록 (예: 공사로 폐쇄, 누수 수리 대기)</summary>
+      <form method="post" class="row">
+        <?= csrf_field() ?><input type="hidden" name="act" value="issue_add">
+        <label>시작일<input type="date" name="start_date" value="<?= e(date('Y-m-d')) ?>" required></label>
+        <label>끝나는 날 <small class="muted">(모르면 비움 = 해결될 때까지)</small><input type="date" name="end_date"></label>
+        <label>결과<select name="result"><?php foreach (config('facility_results', []) as $r): if ($r === $normal) continue; ?><option><?= e($r) ?></option><?php endforeach ?></select></label>
+        <label>내용<input name="note" maxlength="500" placeholder="예: 소방 공사로 폐쇄, 누수로 객실 파손"></label>
+        <button class="btn primary">등록</button>
+      </form>
+    </details>
+    <?php endif ?>
+  </section>
+
   <?php if ($f['spec']): ?><h3>규격·스펙</h3><div class="pre"><?= e($f['spec']) ?></div><?php endif ?>
   <?php if ($f['note']): ?><h3>비고</h3><div class="pre"><?= e($f['note']) ?></div><?php endif ?>
 
@@ -77,9 +141,21 @@ layout_header($f['name'], 'facilities');
   <table class="table">
     <thead><tr><th>점검일</th><th>결과</th><th>내용 / 조치사항</th><th>점검자</th><th>문서</th></tr></thead>
     <tbody>
-    <?php foreach ($logs as $l): ?>
+    <?php
+    // 같은 결과·내용이 이어지면 한 줄로 묶는다 (진행 중 이상은 매일 같은 내용이라)
+    $runs = [];
+    foreach ($logs as $l) {
+        $k = count($runs) - 1;
+        if ($k >= 0 && $runs[$k]['result'] === $l['result'] && (string) $runs[$k]['note'] === (string) $l['note']) {
+            $runs[$k]['from'] = $l['work_date'];
+            $runs[$k]['n']++;
+            continue;
+        }
+        $runs[] = $l + ['from' => $l['work_date'], 'n' => 1];
+    }
+    foreach ($runs as $l): ?>
       <tr class="clickable" onclick="location.href='<?= e(url('view.php?id=' . $l['journal_id'])) ?>'">
-        <td class="nowrap"><?= e($l['work_date']) ?> (<?= weekday_ko($l['work_date']) ?>)</td>
+        <td class="nowrap"><?php if ($l['n'] > 1): ?><?= e($l['from']) ?> ~ <?= e($l['work_date']) ?> <small class="muted"><?= $l['n'] ?>회</small><?php else: ?><?= e($l['work_date']) ?> (<?= weekday_ko($l['work_date']) ?>)<?php endif ?></td>
         <td><span class="result r-<?= e($l['result']) ?>"><?= e($l['result']) ?></span></td>
         <td><?= e($l['note']) ?></td>
         <td><?= e($l['author_name']) ?></td>

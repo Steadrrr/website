@@ -6,7 +6,7 @@ defined('APP_ROOT') || exit;
  * 새 버전 파일을 FTP로 덮어쓰기만 하면, 첫 접속 때 부족한 테이블/컬럼을 만든다.
  * (기존 자료는 그대로 유지)
  */
-const DB_VERSION = 56;
+const DB_VERSION = 57; // v57: facility_issues (진행 중 이상) — schema.sql 의 CREATE TABLE 로 생김
 
 function db_version(): int
 {

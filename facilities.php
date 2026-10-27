@@ -10,6 +10,7 @@ $showInactive = !empty($_GET['all']);
 
 $facilities = array_filter(facilities_list($teamId ?: null, !$showInactive), fn($f) => isset(facility_teams()[(int) $f['team_id']]));
 $thumbs = photo_thumbs('facility');
+$openIssues = facility_open_issues(date('Y-m-d'));
 $normal = normal_result();
 
 // 시설별 최근 점검결과와 이상 건수 (임시저장 제외)
@@ -91,6 +92,7 @@ layout_header('시설물', 'facilities');
               <small><?php if ($lr): ?>최근 <?= e(date('n/j', strtotime($lr['work_date']))) ?> <span class="result r-<?= e($lr['result']) ?>"><?= e($lr['result']) ?></span><?php else: ?><span class="muted">점검기록 없음</span><?php endif ?></small>
               <?php $cyc = $f['check_cycle'] ?? 'day'; $over = in_array($cyc, ['week', 'month', 'quarter'], true) && $f['is_active'] && (!$lr || $lr['work_date'] < cycle_period($cyc, date('Y-m-d'))[0]); ?>
               <small><span class="cycle-badge <?= $over ? 'overdue' : '' ?>" title="<?= $over ? '이번 기간에 아직 점검 안 함' : '' ?>"><?= e(FACILITY_CYCLES[$cyc] ?? $cyc) ?><?= $over ? ' · 점검 필요' : '' ?></span></small>
+              <?php if ($oi = $openIssues[$fid] ?? null): ?><small class="warn" title="<?= e((string) $oi['note']) ?>">진행 중 <?= e($oi['result']) ?> (<?= e(date('n/j', strtotime($oi['start_date']))) ?>~)</small><?php endif ?>
               <?php if (!empty($abnormal[$fid])): ?><small class="warn">이상 이력 <?= $abnormal[$fid] ?>건</small><?php endif ?>
             </div>
           </a>
