@@ -38,11 +38,12 @@ if (is_post()) {
         flash('구역·건물과 시설명을 확인하세요.', 'error');
         redirect($id ? "facility_edit.php?id=$id" : 'facility_edit.php');
     }
-    $row = [$groupId, $name, post('spec') ?: null, post('note') ?: null, (int) post('sort_order', '0'), post('is_active') === '1' ? 1 : 0];
+    $cycle = isset(FACILITY_CYCLES[post('check_cycle')]) ? post('check_cycle') : 'day';
+    $row = [$groupId, $name, post('spec') ?: null, post('note') ?: null, (int) post('sort_order', '0'), post('is_active') === '1' ? 1 : 0, $cycle];
     if ($f) {
-        $pdo->prepare('UPDATE facilities SET group_id = ?, name = ?, spec = ?, note = ?, sort_order = ?, is_active = ? WHERE id = ?')->execute([...$row, $id]);
+        $pdo->prepare('UPDATE facilities SET group_id = ?, name = ?, spec = ?, note = ?, sort_order = ?, is_active = ?, check_cycle = ? WHERE id = ?')->execute([...$row, $id]);
     } else {
-        $pdo->prepare('INSERT INTO facilities (group_id, name, spec, note, sort_order, is_active) VALUES (?, ?, ?, ?, ?, ?)')->execute($row);
+        $pdo->prepare('INSERT INTO facilities (group_id, name, spec, note, sort_order, is_active, check_cycle) VALUES (?, ?, ?, ?, ?, ?, ?)')->execute($row);
         $id = (int) $pdo->lastInsertId();
     }
     photos_delete('facility', $id, (array) ($_POST['delete_photos'] ?? []));
@@ -70,6 +71,9 @@ layout_header($f ? $f['name'] . ' 수정' : '세부시설 등록', 'facilities')
     <textarea name="spec" rows="4" placeholder="제조사: ○○&#10;모델: ○○-123&#10;용량: 25,000kcal&#10;설치: 2021-05"><?= e($f['spec'] ?? '') ?></textarea></label>
   <label>비고<textarea name="note" rows="3"><?= e($f['note'] ?? '') ?></textarea></label>
   <div class="row">
+    <label>점검 주기<select name="check_cycle">
+      <?php foreach (FACILITY_CYCLES as $k => $v): ?><option value="<?= $k ?>" <?= ($f['check_cycle'] ?? 'day') === $k ? 'selected' : '' ?>><?= e($v) ?></option><?php endforeach ?>
+    </select><small class="muted">일일은 매일, 주간·월간·분기는 그 기간에 한 번 점검일지에 나옵니다. 위탁(업체 법정 점검)·안 함은 나오지 않습니다.</small></label>
     <label>표시 순서<input name="sort_order" value="<?= e($f['sort_order'] ?? 0) ?>" class="num" inputmode="numeric"></label>
     <label class="inline-check"><input type="checkbox" name="is_active" value="1" <?= !$f || $f['is_active'] ? 'checked' : '' ?>> 사용 (점검일지에 표시)</label>
   </div>

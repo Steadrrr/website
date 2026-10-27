@@ -6,6 +6,8 @@
  *         머리글 줄('내년 담당 팀'으로 시작)을 찾아 열 이름으로 읽는다 — 2026-10 시설물 등록 초안 양식.
  *   1) 올리기 → 2) 엑셀 팀마다 사이트 팀 고르기 → 3) 미리보기 → 4) 가져오기
  *   구역·장비 분류는 (팀, 이름)이 같으면 있는 것을 쓰고, 같은 구역의 같은 이름 세부시설·같은 이름 장비는 건너뛴다.
+ *   시설물 시트에 '점검 주기'(일일·주간·월간·분기·위탁·안 함) 칸이 있으면 새 세부시설에 넣고, 이미 있는 세부시설은 주기만 바꾼다
+ *   ('세부시설 주기' 시트만 있는 점검 주기 엑셀도 그대로 올릴 수 있다).
  *   보수 기록은 ' · ' 로 나눠 날짜(2025.6.18 / 2024.3)로 시작하는 것만 장비 이력(수리·점검·관리·기타)으로, 나머지는 장비 메모로.
  */
 require __DIR__ . '/../app/bootstrap.php';
@@ -75,19 +77,22 @@ function ima_plan(array $imp): array
     $pdo = db();
     $groups = []; // "kind|팀id|이름" => 있는 id
     foreach ($pdo->query('SELECT id, kind, team_id, name FROM asset_groups') as $g) $groups["{$g['kind']}|{$g['team_id']}|" . trim($g['name'])] = (int) $g['id'];
-    $facs = []; // "구역id|이름"
-    foreach ($pdo->query('SELECT group_id, name FROM facilities') as $f) $facs["{$f['group_id']}|" . trim($f['name'])] = true;
+    $facs = []; // "구역id|이름" => [id, 주기]
+    foreach ($pdo->query('SELECT id, group_id, name, check_cycle FROM facilities') as $f) $facs["{$f['group_id']}|" . trim($f['name'])] = [(int) $f['id'], $f['check_cycle']];
     $eqs = array_flip(array_map('trim', $pdo->query("SELECT name FROM equipment WHERE status <> 'disposed'")->fetchAll(PDO::FETCH_COLUMN)));
+    if (!empty($imp['cycle_only'])) return ima_cycle_plan($imp);
     $team = fn(string $t) => (int) ($imp['map'][$t] ?? IMA_NEW_TEAM);
     $gkey = fn(string $kind, string $t, string $name) => $kind . '|' . ($team($t) === IMA_NEW_TEAM ? 'new:' . $t : $team($t)) . '|' . $name;
 
-    $plan = ['groups' => [], 'fac' => [], 'fac_skip' => [], 'eq' => [], 'eq_skip' => [], 'logs' => 0];
+    $plan = ['groups' => [], 'fac' => [], 'fac_skip' => [], 'fac_cycle' => [], 'eq' => [], 'eq_skip' => [], 'logs' => 0];
     $seenF = $seenE = [];
     foreach ($imp['fac'] as $r) {
         $k = $gkey('facility', $r['team'], $r['area']);
         if (!isset($groups[$k])) $plan['groups'][$k] ??= ['kind' => 'facility', 'team' => $r['team'], 'name' => $r['area']];
-        $dup = (isset($groups[$k]) && isset($facs["{$groups[$k]}|{$r['name']}"])) || isset($seenF["$k|{$r['name']}"]);
+        $old = isset($groups[$k]) ? ($facs["{$groups[$k]}|{$r['name']}"] ?? null) : null;
+        $dup = $old || isset($seenF["$k|{$r['name']}"]);
         $seenF["$k|{$r['name']}"] = true;
+        if ($old && ($r['cycle'] ?? '') !== '' && $r['cycle'] !== $old[1]) $plan['fac_cycle'][] = $r + ['id' => $old[0], 'from' => $old[1]];
         $plan[$dup ? 'fac_skip' : 'fac'][] = $r + ['gkey' => $k];
     }
     foreach ($imp['eq'] as $r) {
@@ -99,6 +104,23 @@ function ima_plan(array $imp): array
         $plan[$dup ? 'eq_skip' : 'eq'][] = $r + ['gkey' => $k];
     }
     $plan['existing'] = $groups;
+    return $plan;
+}
+
+/** 점검 주기 엑셀('세부시설 주기' 시트만): 팀과 관계없이 구역 이름 + 세부시설 이름이 같은 세부시설의 주기만 바꾼다 (새로 만들지 않음) */
+function ima_cycle_plan(array $imp): array
+{
+    $byName = [];
+    foreach (db()->query('SELECT f.id, f.name, f.check_cycle, g.name AS area FROM facilities f JOIN asset_groups g ON g.id = f.group_id') as $f) {
+        $byName[trim($f['area']) . '|' . trim($f['name'])][] = $f;
+    }
+    $plan = ['groups' => [], 'fac' => [], 'fac_skip' => [], 'fac_cycle' => [], 'eq' => [], 'eq_skip' => [], 'logs' => 0, 'missing' => [], 'existing' => []];
+    foreach ($imp['fac'] as $r) {
+        if (($r['cycle'] ?? '') === '') continue;
+        $found = $byName[$r['area'] . '|' . $r['name']] ?? [];
+        if (!$found) { $plan['missing'][] = $r; continue; }
+        foreach ($found as $f) if ($f['check_cycle'] !== $r['cycle']) $plan['fac_cycle'][] = $r + ['id' => (int) $f['id'], 'from' => $f['check_cycle']];
+    }
     return $plan;
 }
 
@@ -114,15 +136,17 @@ if (is_post()) {
         $f = $_FILES['file'] ?? null;
         if (!$f || $f['error'] !== UPLOAD_ERR_OK) { flash('파일을 올리지 못했습니다. 다시 골라 주세요.', 'error'); redirect('admin/import_assets.php'); }
         try {
-            $sheets = xlsx_sheets($f['tmp_name'], 0, fn($n) => in_array(trim($n), ['시설물', '장비'], true));
+            $sheets = xlsx_sheets($f['tmp_name'], 0, fn($n) => in_array(trim($n), ['시설물', '장비', '세부시설 주기'], true));
         } catch (Throwable $e) {
             flash($e->getMessage(), 'error');
             redirect('admin/import_assets.php');
         }
         $fac = $eq = $warn = [];
-        foreach (ima_rows($sheets['시설물'] ?? []) as $i => $r) {
+        foreach (ima_rows($sheets['시설물'] ?? $sheets['세부시설 주기'] ?? []) as $i => $r) {
             $row = ['team' => $r['내년 담당 팀'] ?? $r['담당 팀'] ?? '', 'area' => $r['구역(건물)'] ?? $r['구역'] ?? '', 'name' => $r['세부시설'] ?? '',
-                    'where' => $r['층·위치'] ?? '', 'memo' => $r['점검할 것·메모'] ?? $r['메모'] ?? '', 'status' => $r['상태'] ?? ''];
+                    'where' => $r['층·위치'] ?? '', 'memo' => $r['점검할 것·메모'] ?? $r['메모'] ?? '', 'status' => $r['상태'] ?? '',
+                    'cycle' => (string) (array_search($r['점검 주기'] ?? '', FACILITY_CYCLES, true) ?: '')];
+            if (($r['점검 주기'] ?? '') !== '' && $row['cycle'] === '') $warn[] = "'{$row['name']}' 점검 주기 '{$r['점검 주기']}'를 몰라 일일로 둠";
             if ($row['name'] === '' || $row['area'] === '' || $row['team'] === '') { $warn[] = '시설물 ' . ($i + 1) . '번째 줄: 팀·구역·세부시설 중 빈 칸이 있어 건너뜀'; continue; }
             $fac[] = $row;
         }
@@ -134,13 +158,13 @@ if (is_post()) {
             if ($row['kind'] === '') $row['kind'] = '기타';
             $eq[] = $row;
         }
-        if (!$fac && !$eq) { flash("가져올 줄이 없습니다. '시설물'·'장비' 시트에 '내년 담당 팀'으로 시작하는 머리글 줄이 있는지 확인하세요.", 'error'); redirect('admin/import_assets.php'); }
+        if (!$fac && !$eq) { flash("가져올 줄이 없습니다. '시설물'(또는 '세부시설 주기')·'장비' 시트에 '내년 담당 팀'으로 시작하는 머리글 줄이 있는지 확인하세요.", 'error'); redirect('admin/import_assets.php'); }
         foreach ([...$fac, ...$eq] as $r) foreach (['name', 'area', 'kind', 'where'] as $k) {
             if (mb_strlen($r[$k] ?? '') > 100) $warn[] = "'" . mb_substr($r[$k], 0, 30) . "…' 이 100자를 넘어 잘립니다";
         }
         $teams = array_values(array_unique(array_column([...$fac, ...$eq], 'team')));
         $_SESSION[IMA_KEY] = ['file' => (string) $f['name'], 'fac' => $fac, 'eq' => $eq, 'warn' => array_slice($warn, 0, 20),
-            'map' => array_combine($teams, array_map('ima_guess', $teams))];
+            'map' => array_combine($teams, array_map('ima_guess', $teams)), 'cycle_only' => !isset($sheets['시설물']) && !isset($sheets['장비']) && isset($sheets['세부시설 주기'])];
         redirect('admin/import_assets.php');
     }
     if (!$imp) redirect('admin/import_assets.php');
@@ -156,7 +180,7 @@ if (is_post()) {
         try {
             // 새 팀
             $teamId = [];
-            foreach ($imp['map'] as $t => $id) {
+            foreach (empty($imp['cycle_only']) ? $imp['map'] : [] as $t => $id) {
                 if ($id !== IMA_NEW_TEAM) { $teamId[$t] = $id; continue; }
                 $pdo->prepare('INSERT INTO teams (name, sort_order, use_facility) VALUES (?, (SELECT COALESCE(MAX(t.sort_order), 0) + 1 FROM teams t), 1)')->execute([$cut($t, 50)]);
                 $teamId[$t] = (int) $pdo->lastInsertId();
@@ -171,13 +195,18 @@ if (is_post()) {
                 $gid[$k] = (int) $pdo->lastInsertId();
             }
             // 세부시설 (엑셀 순서대로)
-            $ins = $pdo->prepare('INSERT INTO facilities (group_id, name, spec, note, sort_order, is_active) VALUES (?, ?, ?, ?, ?, ?)');
+            $ins = $pdo->prepare('INSERT INTO facilities (group_id, name, spec, note, sort_order, is_active, check_cycle) VALUES (?, ?, ?, ?, ?, ?, ?)');
             $sort = [];
             foreach ($plan['fac'] as $r) {
                 $g = $gid[$r['gkey']];
                 $sort[$g] = ($sort[$g] ?? (int) $pdo->query('SELECT COALESCE(MAX(sort_order), 0) FROM facilities WHERE group_id = ' . $g)->fetchColumn()) + 10;
                 $note = trim($r['memo'] . (in_array($r['status'], ['', '운영중'], true) ? '' : "\n상태: {$r['status']}"));
-                $ins->execute([$g, $cut($r['name']), $r['where'] !== '' ? $r['where'] : null, $note !== '' ? $note : null, $sort[$g], $r['status'] === '폐쇄' ? 0 : 1]);
+                $ins->execute([$g, $cut($r['name']), $r['where'] !== '' ? $r['where'] : null, $note !== '' ? $note : null, $sort[$g], $r['status'] === '폐쇄' ? 0 : 1, ($r['cycle'] ?? '') ?: 'day']);
+            }
+            // 이미 있는 세부시설: 점검 주기만 바꿈
+            $upd = $pdo->prepare('UPDATE facilities SET check_cycle = ? WHERE id = ?');
+            foreach ($plan['fac_cycle'] as $r) {
+                $upd->execute([$r['cycle'], $r['id']]);
             }
             // 장비 + 이력
             $ins = $pdo->prepare('INSERT INTO equipment (group_id, name, model, serial_no, spec, acquired_on, acquired_cost, location, status, note) VALUES (?, ?, NULL, NULL, ?, NULL, NULL, ?, ?, ?)');
@@ -203,6 +232,7 @@ if (is_post()) {
         }
         unset($_SESSION[IMA_KEY]);
         flash('시설물 ' . count($plan['fac']) . '줄 · 장비 ' . count($plan['eq']) . '대 · 예전 보수 이력 ' . $plan['logs'] . '건을 가져왔습니다.'
+            . ($plan['fac_cycle'] ? ' 세부시설 ' . count($plan['fac_cycle']) . '곳의 점검 주기를 바꿨습니다.' : '')
             . (count($plan['fac_skip']) + count($plan['eq_skip']) ? ' 이미 있던 ' . (count($plan['fac_skip']) + count($plan['eq_skip'])) . '줄은 건너뛰었습니다.' : ''), 'success');
         redirect('facilities.php');
     }
@@ -215,7 +245,7 @@ if (!$imp): ?>
 <section class="card">
   <h1>시설물 가져오기 <small class="muted">시설물·장비 목록 엑셀 → 시설 구역·세부시설·장비 한 번에 등록</small></h1>
   <ul class="small">
-    <li><b>'시설물'</b> 시트와 <b>'장비'</b> 시트가 있는 엑셀(.xlsx)입니다. 각 시트에서 <b>'내년 담당 팀'</b>으로 시작하는 머리글 줄을 찾아 읽습니다.</li>
+    <li><b>'시설물'</b> 시트와 <b>'장비'</b> 시트가 있는 엑셀(.xlsx)입니다. <b>점검 주기 엑셀</b>('세부시설 주기' 시트)을 올리면 이미 있는 세부시설의 <b>점검 주기</b>만 바꿉니다. 각 시트에서 <b>'내년 담당 팀'</b>으로 시작하는 머리글 줄을 찾아 읽습니다.</li>
     <li>시설물 시트: 내년 담당 팀 · 구역(건물) · 세부시설 · 층·위치 · 점검할 것·메모 · 상태 → <b>시설 구역 › 세부시설</b> (상태 '폐쇄'는 사용 안 함으로).</li>
     <li>장비 시트: 내년 담당 팀 · 분류 · 장비 이름 · 구역 · 놓인 곳 · 설비번호 · 제조사·규격 · 상태 · 지금까지 보수 기록 · 메모 → <b>장비 분류 › 장비</b>.
       보수 기록 중 날짜로 시작하는 것(예: 2025.6.18 …)은 <b>장비 이력</b>으로 들어가 AI 분석의 '같은 설비 반복 고장'에 쓰입니다.</li>
@@ -238,6 +268,7 @@ foreach ($plan['groups'] as $g) $newGroups[$g['kind']][] = $teamLabel($g['team']
 $fileAreas = [];
 foreach ($imp['fac'] as $r) if (($imp['map'][$r['team']] ?? IMA_NEW_TEAM) !== IMA_NEW_TEAM) $fileAreas[$imp['map'][$r['team']] . '|' . $r['area']] = true;
 $oldAreas = [];
+if (!empty($imp['cycle_only'])) $fileAreas = $imp['map'] = []; // 주기만 바꿀 때는 팀을 고르지 않는다
 foreach (asset_groups('facility') as $g) {
     if (!in_array((int) $g['team_id'], $imp['map'], true) || isset($fileAreas[$g['team_id'] . '|' . trim($g['name'])])) continue;
     $n = (int) $pdo->query('SELECT COUNT(*) FROM facilities WHERE group_id = ' . (int) $g['id'])->fetchColumn();
@@ -253,12 +284,17 @@ foreach (asset_groups('facility') as $g) {
     <div class="kpi"><span>새 구역·장비 분류</span><b><?= count($plan['groups']) ?>개</b><small class="muted">구역 <?= count($newGroups['facility']) ?> · 장비 분류 <?= count($newGroups['equipment']) ?></small></div>
     <div class="kpi total"><span>새 세부시설</span><b><?= count($plan['fac']) ?>줄</b><small class="muted"><?= $plan['fac_skip'] ? '이미 있어 건너뜀 ' . count($plan['fac_skip']) : '겹치는 것 없음' ?></small></div>
     <div class="kpi total"><span>새 장비</span><b><?= count($plan['eq']) ?>대</b><small class="muted"><?= $plan['eq_skip'] ? '이미 있어 건너뜀 ' . count($plan['eq_skip']) : '겹치는 것 없음' ?></small></div>
-    <div class="kpi"><span>예전 보수 이력</span><b><?= $plan['logs'] ?>건</b><small class="muted">장비 이력으로 등록</small></div>
+    <div class="kpi"><span>예전 보수 이력 · 주기 변경</span><b><?= $plan['logs'] ?>건</b><small class="muted">점검 주기 바꿀 세부시설 <?= count($plan['fac_cycle']) ?>곳</small></div>
   </div>
   <?php if ($imp['warn']): ?><div class="flash flash-warn"><?= e(implode(' / ', $imp['warn'])) ?></div><?php endif ?>
 </section>
 <form method="post" class="card">
   <?= csrf_field() ?>
+  <?php if (!empty($imp['cycle_only'])): ?>
+  <h2>점검 주기만 바꿉니다 <small class="muted">'세부시설 주기' 시트 — 새로 만드는 것은 없습니다</small></h2>
+  <p class="small">구역 이름과 세부시설 이름이 같은 세부시설을 찾아 점검 주기만 바꿉니다 (팀과 관계없음).</p>
+  <?php if ($plan['missing']): ?><div class="flash flash-warn">사이트에서 찾지 못한 세부시설 <?= count($plan['missing']) ?>곳 (이름이 다르면 시설물 화면에서 직접 바꾸세요): <?= e(implode(', ', array_map(fn($r) => $r['area'] . ' › ' . $r['name'], $plan['missing']))) ?></div><?php endif ?>
+  <?php else: ?>
   <h2>1. 엑셀 팀마다 사이트 팀 <small class="muted">비슷한 이름을 자동으로 골라 두었습니다 — 확인하세요</small></h2>
   <div class="table-scroll">
   <table class="table">
@@ -279,6 +315,7 @@ foreach (asset_groups('facility') as $g) {
   <p class="muted small">지금은 한 팀이 모두 맡고 있으면 그 팀을 고르세요. 나중에 팀이 나뉘면 설정 › 시설 구역·건물(장비 분류)에서 구역마다 팀만 바꾸면 됩니다.
     '새 팀 만들기'는 설정 › 조직 구성에 그 팀을 새로 만듭니다.</p>
   <div class="actions"><button class="btn" name="act" value="preview">사이트 팀 저장 · 미리보기 다시 계산</button></div>
+  <?php endif ?>
 
   <h2 id="preview">2. 미리보기 <small class="muted">아직 저장되지 않았습니다</small></h2>
   <?php if ($oldAreas): ?><div class="flash flash-warn">고른 팀에 이미 있는 다른 구역: <?= e(implode(', ', $oldAreas)) ?> — 예전에 만들다 만 구역이면 가져온 뒤 설정 › 시설 구역·건물에서 '사용 안 함'으로 돌리세요.</div><?php endif ?>
@@ -296,13 +333,17 @@ foreach (asset_groups('facility') as $g) {
       <tbody><?php foreach ($plan['eq'] as $r): ?><tr><td class="nowrap"><?= e($teamLabel($r['team'])) ?></td><td class="nowrap"><?= e($r['kind']) ?></td><td><b><?= e($r['name']) ?></b></td>
         <td><?= e(implode(' › ', array_filter([$r['area'], $r['where']]))) ?></td><td class="nowrap"><?= e($r['status']) ?></td><td class="right"><?= count(ima_history($r['hist'])[0]) ?: '' ?></td></tr><?php endforeach ?></tbody>
     </table></div></details>
+  <?php if ($plan['fac_cycle']): $cn = array_count_values(array_column($plan['fac_cycle'], 'cycle')); ?>
+  <details><summary>점검 주기 바꿀 세부시설 <?= count($plan['fac_cycle']) ?>곳 (<?= e(implode(' · ', array_map(fn($c, $n) => FACILITY_CYCLES[$c] . " $n", array_keys($cn), $cn))) ?>)</summary>
+    <p class="small"><?= e(implode(', ', array_map(fn($r) => $r['area'] . ' › ' . $r['name'] . ' ' . FACILITY_CYCLES[$r['from']] . '→' . FACILITY_CYCLES[$r['cycle']], $plan['fac_cycle']))) ?></p></details>
+  <?php endif ?>
   <?php if ($plan['fac_skip'] || $plan['eq_skip']): ?>
   <details><summary class="warn">이미 있어 건너뛸 것 <?= count($plan['fac_skip']) + count($plan['eq_skip']) ?>줄</summary>
     <p class="small"><?= e(implode(', ', [...array_map(fn($r) => $r['area'] . ' › ' . $r['name'], $plan['fac_skip']), ...array_map(fn($r) => $r['name'], $plan['eq_skip'])])) ?></p></details>
   <?php endif ?>
 
   <h2>3. 가져오기</h2>
-  <p class="small">구역 <?= count($newGroups['facility']) ?>개 · 세부시설 <?= count($plan['fac']) ?>줄 · 장비 분류 <?= count($newGroups['equipment']) ?>개 · 장비 <?= count($plan['eq']) ?>대 · 이력 <?= $plan['logs'] ?>건을 등록합니다.</p>
+  <p class="small">구역 <?= count($newGroups['facility']) ?>개 · 세부시설 <?= count($plan['fac']) ?>줄 · 장비 분류 <?= count($newGroups['equipment']) ?>개 · 장비 <?= count($plan['eq']) ?>대 · 이력 <?= $plan['logs'] ?>건을 등록하고, 점검 주기 <?= count($plan['fac_cycle']) ?>곳을 바꿉니다.</p>
   <div class="actions"><button class="btn primary" name="act" value="run" onclick="return confirm('시설물·장비를 사이트에 등록할까요?')">가져오기</button></div>
 </form>
 <?php layout_footer();

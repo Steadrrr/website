@@ -1313,3 +1313,17 @@ label .tm-pick { display: flex; margin-top: .25rem; }
 /* 객실운영관리: 고치는 중인 미판매 등록 (입력 칸 · 목록 줄) */
 .card.rb-editing { border: 2px solid #e0c46e; background: #fffbea; }
 .rb-edit-row td { background: #fff8e1; }
+
+/* 시설점검 주기 (점검일지 작성·달력 진행률) */
+.fac-cycle { margin: .6rem 0; border: 1px solid var(--line); border-radius: 8px; padding: .4rem .6rem; }
+.fac-cycle > summary { cursor: pointer; padding: .2rem 0; }
+.fac-cycle > summary .btn { margin-left: .4rem; }
+.fac-cycle.fac-day { border-color: #e9b8b5; }
+.fac-cycle .facility-check td:first-child { width: 3rem; }
+.fac-progress { display: grid; gap: .5rem; margin: .4rem 0 .8rem; }
+.fac-progress-team { border: 1px solid var(--line); border-radius: 8px; padding: .5rem .7rem; background: #fbfcfb; }
+.fac-bar > summary { display: grid; grid-template-columns: 9rem 1fr auto; gap: .6rem; align-items: center; cursor: pointer; padding: .15rem 0; }
+.fac-bar .ar-bar { margin: 0; }
+.cycle-badge { font-size: .72rem; padding: 0 .35rem; border-radius: 4px; background: #eef2ef; color: var(--muted); }
+.cycle-badge.overdue { background: #fde2e1; color: #b3261e; }
+@media (max-width: 640px) { .fac-bar > summary { grid-template-columns: 6.5rem 1fr auto; } }

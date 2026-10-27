@@ -319,6 +319,7 @@ CREATE TABLE IF NOT EXISTS facilities (
   name       VARCHAR(100) NOT NULL,
   spec       TEXT NULL COMMENT '규격·스펙 (설비류)',
   note       TEXT NULL,
+  check_cycle ENUM('day','week','month','quarter','outsourced','none') NOT NULL DEFAULT 'day' COMMENT '점검 주기: 일일·주간·월간·분기·위탁(업체 일지)·안 함',
   sort_order INT  NOT NULL DEFAULT 0,
   is_active  TINYINT(1) NOT NULL DEFAULT 1,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,

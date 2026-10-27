@@ -132,6 +132,103 @@ function normal_result(): string
     return config('facility_results', ['정상'])[0];
 }
 
+/* ───────────────────────── 점검 주기 ───────────────────────── */
+
+/** 세부시설 점검 주기. 위탁·안 함은 점검일지에 나오지 않는다 (위탁 = 업체가 법정 점검 후 일지를 줌) */
+const FACILITY_CYCLES = ['day' => '일일', 'week' => '주간', 'month' => '월간', 'quarter' => '분기', 'outsourced' => '위탁', 'none' => '안 함'];
+const FACILITY_CYCLE_DUE = ['day', 'week', 'month', 'quarter']; // 점검일지에 나오는 주기
+
+/** 그 날이 들어 있는 주기 기간 [시작, 끝] — 주간은 월~일, 분기는 1~3월·4~6월… */
+function cycle_period(string $cycle, string $date): array
+{
+    $t = strtotime($date);
+    return match ($cycle) {
+        'week' => [date('Y-m-d', strtotime('monday this week', $t)), date('Y-m-d', strtotime('sunday this week', $t))],
+        'month' => [date('Y-m-01', $t), date('Y-m-t', $t)],
+        'quarter' => (function () use ($t) {
+            $q0 = intdiv((int) date('n', $t) - 1, 3) * 3 + 1;
+            $from = sprintf('%s-%02d-01', date('Y', $t), $q0);
+            return [$from, date('Y-m-t', strtotime("$from +2 months"))];
+        })(),
+        default => [$date, $date],
+    };
+}
+
+/** 주기 기간 이름: '이번 주', '11월', '4분기' */
+function cycle_period_label(string $cycle, string $date): string
+{
+    return match ($cycle) {
+        'week' => date('n/j', strtotime(cycle_period('week', $date)[0])) . '~' . date('n/j', strtotime(cycle_period('week', $date)[1])),
+        'month' => date('n월', strtotime($date)),
+        'quarter' => (intdiv((int) date('n', strtotime($date)) - 1, 3) + 1) . '분기',
+        default => date('n/j', strtotime($date)),
+    };
+}
+
+/**
+ * 세부시설별 점검한 날짜들 (반려 제외, 남의 임시저장 포함 — 누가 쓰는 중이어도 했으면 한 것)
+ * @return array<int, string[]> facility_id => [날짜, ...]
+ */
+function facility_checks(string $from, string $to, ?int $exceptJournalId = null): array
+{
+    $st = db()->prepare("SELECT fi.facility_id, j.work_date FROM facility_items fi JOIN journals j ON j.id = fi.journal_id
+                          WHERE j.type = 'facility' AND j.status <> 'rejected' AND fi.facility_id IS NOT NULL AND j.work_date BETWEEN ? AND ? AND j.id <> ?");
+    $st->execute([$from, $to, (int) $exceptJournalId]);
+    $out = [];
+    foreach ($st as $r) $out[(int) $r['facility_id']][] = $r['work_date'];
+    return $out;
+}
+
+/**
+ * 그 날 기준 관리팀의 주기별 점검 현황
+ * @return array<string, array{label: string, period: array, items: array, done: array<int,string>}> 주기 => 할 것(items)·이미 한 것(done: facility_id => 날짜)
+ */
+function facility_due(int $teamId, string $date, ?int $exceptJournalId = null): array
+{
+    $facs = facilities_list($teamId);
+    $q = cycle_period('quarter', $date);
+    $w = cycle_period('week', $date);
+    $checks = facility_checks(min($q[0], $w[0]), max($q[1], $w[1]), $exceptJournalId);
+    $out = [];
+    foreach (FACILITY_CYCLE_DUE as $c) $out[$c] = ['label' => cycle_period_label($c, $date), 'period' => cycle_period($c, $date), 'items' => [], 'done' => []];
+    foreach ($facs as $fid => $f) {
+        $c = $f['check_cycle'] ?? 'day';
+        if (!isset($out[$c])) continue; // 위탁·안 함
+        $out[$c]['items'][$fid] = $f;
+        if ($c === 'day') continue;
+        [$from, $to] = $out[$c]['period'];
+        foreach ($checks[$fid] ?? [] as $d) if ($d >= $from && $d <= $to) $out[$c]['done'][$fid] = max($out[$c]['done'][$fid] ?? '', $d);
+    }
+    return $out;
+}
+
+/** 시설점검 진행률: 관리팀마다 그 날이 들어 있는 주·달·분기에 점검한 수 / 전체, 남은 시설 */
+function facility_progress(array $teamIds, string $date): void
+{
+    $outs = db()->query("SELECT g.team_id, COUNT(*) FROM facilities f JOIN asset_groups g ON g.id = f.group_id
+                          WHERE f.check_cycle = 'outsourced' AND f.is_active = 1 AND g.is_active = 1 GROUP BY g.team_id")->fetchAll(PDO::FETCH_KEY_PAIR);
+    ?>
+<div class="fac-progress">
+  <?php foreach ($teamIds as $tid): $due = facility_due((int) $tid, $date); if (!array_filter(array_column($due, 'items')) && empty($outs[$tid])) continue; ?>
+    <div class="fac-progress-team">
+      <?php if (count($teamIds) > 1): ?><b><?= e(team_name((int) $tid)) ?></b><?php endif ?>
+      <?php foreach (['week', 'month', 'quarter'] as $c): $d = $due[$c]; $total = count($d['items']); if (!$total) continue;
+          $done = count($d['done']); $left = array_diff_key($d['items'], $d['done']); ?>
+        <details class="fac-bar">
+          <summary><span class="fac-bar-label"><?= e(FACILITY_CYCLES[$c]) ?> <small class="muted"><?= e($d['label']) ?></small></span>
+            <span class="ar-bar"><i class="used" style="width: <?= round($done / $total * 100) ?>%"></i></span>
+            <span class="nowrap"><b><?= $done ?></b> / <?= $total ?><?= $left ? ' · <span class="warn">남은 ' . count($left) . '</span>' : ' ✔' ?></span></summary>
+          <?php if ($left): ?><p class="small">남은 시설: <?= e(implode(', ', array_map(fn($f) => $f['area'] . ' › ' . $f['name'], $left))) ?></p><?php endif ?>
+        </details>
+      <?php endforeach ?>
+      <?php if ($n = count($due['day']['items'])): ?><span class="muted small">일일 <?= $n ?>곳은 매일</span><?php endif ?>
+      <?php if (!empty($outs[$tid])): ?><span class="muted small"> · 위탁 <?= (int) $outs[$tid] ?>곳은 업체 일지</span><?php endif ?>
+    </div>
+  <?php endforeach ?>
+</div>
+    <?php
+}
+
 /* ───────────────────────── 사진 ───────────────────────── */
 
 function photos_for(string $type, int $ownerId): array

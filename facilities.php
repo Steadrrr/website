@@ -89,6 +89,8 @@ layout_header('시설물', 'facilities');
             <div class="asset-body">
               <b><?= e($f['name']) ?></b>
               <small><?php if ($lr): ?>최근 <?= e(date('n/j', strtotime($lr['work_date']))) ?> <span class="result r-<?= e($lr['result']) ?>"><?= e($lr['result']) ?></span><?php else: ?><span class="muted">점검기록 없음</span><?php endif ?></small>
+              <?php $cyc = $f['check_cycle'] ?? 'day'; $over = in_array($cyc, ['week', 'month', 'quarter'], true) && $f['is_active'] && (!$lr || $lr['work_date'] < cycle_period($cyc, date('Y-m-d'))[0]); ?>
+              <small><span class="cycle-badge <?= $over ? 'overdue' : '' ?>" title="<?= $over ? '이번 기간에 아직 점검 안 함' : '' ?>"><?= e(FACILITY_CYCLES[$cyc] ?? $cyc) ?><?= $over ? ' · 점검 필요' : '' ?></span></small>
               <?php if (!empty($abnormal[$fid])): ?><small class="warn">이상 이력 <?= $abnormal[$fid] ?>건</small><?php endif ?>
             </div>
           </a>

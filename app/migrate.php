@@ -6,7 +6,7 @@ defined('APP_ROOT') || exit;
  * 새 버전 파일을 FTP로 덮어쓰기만 하면, 첫 접속 때 부족한 테이블/컬럼을 만든다.
  * (기존 자료는 그대로 유지)
  */
-const DB_VERSION = 55;
+const DB_VERSION = 56;
 
 function db_version(): int
 {
@@ -456,6 +456,11 @@ function db_migrate(): void
         if ((int) $st->fetchColumn()) $pdo->exec('ALTER TABLE complaints DROP FOREIGN KEY fk_cpl_journal');
         $pdo->exec("ALTER TABLE complaints MODIFY journal_id INT UNSIGNED NULL COMMENT '예전에 업무일지에서 입력한 민원의 일지 (민원관리에서 입력 = NULL)'");
         $pdo->exec('ALTER TABLE complaints ADD CONSTRAINT fk_cpl_journal FOREIGN KEY (journal_id) REFERENCES journals(id) ON DELETE SET NULL');
+    }
+
+    // v56: 세부시설 점검 주기 (예전처럼 매일 나오도록 기본은 일일)
+    if (!column_exists('facilities', 'check_cycle')) {
+        $pdo->exec("ALTER TABLE facilities ADD check_cycle ENUM('day','week','month','quarter','outsourced','none') NOT NULL DEFAULT 'day' COMMENT '점검 주기: 일일·주간·월간·분기·위탁(업체 일지)·안 함' AFTER note");
     }
 
     $pdo->prepare("INSERT INTO settings (name, value) VALUES ('db_version', ?) ON DUPLICATE KEY UPDATE value = VALUES(value)")

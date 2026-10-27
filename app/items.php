@@ -104,7 +104,8 @@ function items_parse(string $type, string $workDate, int $journalId): array
                 'result'   => in_array($row['result'] ?? '', $results, true) ? $row['result'] : $results[0],
                 'note'     => mb_substr(trim((string) ($row['note'] ?? '')), 0, 500),
             ];
-            if ($item['facility'] !== '') $rows[] = $item;
+            if ($item['facility'] === '' || ($f && empty($row['chk']))) continue; // 등록 시설은 '점검' 체크한 것만
+            $rows[] = $item;
         }
         if (!$payload['team_id']) $errors[] = '관리팀을 선택하세요.';
         if (!$rows) $errors[] = '점검 항목을 1개 이상 입력하세요.';
@@ -393,7 +394,7 @@ function items_form(string $type, array $payload, string $workDate, ?array $jour
     }
 
     if ($type === 'facility') {
-        facility_form_rows($payload);
+        facility_form_rows($payload, $workDate, $journal);
         return;
     }
 
@@ -671,56 +672,108 @@ function items_form(string $type, array $payload, string $workDate, ?array $jour
 }
 
 /** 시설점검 입력표: 관리팀의 등록 시설(구역별) + 직접 입력 행 */
-function facility_form_rows(array $payload): void
+function facility_form_rows(array $payload, string $workDate, ?array $journal): void
 {
     $normal = normal_result();
-    $registered = $payload['team_id'] ? facilities_list($payload['team_id']) : [];
-    $byFac = $free = [];
+    $results = config('facility_results', ['정상']);
+    $teamId = (int) ($payload['team_id'] ?? 0);
+    $due = $teamId ? facility_due($teamId, $workDate, $journal ? (int) $journal['id'] : null) : [];
+    $fresh = !$payload['facility']; // 새로 쓰는 일지: 일일은 모두 체크해 둔다
+    $mine = $free = [];
     foreach ($payload['facility'] as $r) {
-        if (!empty($r['facility_id'])) $byFac[(int) $r['facility_id']] = $r; else $free[] = $r;
+        if (!empty($r['facility_id'])) $mine[(int) $r['facility_id']] = $r; else $free[] = $r;
     }
-    $rows = [];
-    foreach ($registered as $fid => $f) {
-        $rows[] = $byFac[$fid] ?? ['facility_id' => $fid, 'area' => $f['area'], 'facility' => $f['name'], 'result' => $normal, 'note' => ''];
-        unset($byFac[$fid]);
-    }
-    $rows = [...$rows, ...array_values($byFac)]; // 지금은 사용안함인 시설의 기존 기록
     $blank = ['facility_id' => null, 'area' => null, 'facility' => '', 'result' => $normal, 'note' => ''];
-    $free = [...$free, $blank, $blank];
-    if (!$registered) {
-        echo '<div class="flash flash-info">이 관리팀에 등록된 세부시설이 없습니다. <a href="' . e(url('facilities.php')) . '">시설물</a> 메뉴에서 등록하면 점검표가 자동으로 만들어집니다. 지금은 아래에 직접 입력할 수 있습니다.</div>';
-        $free = [...$free, $blank, $blank];
-    }
-    $area = false;
-    ?>
-<p class="muted small">정상이 아닌 항목은 결과를 바꾸고 내용·조치사항을 적어 주세요. 시설별 '이상 이력'에 모입니다.</p>
-<div class="table-scroll">
-<table class="table facility-check">
-  <thead><tr><th>시설</th><th>점검결과</th><th>내용 / 조치사항</th></tr></thead>
-  <tbody>
-  <?php foreach ([...$rows, ...$free] as $i => $it):
-      $isFree = empty($it['facility_id']);
-      $rowArea = $isFree ? '기타 (직접 입력)' : $it['area'];
-      if ($rowArea !== $area): $area = $rowArea; ?>
-        <tr class="area-row"><th colspan="3"><?= e($area) ?></th></tr>
-      <?php endif ?>
-    <tr>
+    $i = 0;
+    // 한 줄: 체크(점검함) · 시설 · 결과 · 내용
+    $row = function (array $it, bool $checked, bool $isFree = false) use (&$i, $results) {
+        ?>
+    <tr data-fac-row>
+      <td class="center"><?php if (!$isFree): ?><input type="checkbox" name="fac[<?= $i ?>][chk]" value="1" <?= $checked ? 'checked' : '' ?> data-fac-chk aria-label="점검함"><?php endif ?></td>
       <td><?php if ($isFree): ?>
             <input name="fac[<?= $i ?>][facility]" value="<?= e($it['facility']) ?>" placeholder="시설명 직접 입력">
           <?php else: ?>
             <input type="hidden" name="fac[<?= $i ?>][facility_id]" value="<?= (int) $it['facility_id'] ?>"><?= e($it['facility']) ?>
           <?php endif ?></td>
       <td><select name="fac[<?= $i ?>][result]" data-result>
-        <?php foreach (config('facility_results', ['정상']) as $r): ?>
-          <option <?= $it['result'] === $r ? 'selected' : '' ?>><?= e($r) ?></option>
-        <?php endforeach ?>
+        <?php foreach ($results as $r): ?><option <?= $it['result'] === $r ? 'selected' : '' ?>><?= e($r) ?></option><?php endforeach ?>
       </select></td>
       <td><input name="fac[<?= $i ?>][note]" value="<?= e($it['note']) ?>"></td>
     </tr>
-  <?php endforeach ?>
+        <?php
+        $i++;
+    };
+    $table = function (array $rows) use ($row) {
+        $area = false;
+        ?>
+<div class="table-scroll">
+<table class="table facility-check">
+  <thead><tr><th class="center">점검</th><th>시설</th><th>점검결과</th><th>내용 / 조치사항</th></tr></thead>
+  <tbody>
+  <?php foreach ($rows as [$it, $checked, $isFree]):
+      $rowArea = $isFree ? '기타 (직접 입력)' : ($it['area'] ?? '');
+      if ($rowArea !== $area): $area = $rowArea; ?>
+        <tr class="area-row"><th colspan="4"><?= e($area) ?></th></tr>
+      <?php endif;
+      $row($it, $checked, $isFree);
+  endforeach ?>
   </tbody>
 </table>
 </div>
+        <?php
+    };
+    $asRow = fn(array $f) => ['facility_id' => (int) $f['id'], 'area' => $f['area'], 'facility' => $f['name'], 'result' => $normal, 'note' => ''];
+    ?>
+<p class="muted small">오늘 점검한 시설에 체크하세요. 결과는 기본 '<?= e($normal) ?>' — 이상한 것만 바꾸고 내용을 적습니다 (결과를 바꾸면 자동으로 체크). 주간·월간·분기는 그 기간에 아직 안 한 시설만 나옵니다.</p>
+<?php if ($teamId && !array_filter(array_column($due, 'items'))): ?>
+  <div class="flash flash-info">이 관리팀에 점검할 세부시설이 없습니다. <a href="<?= e(url('facilities.php')) ?>">시설물</a>에서 등록하거나 점검 주기를 확인하세요. 지금은 아래에 직접 입력할 수 있습니다.</div>
+<?php endif ?>
+<?php foreach ($due as $c => $d):
+    if (!$d['items']) continue;
+    $rows = [];
+    foreach ($d['items'] as $fid => $f) {
+        if (isset($d['done'][$fid]) && !isset($mine[$fid])) continue; // 이 기간에 다른 날 이미 점검
+        $rows[] = [$mine[$fid] ?? $asRow($f), isset($mine[$fid]) || ($fresh && $c === 'day'), false];
+        unset($mine[$fid]);
+    }
+    $total = count($d['items']);
+    $left = $total - count($d['done']);
+    $head = FACILITY_CYCLES[$c] . ($c === 'day' ? " 점검 ({$total})" : " 점검 · {$d['label']} — 남은 {$left} / {$total}");
+    $open = $c === 'day' || $c === 'week' || array_filter($rows, fn($r) => $r[1]);
+    ?>
+  <details class="fac-cycle fac-<?= $c ?>" <?= $open ? 'open' : '' ?>>
+    <summary><b><?= e($head) ?></b><?php if ($c !== 'day' && $rows): ?> <button type="button" class="btn small ghost" data-fac-all>모두 체크</button><?php endif ?></summary>
+    <?php if ($rows): $table($rows); elseif ($c !== 'day'): ?><p class="muted small">이 기간 점검을 모두 마쳤습니다.</p><?php endif ?>
+    <?php if ($c !== 'day' && $d['done']): ?>
+      <p class="muted small">이미 점검: <?= e(implode(', ', array_map(fn($fid, $dt) => $d['items'][$fid]['name'] . '(' . date('n/j', strtotime($dt)) . ')', array_keys($d['done']), $d['done']))) ?></p>
+    <?php endif ?>
+  </details>
+<?php endforeach;
+    // 지금은 위탁·안 함·사용안함이 된 시설의 이 일지 기록
+    if ($mine): ?>
+  <details class="fac-cycle" open><summary><b>그 밖에 이 일지에 있던 시설</b></summary><?php $table(array_map(fn($r) => [$r, true, false], array_values($mine))) ?></details>
+<?php endif ?>
+  <details class="fac-cycle" <?= $free || !$teamId ? 'open' : '' ?>><summary><b>기타 (직접 입력)</b> <span class="muted small">등록 안 된 시설</span></summary>
+    <?php $table(array_map(fn($r) => [$r, true, true], [...$free, $blank, $blank])) ?>
+  </details>
+<script>
+(function () {
+  document.querySelectorAll('[data-fac-row]').forEach(function (tr) {
+    var chk = tr.querySelector('[data-fac-chk]');
+    if (!chk) return;
+    tr.querySelector('[data-result]').addEventListener('change', function () { chk.checked = true; });
+    tr.querySelector('input[name$="[note]"]').addEventListener('input', function () { if (this.value) chk.checked = true; });
+  });
+  document.querySelectorAll('[data-fac-all]').forEach(function (b) {
+    b.addEventListener('click', function (ev) {
+      ev.preventDefault();
+      var box = b.closest('details');
+      box.open = true;
+      box.querySelectorAll('[data-fac-chk]').forEach(function (c) { c.checked = true; });
+    });
+  });
+})();
+</script>
     <?php
 }
 

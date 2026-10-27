@@ -35,7 +35,9 @@ $st = db()->prepare(
     "SELECT j.id, j.type, j.work_date, j.status, j.author_id, j.team_id, j.revision, j.submitted_at, u.name AS author_name,
             " . SALES_AMOUNT_SQL . " AS sales_amount,
             (SELECT COUNT(*) FROM program_sessions p WHERE p.journal_id = j.id) AS prog_sessions,
-            (SELECT COALESCE(SUM(p.total), 0) FROM program_sessions p WHERE p.journal_id = j.id) AS prog_people
+            (SELECT COALESCE(SUM(p.total), 0) FROM program_sessions p WHERE p.journal_id = j.id) AS prog_people,
+            (SELECT COUNT(*) FROM facility_items fi WHERE fi.journal_id = j.id) AS fac_n,
+            (SELECT COUNT(*) FROM facility_items fi WHERE fi.journal_id = j.id AND fi.result <> " . db()->quote(normal_result()) . ") AS fac_bad
        FROM journals j JOIN users u ON u.id = j.author_id
       WHERE j.type = ? AND j.work_date BETWEEN ? AND ?
         AND (j.status <> 'draft' OR j.author_id = ? OR j.type IN ('" . implode("','", SHARED_DRAFT_TYPES) . "'))" . ($teamId ? ' AND j.team_id = ?' : '') . $facAllSql . "
@@ -69,6 +71,8 @@ $canWrite = can_write_type($user, $type); // 상품권 입고·금고점검은 �
   </div>
   <?php endif ?>
 
+  <?php if ($type === 'facility'): facility_progress($teamId ? [$teamId] : array_keys(facility_teams()), $selected ?: date('Y-m-d')); endif ?>
+
   <div class="cal-nav">
     <a class="btn" href="<?= e(url("journal.php?type=$type$tq&ym=$prev")) ?>">‹ 이전달</a>
     <strong><?= e($first->format('Y년 n월')) ?></strong>
@@ -97,6 +101,8 @@ $canWrite = can_write_type($user, $type); // 상품권 입고·금고점검은 �
         <span class="num"><?= $d->format('j') ?></span>
         <?php if (in_array($type, SALE_DOC_TYPES, true) && $items): ?>
           <span class="amt"><?= e(number_format(array_sum(array_column($items, 'sales_amount')))) ?></span>
+        <?php elseif ($type === 'facility' && $items): $bad = (int) array_sum(array_column($items, 'fac_bad')); ?>
+          <span class="amt">점검 <?= (int) array_sum(array_column($items, 'fac_n')) ?><?= $bad ? ' <b class="warn">⚠' . $bad . '</b>' : '' ?></span>
         <?php elseif (is_program_type($type) && $items): ?>
           <span class="amt"><?= (int) array_sum(array_column($items, 'prog_sessions')) ?>회 · <?= number_format(array_sum(array_column($items, 'prog_people'))) ?>명</span>
         <?php endif ?>
