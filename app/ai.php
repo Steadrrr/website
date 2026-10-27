@@ -438,6 +438,7 @@ TXT;
  */
 function ai_claude_json(string $system, string $user, array $schema, string $effort = 'medium', int $maxTokens = 16000, string $model = AI_MODEL): array
 {
+    if (is_demo()) return ['ok' => false, 'error' => '체험판에서는 실제 AI를 부르지 않습니다 (비용 없음).']; // 누구나 들어오는 체험판에서 요금이 나가지 않게
     $g = ai_gemini_on() ? ai_gemini_json($system, $user, $schema, $maxTokens) : null;
     if ($g && $g['ok']) return $g;
     $key = ai_key();
@@ -557,7 +558,7 @@ function ai_forecast_publish(array $user): array
     $hadSession = session_status() === PHP_SESSION_ACTIVE;
     if ($hadSession) session_write_close();
     ignore_user_abort(true);
-    $res = ai_claude_json(AI_FORECAST_SYSTEM, ai_mask($prompt), ai_forecast_schema());
+    $res = is_demo() ? ai_demo_forecast($facts, $rules) : ai_claude_json(AI_FORECAST_SYSTEM, ai_mask($prompt), ai_forecast_schema());
     if ($hadSession) @session_start(); // 결과 안내(flash)를 남기기 위해 다시 연다
     if (!$res['ok']) return $res;
     [$from, $to] = ai_window();
@@ -565,6 +566,29 @@ function ai_forecast_publish(array $user): array
         ->execute(['forecast', $from, $to, json_encode($facts, JSON_UNESCAPED_UNICODE), json_encode($res['data'], JSON_UNESCAPED_UNICODE), $res['model'],
                    (int) ($res['usage']['input_tokens'] ?? 0), (int) ($res['usage']['output_tokens'] ?? 0), $user['id']]);
     return ['ok' => true, 'id' => (int) db()->lastInsertId()];
+}
+
+/**
+ * 체험판 발행: 실제 AI 대신 규칙 예측·근거 숫자로 AI 답과 같은 모양의 예시를 만든다 (외부 호출 없음, 비용 0원)
+ */
+function ai_demo_forecast(array $facts, array $rules): array
+{
+    $high = array_values(array_filter($rules, fn($r) => $r['level'] === '높음'));
+    $areas = array_count_values(array_column($rules, 'area'));
+    $summary = '체험판 예시입니다 — 실제 AI를 부르지 않고 숫자 규칙으로 만들었습니다 (비용 0원). '
+        . '다음 4주 동안 미리 챙길 일 ' . count($rules) . '건' . ($areas ? ' (' . implode(', ', array_map(fn($a, $n) => "$a $n", array_keys($areas), $areas)) . ')' : '') . '이 있고, '
+        . ($high ? '그중 가장 급한 것은 ' . implode(', ', array_slice(array_column($high, 'title'), 0, 3)) . '입니다.' : '급한 일은 없습니다.');
+    $buy = [];
+    foreach ($facts['supplies'] as $s) {
+        if ($s['남은 기간(주)'] === null || $s['남은 기간(주)'] >= 8) continue;
+        $qty = max(1, (int) ceil($s['다음 8주 예상 사용'] - $s['현재 재고'] + $s['적정 재고']));
+        $buy[] = ['item' => $s['품목'], 'qty' => $qty . $s['단위'], 'est_cost' => $s['최근 단가'] ? number_format($s['최근 단가'] * $qty) . '원' : '단가 확인 필요',
+                  'reason' => "재고 {$s['현재 재고']}{$s['단위']}, 약 {$s['남은 기간(주)']}주 분"];
+        if (count($buy) >= 6) break;
+    }
+    $check = array_map(fn($r) => $r['title'] . ' — ' . $r['action'], array_slice($high ?: $rules, 0, 5));
+    return ['ok' => true, 'model' => '체험판 예시 (AI 호출 없음)', 'usage' => ['input_tokens' => 0, 'output_tokens' => 0],
+            'data' => ['summary' => $summary, 'items' => array_slice($rules, 0, 12), 'purchase_list' => $buy, 'checklist' => $check]];
 }
 
 /** 가장 최근 예측 (없으면 null) */

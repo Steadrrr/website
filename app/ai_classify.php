@@ -161,7 +161,7 @@ function cpl_suggest(string $text): array
 {
     $by = 'rule';
     $r = null;
-    if (ai_any_key() && cpl_ai_take_quota()) {
+    if (!is_demo() && ai_any_key() && cpl_ai_take_quota()) { // 체험판은 낱말 규칙만 (요금 없음)
         $ai = cpl_ai_classify($text);
         if ($ai['ok']) {
             $r = $ai;

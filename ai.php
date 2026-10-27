@@ -25,7 +25,7 @@ $can = ['민원' => can_menu($user, 'ops'), '시설' => can_menu($user, 'fac'), 
 $canAll = !in_array(false, $can, true);
 $rules = array_values(array_filter(ai_rule_items($facts), fn($r) => $can[$r['area']] ?? false));
 $latest = ai_latest();
-$hasKey = ai_any_key();
+$hasKey = is_demo() || ai_any_key(); // 체험판은 키 없이도 '예시 발행' (실제 AI 호출 없음)
 $publishedToday = ai_published_today();
 [$from, $to] = ai_window();
 $ai = $latest['data'] ?? null;
@@ -48,7 +48,8 @@ layout_header('AI 분석', 'ai');
     <form method="post" data-ai-run>
       <?= csrf_field() ?><input type="hidden" name="action" value="run">
       <button class="btn primary ai-run" title="1회 발행 약 150원 — 자판기 커피 반 잔 값 ☕">✨ 오늘 AI 예측 발행</button>
-      <div class="muted tiny-text">하루 한 번 · 30초~1분 걸립니다<?php if (is_demo() || !empty($user['is_admin'])): ?> · <a href="<?= e(url('ai_key.php')) ?>">API 키</a><?php endif ?></div>
+      <?php if (is_demo()): ?><div class="muted tiny-text">체험판은 실제 AI 대신 <b>숫자로 만든 예시</b>를 발행합니다 · 비용 0원</div>
+      <?php else: ?><div class="muted tiny-text">하루 한 번 · 30초~1분 걸립니다<?php if (!empty($user['is_admin'])): ?> · <a href="<?= e(url('ai_key.php')) ?>">API 키</a><?php endif ?></div><?php endif ?>
     </form>
   <?php elseif ($publishedToday): ?>
     <div class="muted tiny-text ai-published">✅ 오늘 예측 발행됨</div>
@@ -67,7 +68,7 @@ layout_header('AI 분석', 'ai');
 <section class="card ai-result">
   <div class="ai-result-head">
     <h2>AI 예측 <?= $fresh ? '<span class="chip">오늘 발행</span>' : '<span class="chip">' . e($md($latest['created_at'])) . ' 발행본</span>' ?></h2>
-    <span class="muted tiny-text"><?= e(date('n/j H:i', strtotime($latest['created_at']))) ?> 발행 · <?= e($latest['user_name'] ?? '') ?> · 대상 <?= e($md($latest['period_from'])) ?>~<?= e($md($latest['period_to'])) ?><?= $fresh ? '' : ' · <b>오늘은 아직 발행 전 — 최근 발행본입니다</b>' ?><?php if (str_starts_with((string) $latest['model'], 'gemini')): ?> · <span title="<?= e($latest['model']) ?>">구글 AI로 발행</span><?php elseif ($c = ai_cost_won($latest)): ?> · <span title="자판기 커피 반 잔 값으로 4주를 미리 봅니다 ☕">💸 이번 발행 약 <?= number_format($c) ?>원</span><?php endif ?> · <a href="<?= e(url('ai_review.php?id=' . (int) $latest['id'])) ?>">🔁 실제와 비교</a></span>
+    <span class="muted tiny-text"><?= e(date('n/j H:i', strtotime($latest['created_at']))) ?> 발행 · <?= e($latest['user_name'] ?? '') ?> · 대상 <?= e($md($latest['period_from'])) ?>~<?= e($md($latest['period_to'])) ?><?= $fresh ? '' : ' · <b>오늘은 아직 발행 전 — 최근 발행본입니다</b>' ?><?php if (str_starts_with((string) $latest['model'], '체험판')): ?> · 체험판 예시 (AI 호출 없음 · 0원)<?php elseif (str_starts_with((string) $latest['model'], 'gemini')): ?> · <span title="<?= e($latest['model']) ?>">구글 AI로 발행</span><?php elseif ($c = ai_cost_won($latest)): ?> · <span title="자판기 커피 반 잔 값으로 4주를 미리 봅니다 ☕">💸 이번 발행 약 <?= number_format($c) ?>원</span><?php endif ?> · <a href="<?= e(url('ai_review.php?id=' . (int) $latest['id'])) ?>">🔁 실제와 비교</a></span>
   </div>
   <?php if ($canAll): ?><p class="ai-summary"><?= nl2br(e($ai['summary'] ?? '')) ?></p><?php endif ?>
   <div class="ai-items">
