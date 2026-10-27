@@ -131,7 +131,7 @@ layout_header('AI 연결 (API 키)', 'ai');
   <?php endif ?>
   <form method="post" autocomplete="off">
     <?= csrf_field() ?><input type="hidden" name="gemini" value="save">
-    <label><?= $gKey === '' ? '구글 AI 키' : '새 구글 AI 키로 바꾸기' ?> <input name="gemini_key" type="password" placeholder="구글 AI Studio 의 API 키 (AIza…)" autocomplete="off" required></label>
+    <label><?= $gKey === '' ? '구글 AI 키' : '새 구글 AI 키로 바꾸기' ?> <input name="gemini_key" type="password" placeholder="구글 AI Studio 의 API 키 (AQ.… 또는 AIza…)" autocomplete="off" required></label>
     <button class="btn block">구글 키 확인 후 저장</button>
   </form>
   <p class="muted tiny-text">키는 서버의 <code>app/gemini_key.txt</code> 에만 저장됩니다. 저장할 때 구글에 키가 맞는지 확인하고 쓸 수 있는 모델 중 하나를 자동으로 고릅니다 (비용 없음).

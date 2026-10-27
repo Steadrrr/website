@@ -66,7 +66,8 @@ function ai_gemini_get(string $key, string $path): array
 function ai_gemini_verify(string $key): array
 {
     if (!function_exists('curl_init')) return ['error' => '서버에 curl 기능이 없어 AI 에 연결할 수 없습니다.', 'models' => []];
-    if (!preg_match('/^[A-Za-z0-9_\-]{30,60}$/', $key)) return ['error' => "키 모양이 맞지 않습니다. 구글 AI Studio 의 'API 키'(보통 AIza 로 시작) 전체를 붙여 넣어 주세요.", 'models' => []];
+    // 옛 키는 AIza…(39자), 2026년부터 AI Studio 가 주는 새 키는 'AQ.' 로 시작하고 더 길다 — 모양은 넓게 받고 실제 확인은 구글에 맡긴다
+    if (!preg_match('/^[A-Za-z0-9_.\-]{20,400}$/', $key)) return ['error' => "키 모양이 맞지 않습니다. 구글 AI Studio 의 'API 키'(AQ. 또는 AIza 로 시작) 전체를 띄어쓰기 없이 붙여 넣어 주세요.", 'models' => []];
     [$code, $res, $err] = ai_gemini_get($key, 'models?pageSize=1000');
     if ($err !== '') return ['error' => '서버에서 구글에 연결하지 못했습니다. (' . $err . ')', 'models' => []];
     if ($code !== 200) {
