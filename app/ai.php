@@ -128,6 +128,65 @@ function ai_days(string $from, string $to): int
     return (int) round((strtotime($to) - strtotime($from)) / 86400) + 1;
 }
 
+/** 계획된 공사·폐쇄·통제인가 (고장이 아님) */
+function ai_is_planned(string $note): bool
+{
+    return (bool) preg_match('/공사|폐쇄|통제|사용 ?안 ?함|미운영|철거/u', $note);
+}
+
+/**
+ * 그 날 진행 중인 이상 — 같은 구역에서 결과·내용이 같으면 한 줄로 ('101호 외 14곳')
+ * @return array{list: array, ids: int[]}
+ */
+function ai_open_issues(string $date): array
+{
+    $st = db()->prepare("SELECT i.*, f.name, g.name AS area FROM facility_issues i JOIN facilities f ON f.id = i.facility_id JOIN asset_groups g ON g.id = f.group_id
+                          WHERE i.start_date <= ? AND (i.end_date IS NULL OR i.end_date >= ?) ORDER BY i.start_date");
+    $st->execute([$date, $date]);
+    $groups = $ids = [];
+    foreach ($st as $r) {
+        $ids[] = (int) $r['facility_id'];
+        $k = $r['area'] . '|' . $r['result'] . '|' . $r['note'];
+        $groups[$k] ??= ['구역' => $r['area'], '시설' => [], '결과' => $r['result'], '내용' => mb_substr((string) $r['note'], 0, 80), '시작' => $r['start_date'],
+                         '며칠째' => ai_days($r['start_date'], $date), '계획된 공사·폐쇄' => $r['result'] !== '수리요청' && ai_is_planned((string) $r['note'])]; // 수리요청은 공사가 잡혀 있어도 고장
+        $groups[$k]['시설'][] = $r['name'];
+    }
+    $list = array_map(function ($g) {
+        $g['시설'] = count($g['시설']) > 2 ? $g['시설'][0] . ' 외 ' . (count($g['시설']) - 1) . '곳' : implode(', ', $g['시설']);
+        return $g;
+    }, array_values($groups));
+    usort($list, fn($a, $b) => [$a['계획된 공사·폐쇄'], -$a['며칠째']] <=> [$b['계획된 공사·폐쇄'], -$b['며칠째']]); // 고장 먼저, 오래된 것 먼저
+    return ['list' => array_slice($list, 0, 20), 'ids' => array_values(array_unique($ids))];
+}
+
+/**
+ * 기간 안 점검일지 이상(정상 아님)을 시설별 '일'로 묶기 — 3일 넘게 끊기면 다른 일
+ * @param int[] $exclude 이 시설은 뺀다 (진행 중 이상으로 따로 보냄)
+ */
+function ai_check_episodes(string $from, string $to, array $exclude, int $limit): array
+{
+    $st = db()->prepare("SELECT fi.facility_id, fi.area, fi.facility, fi.result, fi.note, j.work_date FROM facility_items fi JOIN journals j ON j.id = fi.journal_id
+                          WHERE j.type = 'facility' AND j.status <> 'rejected' AND j.work_date BETWEEN ? AND ? AND fi.result NOT IN (?, '조치완료') ORDER BY j.work_date");
+    $st->execute([$from, $to, normal_result()]);
+    $skip = array_flip($exclude);
+    $by = [];
+    foreach ($st as $r) {
+        if ($r['facility_id'] && isset($skip[(int) $r['facility_id']])) continue;
+        $k = $r['facility_id'] ?: $r['area'] . '|' . $r['facility'];
+        $e = &$by[$k];
+        $e ??= ['구역' => $r['area'], '시설' => $r['facility'], '이상 횟수(이어진 날은 한 번)' => 0, '이상인 날' => 0, '처음' => $r['work_date'], '마지막' => null, '최근 내용' => ''];
+        if (!$e['마지막'] || ai_days($e['마지막'], $r['work_date']) > 4) $e['이상 횟수(이어진 날은 한 번)']++;
+        if ($e['마지막'] !== $r['work_date']) $e['이상인 날']++;
+        $e['마지막'] = $r['work_date'];
+        $e['결과'] = $r['result'];
+        if ((string) $r['note'] !== '') $e['최근 내용'] = mb_substr((string) $r['note'], 0, 60);
+        unset($e);
+    }
+    $out = array_values($by);
+    usort($out, fn($a, $b) => [$b['이상 횟수(이어진 날은 한 번)'], $b['마지막']] <=> [$a['이상 횟수(이어진 날은 한 번)'], $a['마지막']]);
+    return array_slice($out, 0, $limit);
+}
+
 /**
  * AI에게 줄 통계 근거 (개인정보 없음)
  * @return array{period: array, rooms: array, complaints: array, equipment: array, facility_checks: array, supplies: array, purchases: array}
@@ -199,12 +258,14 @@ function ai_facts(): array
     usort($equipment, fn($a, $b) => $b['_score'] <=> $a['_score']);
     $equipment = array_slice($equipment, 0, 20);
 
-    // 시설점검: 최근 8주 '정상' 아닌 결과
-    $st = $pdo->prepare("SELECT fi.area, fi.facility, fi.result, COUNT(*) n, MAX(j.work_date) last FROM facility_items fi JOIN journals j ON j.id = fi.journal_id
-                          WHERE j.type = 'facility' AND j.work_date >= ? AND fi.result <> ? GROUP BY fi.area, fi.facility, fi.result ORDER BY n DESC LIMIT 15");
-    $st->execute([$w8, (config('facility_results', ['정상'])[0] ?? '정상')]);
-    $checks = [];
-    foreach ($st as $r) $checks[] = ['구역' => $r['area'], '시설' => $r['facility'], '결과' => $r['result'], '최근 8주 횟수' => (int) $r['n'], '마지막' => $r['last']];
+    // 시설점검: 진행 중 이상(계획된 공사·폐쇄는 따로 표시) · 최근 8주 이상 · 작년 같은 기간 이상
+    //  매일 이어지는 같은 이상은 한 번의 일로 센다 — 그러지 않으면 공사로 폐쇄된 방 몇 개가 목록을 다 차지한다
+    $open = ai_open_issues($today);
+    $checks = [
+        '진행 중 이상' => $open['list'],
+        '최근 8주 이상 (이어진 날은 한 번)' => ai_check_episodes($w8, $today, $open['ids'], 15),
+        '작년 같은 기간 이상' => ai_check_episodes($lyFrom, $lyTo, [], 10),
+    ];
 
     // 소모품: 재고 · 최근 8주 사용량 · 다음 8주 예상 사용량
     $stock = supply_stock_before(date('Y-m-d')); // 어제까지의 재고
@@ -301,6 +362,14 @@ function ai_rule_items(array $f): array
             $items[] = ['area' => '시설', 'level' => '보통', 'title' => "{$e['설비']} 작년 이맘때 고장", 'why' => implode(', ', $e['작년 이맘때(±2주) 수리']), 'action' => '시기 전에 미리 점검', 'when' => $when];
         }
     }
+    foreach ($f['facility_checks']['진행 중 이상'] ?? [] as $o) {
+        if ($o['계획된 공사·폐쇄'] || $o['며칠째'] < 14) continue;
+        $items[] = ['area' => '시설', 'level' => $o['며칠째'] >= 60 ? '높음' : '보통', 'title' => "{$o['시설']} {$o['결과']} {$o['며칠째']}일째", 'why' => "{$o['시작']}부터 진행 중: {$o['내용']}", 'action' => '수리 일정·업체 확인', 'when' => '이번 주'];
+    }
+    foreach ($f['facility_checks']['작년 같은 기간 이상'] ?? [] as $c) {
+        if ($c['이상 횟수(이어진 날은 한 번)'] < 1 || ai_is_planned($c['최근 내용'])) continue;
+        $items[] = ['area' => '시설', 'level' => '낮음', 'title' => "{$c['구역']} {$c['시설']} 작년 이맘때 점검 이상", 'why' => "작년 {$c['처음']}~{$c['마지막']}: {$c['최근 내용']}", 'action' => '시기 전에 미리 점검', 'when' => '4주 안'];
+    }
     foreach ($f['supplies'] as $s) {
         $weeks = $s['남은 기간(주)'];
         if ($weeks === null) continue;
@@ -353,6 +422,8 @@ const AI_FORECAST_SYSTEM = <<<'TXT'
 - 주어진 숫자에 있는 사실만 근거로 씁니다. 숫자를 지어내거나 확률(%)을 만들지 마세요. why 에는 근거가 된 숫자(건수·날짜·재고)를 그대로 적습니다.
 - 계절·날씨처럼 상식적인 판단을 더할 때는 why 에 "계절 특성" 이라고 밝힙니다.
 - 작년 자료가 없거나 적으면 그렇다고 말하고, 그 항목은 level 을 낮춥니다.
+- 시설점검의 '진행 중 이상' 중 '계획된 공사·폐쇄'가 true 인 것은 고장이 아닙니다. 공사 일정·안전 통제 확인 정도로만 다루고, 고장(수리요청)이 오래 이어지는 것을 먼저 챙깁니다.
+- 시설점검 이상 횟수는 이어진 날을 한 번으로 센 것입니다.
 - 읽는 사람은 현장 직원입니다. 쉬운 우리말로 짧게 쓰고, 영어·전문용어를 피합니다.
 - items 는 중요한 순서로 최대 8개. 같은 내용은 하나로 묶습니다. action 은 바로 할 수 있는 일 한 문장.
 - purchase_list 는 소모품 재고·사용 속도·최근 단가로 다음 4~8주 안에 사야 할 것만. 예상 금액은 최근 단가 × 수량으로 계산하고 단가를 모르면 "단가 확인 필요".
