@@ -362,12 +362,15 @@ TXT;
 
 /**
  * Claude 호출 (structured outputs, JSON 응답). $model 기본은 AI 분석용 AI_MODEL (민원 분류 제안은 가벼운 Haiku)
+ * 구글 키가 있으면 구글(app/ai_gemini.php)을 먼저 쓰고, 실패하면 여기서 Claude 로 보낸다.
  * @return array{ok: bool, data?: array, error?: string, model?: string, usage?: array}
  */
 function ai_claude_json(string $system, string $user, array $schema, string $effort = 'medium', int $maxTokens = 16000, string $model = AI_MODEL): array
 {
+    $g = ai_gemini_on() ? ai_gemini_json($system, $user, $schema, $maxTokens) : null;
+    if ($g && $g['ok']) return $g;
     $key = ai_key();
-    if ($key === '') return ['ok' => false, 'error' => 'API 키가 설정되지 않았습니다.'];
+    if ($key === '') return ['ok' => false, 'error' => $g ? $g['error'] : 'API 키가 설정되지 않았습니다.'];
     if (!function_exists('curl_init')) return ['ok' => false, 'error' => '서버에 curl 기능이 없습니다.'];
     // Haiku 는 서버 쪽 대체 모델(fallbacks)이 없다 — 넣으면 오류가 날 수 있어 빼고, 거절은 아래 refusal 처리로
     $fallback = !str_starts_with($model, 'claude-haiku');
@@ -444,6 +447,7 @@ function ai_mask(string $s): string
 /** 발행 비용 (원, 대략) — 이스터에그: Opus 5.5 단가 입력 $4·출력 $20 / 100만 토큰, 1달러 ≈ 1,400원 */
 function ai_cost_won(array $insight): int
 {
+    if (str_starts_with((string) ($insight['model'] ?? ''), 'gemini')) return 0; // 구글 충전금으로 발행 — 화면에 '구글 AI'로 표시
     $usd = ((int) $insight['input_tokens'] * 4 + (int) $insight['output_tokens'] * 20) / 1000000;
     return (int) (round($usd * 1400 / 10) * 10);
 }

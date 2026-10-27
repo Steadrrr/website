@@ -25,7 +25,7 @@ $can = ['민원' => can_menu($user, 'ops'), '시설' => can_menu($user, 'fac'), 
 $canAll = !in_array(false, $can, true);
 $rules = array_values(array_filter(ai_rule_items($facts), fn($r) => $can[$r['area']] ?? false));
 $latest = ai_latest();
-$hasKey = ai_key() !== '';
+$hasKey = ai_any_key();
 $publishedToday = ai_published_today();
 [$from, $to] = ai_window();
 $ai = $latest['data'] ?? null;
@@ -67,7 +67,7 @@ layout_header('AI 분석', 'ai');
 <section class="card ai-result">
   <div class="ai-result-head">
     <h2>AI 예측 <?= $fresh ? '<span class="chip">오늘 발행</span>' : '<span class="chip">' . e($md($latest['created_at'])) . ' 발행본</span>' ?></h2>
-    <span class="muted tiny-text"><?= e(date('n/j H:i', strtotime($latest['created_at']))) ?> 발행 · <?= e($latest['user_name'] ?? '') ?> · 대상 <?= e($md($latest['period_from'])) ?>~<?= e($md($latest['period_to'])) ?><?= $fresh ? '' : ' · <b>오늘은 아직 발행 전 — 최근 발행본입니다</b>' ?><?php if ($c = ai_cost_won($latest)): ?> · <span title="자판기 커피 반 잔 값으로 4주를 미리 봅니다 ☕">💸 이번 발행 약 <?= number_format($c) ?>원</span><?php endif ?> · <a href="<?= e(url('ai_review.php?id=' . (int) $latest['id'])) ?>">🔁 실제와 비교</a></span>
+    <span class="muted tiny-text"><?= e(date('n/j H:i', strtotime($latest['created_at']))) ?> 발행 · <?= e($latest['user_name'] ?? '') ?> · 대상 <?= e($md($latest['period_from'])) ?>~<?= e($md($latest['period_to'])) ?><?= $fresh ? '' : ' · <b>오늘은 아직 발행 전 — 최근 발행본입니다</b>' ?><?php if (str_starts_with((string) $latest['model'], 'gemini')): ?> · <span title="<?= e($latest['model']) ?>">구글 AI로 발행</span><?php elseif ($c = ai_cost_won($latest)): ?> · <span title="자판기 커피 반 잔 값으로 4주를 미리 봅니다 ☕">💸 이번 발행 약 <?= number_format($c) ?>원</span><?php endif ?> · <a href="<?= e(url('ai_review.php?id=' . (int) $latest['id'])) ?>">🔁 실제와 비교</a></span>
   </div>
   <?php if ($canAll): ?><p class="ai-summary"><?= nl2br(e($ai['summary'] ?? '')) ?></p><?php endif ?>
   <div class="ai-items">
