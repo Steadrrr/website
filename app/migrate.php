@@ -6,7 +6,7 @@ defined('APP_ROOT') || exit;
  * 새 버전 파일을 FTP로 덮어쓰기만 하면, 첫 접속 때 부족한 테이블/컬럼을 만든다.
  * (기존 자료는 그대로 유지)
  */
-const DB_VERSION = 58; // v57: facility_issues (진행 중 이상), v58: legal_checks·legal_check_logs (법정점검) — schema.sql 의 CREATE TABLE 로 생김
+const DB_VERSION = 59; // v57: facility_issues (진행 중 이상), v58: legal_checks·legal_check_logs (법정점검) — schema.sql 의 CREATE TABLE 로 생김, v59: 2026 법정점검 기록
 
 function db_version(): int
 {
@@ -473,6 +473,37 @@ function db_migrate(): void
             ['어린이놀이시설 정기시설검사', 'year2', '숲속놀이터 · 유아숲체험원', '어린이놀이시설 안전관리법 — 2년에 1회 안전검사기관 정기시설검사 (월 1회 안전점검은 시설점검일지에서)'],
             ['저수조 청소', 'half', '물탱크 6곳', '수도법 — 반기 1회 청소'],
         ] as $i => [$n, $c, $t, $b]) $ins->execute([$n, $c, $t, $b, ($i + 1) * 10]);
+    }
+
+    // v59: 2026년 업무보고(단톡방)에 남은 법정점검 기록을 한 번만 넣는다 (사용자 요청 2026-10-27, 운영 사이트만)
+    if (!is_demo() && !(int) $pdo->query("SELECT COUNT(*) FROM settings WHERE name = 'legal_seed_2026'")->fetchColumn()) {
+        $find = $pdo->prepare('SELECT id FROM legal_checks WHERE name = ?');
+        $addCheck = $pdo->prepare('INSERT INTO legal_checks (name, cycle, target, basis, sort_order) VALUES (?, ?, ?, ?, (SELECT COALESCE(MAX(c.sort_order), 0) + 10 FROM legal_checks c))');
+        $has = $pdo->prepare('SELECT COUNT(*) FROM legal_check_logs WHERE check_id = ? AND done_date = ?');
+        $addLog = $pdo->prepare('INSERT INTO legal_check_logs (check_id, done_date, vendor, note) VALUES (?, ?, ?, ?)');
+        foreach ([
+            ['전기설비 정기검사', 'year3', '산림교육센터', '전기안전관리법 정기검사 — 주기는 설비마다 다름(확인 필요)'],
+            ['수질검사', 'year', '산림교육센터', '지하수 수질검사 — 주기 확인 필요'],
+        ] as [$n, $c, $t, $b]) {
+            $find->execute([$n]);
+            if (!$find->fetchColumn()) $addCheck->execute([$n, $c, $t, $b]);
+        }
+        foreach ([
+            ['전기설비(수전) 위탁 점검', '2026-01-21', null, '신규 전기안전관리 업체 인수인계 중 점검'],
+            ['전기설비(수전) 위탁 점검', '2026-03-16', null, '전기 외주업체 월간 점검'],
+            ['전기설비(수전) 위탁 점검', '2026-04-20', '중부전력', '전기실 점검 완료'],
+            ['전기설비(수전) 위탁 점검', '2026-06-09', null, '전기안전점검 — 한전 인입주 소나무 조치 요청'],
+            ['승강기(휠체어리프트) 자체점검', '2026-03-05', null, '승강기 안전점검필증 부착'],
+            ['저수조 청소', '2026-04-22', null, '전체 저수조 6곳 청소 (치유센터 제외 당일 사용 가능)'],
+            ['전기설비 정기검사', '2026-08-11', null, '산림교육센터 전기설비 정기검사 (전기안전관리 용역 담당 입회)'],
+            ['수질검사', '2026-08-26', '중앙생명연구원', '산림교육센터 수질검사'],
+        ] as [$n, $d, $v, $note]) {
+            $find->execute([$n]);
+            if (!($cid = (int) $find->fetchColumn())) continue;
+            $has->execute([$cid, $d]);
+            if (!(int) $has->fetchColumn()) $addLog->execute([$cid, $d, $v, $note . ' (업무보고 기록으로 넣음)']);
+        }
+        $pdo->exec("INSERT INTO settings (name, value) VALUES ('legal_seed_2026', '1')");
     }
 
     $pdo->prepare("INSERT INTO settings (name, value) VALUES ('db_version', ?) ON DUPLICATE KEY UPDATE value = VALUES(value)")
