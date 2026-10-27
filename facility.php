@@ -9,11 +9,11 @@ $showAll = !empty($_GET['all']);
 $from = valid_date($_GET['from'] ?? '') ? $_GET['from'] : '';
 $to = valid_date($_GET['to'] ?? '') ? $_GET['to'] : '';
 $normal = normal_result();
+$canIssue = true; // 시설관리 메뉴를 쓰는 사람 누구나 (사용자 결정 2026-10-27)
 
-// 진행 중 이상(기간 이상) 만들기·끝내기·지우기 — 주무관 이상 (일지에서는 '해결될 때까지 계속'으로 누구나)
+// 진행 중 이상(기간 이상) 만들기·끝내기·지우기 — 시설관리 메뉴를 쓰는 사람 누구나 (일지에서는 '해결될 때까지 계속'으로 누구나)
 if (is_post()) {
     csrf_verify();
-    if (!can_manage_assets($user)) abort(403, '진행 중 이상은 주무관 이상이 직접 정합니다. 점검일지에서 \'해결될 때까지 계속\'을 체크해도 됩니다.');
     $act = post('act');
     $iid = (int) post('issue_id');
     if ($act === 'issue_add') {
@@ -85,14 +85,14 @@ layout_header($f['name'], 'facilities');
     <h3>진행 중 이상 · 기간 이상 <small class="muted">이 기간에는 점검일지에 계속 이상으로 나옵니다</small></h3>
     <?php if ($issues): ?>
     <div class="table-scroll"><table class="table">
-      <thead><tr><th>기간</th><th>결과</th><th>내용</th><th>등록</th><?php if (can_manage_assets($user)): ?><th class="no-print"></th><?php endif ?></tr></thead>
+      <thead><tr><th>기간</th><th>결과</th><th>내용</th><th>등록</th><?php if ($canIssue): ?><th class="no-print"></th><?php endif ?></tr></thead>
       <tbody>
       <?php foreach ($issues as $is): $open = !$is['end_date'] || $is['end_date'] >= date('Y-m-d'); ?>
         <tr class="<?= $open ? 'issue' : '' ?>">
           <td class="nowrap"><?= e(date('Y.n.j', strtotime($is['start_date']))) ?> ~ <?= $is['end_date'] ? e(date('Y.n.j', strtotime($is['end_date']))) : '<b class="warn">진행 중</b>' ?></td>
           <td><span class="result r-<?= e($is['result']) ?>"><?= e($is['result']) ?></span></td><td><?= e((string) $is['note']) ?></td>
           <td class="small muted nowrap"><?= e($is['user_name'] ?? '') ?></td>
-          <?php if (can_manage_assets($user)): ?><td class="no-print nowrap">
+          <?php if ($canIssue): ?><td class="no-print nowrap">
             <?php if (!$is['end_date']): ?><form method="post" class="inline"><?= csrf_field() ?><input type="hidden" name="act" value="issue_close"><input type="hidden" name="issue_id" value="<?= (int) $is['id'] ?>">
               <input type="date" name="end_date" value="<?= e(date('Y-m-d')) ?>" required><button class="btn small">해결</button></form><?php endif ?>
             <form method="post" class="inline" onsubmit="return confirm('이 진행 중 이상을 지울까요? (점검일지 기록은 그대로)')"><?= csrf_field() ?><input type="hidden" name="act" value="issue_delete"><input type="hidden" name="issue_id" value="<?= (int) $is['id'] ?>"><button class="btn small ghost">지우기</button></form>
@@ -101,8 +101,8 @@ layout_header($f['name'], 'facilities');
       <?php endforeach ?>
       </tbody></table></div>
     <?php else: ?><p class="muted small">진행 중인 이상이 없습니다.</p><?php endif ?>
-    <?php if (can_manage_assets($user)): ?>
-    <details class="no-print"><summary class="small">+ 기간 이상 등록 (예: 공사로 폐쇄, 누수 수리 대기)</summary>
+    <?php if ($canIssue): ?>
+    <details class="no-print issue-add"><summary class="btn">+ 기간 이상 등록</summary> <span class="muted small">예: 공사로 폐쇄, 누수 수리 대기</span>
       <form method="post" class="row">
         <?= csrf_field() ?><input type="hidden" name="act" value="issue_add">
         <label>시작일<input type="date" name="start_date" value="<?= e(date('Y-m-d')) ?>" required></label>

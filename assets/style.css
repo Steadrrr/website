@@ -1332,3 +1332,8 @@ label .tm-pick { display: flex; margin-top: .25rem; }
 .fac-keep { display: block; margin-top: .2rem; font-weight: 400; color: var(--muted); }
 .fac-keep[hidden] { display: none; }
 .fac-issues { margin: .6rem 0 1rem; }
+
+.issue-add > summary { display: inline-flex; list-style: none; cursor: pointer; margin: .3rem 0; }
+.issue-add > summary::-webkit-details-marker { display: none; }
+.issue-add[open] > summary { background: #eef5f0; }
+.issue-add form { margin-top: .5rem; }
