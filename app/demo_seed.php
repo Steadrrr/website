@@ -1,6 +1,8 @@
 <?php
 defined('APP_ROOT') || exit;
 
+/* 자료를 바꾸면 app/demo.php 의 DEMO_SEED_VERSION 을 1 올린다 (안 올리면 다음 날에야 새 자료가 보인다) */
+
 /*
  * 체험판 가상 자료 만들기 (app/demo.php 의 demo_seed() 가 초기화할 때만 불러온다)
  *

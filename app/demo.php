@@ -31,7 +31,7 @@ function demo_maybe_reset(): void
         @mkdir(dirname($ht), 0755, true);
         @file_put_contents($ht, DEMO_UPLOADS_HTACCESS);
     }
-    $today = date('Y-m-d');
+    $today = demo_seed_mark();
     if (setting('demo_seeded_on') === $today) return;
     $pdo = db();
     $users = (int) $pdo->query('SELECT COUNT(*) FROM users')->fetchColumn();
@@ -53,6 +53,15 @@ function demo_maybe_reset(): void
     } finally {
         $pdo->query("SELECT RELEASE_LOCK(CONCAT(DATABASE(), '_demo_reset'))");
     }
+}
+
+/** 가상 자료 판 번호 — demo_seed.php 의 자료를 바꾸면 1 올린다 (배포 후 첫 접속 때 오늘 자료를 새로 만든다) */
+const DEMO_SEED_VERSION = 2;
+
+/** 오늘 + 자료 판 번호 (날짜가 바뀌거나 판 번호가 바뀌면 다시 만든다) */
+function demo_seed_mark(): string
+{
+    return date('Y-m-d') . '#' . DEMO_SEED_VERSION;
 }
 
 /** 데모 자료 전체 다시 만들기 */
@@ -77,7 +86,7 @@ function demo_seed(): void
     $pdo->beginTransaction();
     try {
         demo_seed_data();
-        setting_set('demo_seeded_on', date('Y-m-d'));
+        setting_set('demo_seeded_on', demo_seed_mark());
         $pdo->commit();
     } catch (Throwable $e) {
         $pdo->rollBack();

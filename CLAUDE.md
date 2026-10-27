@@ -25,6 +25,7 @@
 ## 체험판 (/demo) · 경진대회
 - 경진대회 작업은 `contest` 브랜치에서 한다. 커밋 메시지에 `[데모배포]` 가 있을 때만 체험판(/demo)에 배포된다.
 - 체험판: `app/demo.php`, `demo_db.php`, `demo_seed.php`, `config.demo.php`. 운영과 같은 DB 의 `demo_` 표를 쓰고 세션은 따로 둔다.
+- 체험판 가상 자료(`app/demo_seed.php`)를 바꾸면 `app/demo.php` 의 `DEMO_SEED_VERSION` 을 1 올린다 (배포 후 첫 접속 때 다시 만든다).
 - AI 분석 API 키는 서버의 `app/anthropic_key.txt` 에만 둔다 (gitignore, 절대 커밋 금지). 입력은 `ai_key.php` 화면에서.
 - 경위·진행 기록: `dev/contest-plan.md` 10절.
 
