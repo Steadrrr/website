@@ -1346,3 +1346,5 @@ label .tm-pick { display: flex; margin-top: .25rem; }
 .legal-year td.warn { color: #b3261e; }
 .legal-edit { align-items: end; border-bottom: 1px dashed var(--line); padding: .4rem 0; }
 .legal-edit.new { background: #f7faf7; }
+/* 체험판 방문자 수 (화면 아래 구석) */
+.demo-visits { font-size: .75rem; color: var(--muted); margin-top: .3rem; }

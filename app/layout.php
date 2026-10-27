@@ -217,11 +217,12 @@ function layout_footer(array $scripts = []): void
 <a class="help-fab no-print" href="<?= e(url('help.php') . ($anchor ? '#' . $anchor : '')) ?>" target="_blank" data-help-fab title="이 화면 도움말" aria-label="이 화면 도움말">?</a>
 <?php endif ?>
 <?php if (current_user()): ?>
-<footer class="footer"><?= e(config('site_name', '')) ?></footer>
+<footer class="footer"><?= e(config('site_name', '')) ?><?= demo_visit_badge() ?></footer>
 <?php else: // 로그인·회원가입 화면: 사이트 이름을 크게 + 저작권 문구 ?>
 <footer class="footer footer-login">
   <div class="footer-site"><?= e(config('site_name', '')) ?></div>
   <div class="footer-copy">Copyright © 2026 임일래 · Made with Claude.ai</div>
+  <?= demo_visit_badge() ?>
 </footer>
 <?php endif ?>
 <script src="<?= e(asset_url('assets/app.js')) ?>"></script>

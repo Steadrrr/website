@@ -138,7 +138,8 @@ if ($dbOk && db_version() < DB_VERSION) {
             . "\n\n이 화면을 캡처해서 개발 담당자에게 보내 주세요.");
     }
 }
-if ($dbOk) demo_maybe_reset(); // 체험용 데모 사이트: 날짜가 바뀌면 가상 자료를 새로 만든다 (운영 사이트는 아무것도 안 함)
+if ($dbOk) demo_maybe_reset();
+if ($dbOk) demo_count_visit(); // 체험판 방문자 수 (오늘·누적, 운영 사이트는 아무것도 안 함) // 체험용 데모 사이트: 날짜가 바뀌면 가상 자료를 새로 만든다 (운영 사이트는 아무것도 안 함)
 // 사이트 이름: 설정 › 기본 정보에서 정한 이름이 있으면 그것을 쓴다 (없으면 config.php 의 site_name)
 //  체험판은 누구나 관리자로 들어오므로 설정 이름을 쓰지 않고 config.demo.php 의 이름만 쓴다
 $GLOBALS['CONFIG']['site_name_file'] = config('site_name', '');

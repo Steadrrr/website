@@ -215,3 +215,40 @@ function demo_verify_main_admin_locked(string $username, string $password): ?str
     setting_set('main_admin_fail', json_encode(['n' => 0, 't' => 0]));
     return null;
 }
+
+/*
+ * 체험판 방문자 수: 같은 브라우저는 하루 1명 (쿠키), 로봇·자동 점검은 빼고 센다.
+ *  settings 에 demo_visit_total(누적)·demo_visit_YYYY-MM-DD(그날) — settings 는 매일 밤 초기화에서도 남는다.
+ */
+function demo_count_visit(): void
+{
+    if (!is_demo() || ($_SERVER['REQUEST_METHOD'] ?? '') !== 'GET' || !empty($_SERVER['HTTP_X_REQUESTED_WITH'])) return;
+    $ua = (string) ($_SERVER['HTTP_USER_AGENT'] ?? '');
+    if ($ua === '' || preg_match('/bot|crawl|spider|slurp|preview|monitor|curl|wget|python|headless|lighthouse/i', $ua)) return;
+    if (preg_match('/manifest|sw\.js|\.(css|js|png|jpg|ico)$/i', (string) ($_SERVER['SCRIPT_NAME'] ?? ''))) return;
+    $today = date('Y-m-d');
+    if (($_COOKIE['FORESTLOG_DEMO_VISIT'] ?? '') === $today) return;
+    auth_cookie('FORESTLOG_DEMO_VISIT', $today, strtotime('tomorrow'));
+    $st = db()->prepare("INSERT INTO settings (name, value) VALUES (?, '1') ON DUPLICATE KEY UPDATE value = CAST(value AS UNSIGNED) + 1");
+    foreach (['demo_visit_total', 'demo_visit_' . $today] as $k) $st->execute([$k]);
+}
+
+/** [오늘, 누적, 최근 7일 [날짜 => 명]] */
+function demo_visit_counts(): array
+{
+    $week = [];
+    for ($i = 6; $i >= 0; $i--) {
+        $d = date('Y-m-d', strtotime("-$i days"));
+        $week[$d] = (int) setting('demo_visit_' . $d, '0');
+    }
+    return [$week[date('Y-m-d')], (int) setting('demo_visit_total', '0'), $week];
+}
+
+/** 화면 아래 구석에 보이는 방문자 수 */
+function demo_visit_badge(): string
+{
+    if (!is_demo()) return '';
+    [$today, $total, $week] = demo_visit_counts();
+    $tip = '최근 7일: ' . implode(' · ', array_map(fn($d, $n) => date('n/j', strtotime($d)) . ' ' . $n . '명', array_keys($week), $week));
+    return '<div class="demo-visits" title="' . e($tip) . '">👀 오늘 ' . number_format($today) . '명 · 누적 ' . number_format($total) . '명</div>';
+}
