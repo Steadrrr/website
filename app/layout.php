@@ -138,6 +138,7 @@ function nav_groups(?array $user): array
             'facility'   => ['journal.php?type=facility', '시설점검'],
             'facilities' => ['facilities.php', '시설물'],
             'equipment'  => ['equipment.php', '장비'],
+            'legal'      => ['legal.php', '법정점검'],
             'purchase'   => ['purchase.php', '물품구매'],
         ]],
         'etc'      => ['label' => '기타', 'items' => [
@@ -182,7 +183,7 @@ const NAV_BUNDLES = [
     'b_record'  => ['기록·결재', ['schedule', 'daily', 'approval', 'docs', 'notices', 'attendance', 'att_sheet']],
     'b_room'    => ['객실 운영', ['rooms', 'clean', 'room_ops', 'supplies', 'ar', 'ar_stats', 'room_stats']],
     'b_money'   => ['재정·상품권', ['sales', 'voucher', 'stats', 'product_sales']],
-    'b_fac'     => ['시설·안전', ['facility', 'facilities', 'equipment', 'purchase']],
+    'b_fac'     => ['시설·안전', ['facility', 'facilities', 'equipment', 'legal', 'purchase']],
     'b_guest'   => ['고객', ['complaints', 'cpl_stats', 'lost', 'visit_stats']],
     'b_prog'    => ['프로그램', ['prog_sched', 'healing', 'kidsforest', 'kidsdirect', 'guide', 'guide2', 'prog_stats']],
 ];

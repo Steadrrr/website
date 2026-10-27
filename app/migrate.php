@@ -6,7 +6,7 @@ defined('APP_ROOT') || exit;
  * 새 버전 파일을 FTP로 덮어쓰기만 하면, 첫 접속 때 부족한 테이블/컬럼을 만든다.
  * (기존 자료는 그대로 유지)
  */
-const DB_VERSION = 57; // v57: facility_issues (진행 중 이상) — schema.sql 의 CREATE TABLE 로 생김
+const DB_VERSION = 58; // v57: facility_issues (진행 중 이상), v58: legal_checks·legal_check_logs (법정점검) — schema.sql 의 CREATE TABLE 로 생김
 
 function db_version(): int
 {
@@ -461,6 +461,18 @@ function db_migrate(): void
     // v56: 세부시설 점검 주기 (예전처럼 매일 나오도록 기본은 일일)
     if (!column_exists('facilities', 'check_cycle')) {
         $pdo->exec("ALTER TABLE facilities ADD check_cycle ENUM('day','week','month','quarter','outsourced','none') NOT NULL DEFAULT 'day' COMMENT '점검 주기: 일일·주간·월간·분기·위탁(업체 일지)·안 함' AFTER note");
+    }
+
+    // v58: 법정점검 기본 목록 (비어 있을 때만 — 화면에서 고치고 더할 수 있다)
+    if ((int) $pdo->query('SELECT COUNT(*) FROM legal_checks')->fetchColumn() === 0) {
+        $ins = $pdo->prepare('INSERT INTO legal_checks (name, cycle, target, basis, sort_order) VALUES (?, ?, ?, ?, ?)');
+        foreach ([
+            ['전기설비(수전) 위탁 점검', 'month', '산림교육센터 전기실 · 야외화장실 전기실', '전기안전관리법 — 전기안전관리 대행업체 월간 점검'],
+            ['소방시설 위탁 점검', 'month', '용문산치유센터 · 산림교육센터 · 단체숙박동', '소방시설법 — 위탁 업체 월간 점검'],
+            ['승강기(휠체어리프트) 자체점검', 'month', '산림교육센터 휠체어리프트', '승강기 안전관리법 — 월 1회 자체점검'],
+            ['어린이놀이시설 정기시설검사', 'year2', '숲속놀이터 · 유아숲체험원', '어린이놀이시설 안전관리법 — 2년에 1회 안전검사기관 정기시설검사 (월 1회 안전점검은 시설점검일지에서)'],
+            ['저수조 청소', 'half', '물탱크 6곳', '수도법 — 반기 1회 청소'],
+        ] as $i => [$n, $c, $t, $b]) $ins->execute([$n, $c, $t, $b, ($i + 1) * 10]);
     }
 
     $pdo->prepare("INSERT INTO settings (name, value) VALUES ('db_version', ?) ON DUPLICATE KEY UPDATE value = VALUES(value)")

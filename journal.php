@@ -71,7 +71,10 @@ $canWrite = can_write_type($user, $type); // 상품권 입고·금고점검은 �
   </div>
   <?php endif ?>
 
-  <?php if ($type === 'facility'): facility_progress($teamId ? [$teamId] : array_keys(facility_teams()), $selected ?: date('Y-m-d')); endif ?>
+  <?php if ($type === 'facility'): facility_progress($teamId ? [$teamId] : array_keys(facility_teams()), $selected ?: date('Y-m-d'));
+      [$ld, $lt] = legal_summary(date('Y-m-d'));
+      if ($lt): ?><p class="small"><a href="<?= e(url('legal.php')) ?>">법정점검</a> 이번 기간 <b><?= $ld ?></b> / <?= $lt ?><?= $lt > $ld ? ' · <span class="warn">남은 ' . ($lt - $ld) . '</span>' : ' ✔' ?></p><?php endif;
+  endif ?>
 
   <div class="cal-nav">
     <a class="btn" href="<?= e(url("journal.php?type=$type$tq&ym=$prev")) ?>">‹ 이전달</a>

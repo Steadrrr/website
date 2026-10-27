@@ -340,6 +340,33 @@ CREATE TABLE IF NOT EXISTS facility_issues (
   CONSTRAINT fk_fiss_fac FOREIGN KEY (facility_id) REFERENCES facilities(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- 법정·위탁 점검 (시설·안전 › 법정점검): 전기·소방·승강기·놀이시설 위탁 점검, 저수조 청소 등 — 주기마다 했는지 기록 (업체 일지 첨부는 선택)
+CREATE TABLE IF NOT EXISTS legal_checks (
+  id          INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  name        VARCHAR(100) NOT NULL,
+  cycle       ENUM('month','quarter','half','year','year2','year3') NOT NULL DEFAULT 'month',
+  vendor      VARCHAR(100) NULL COMMENT '위탁·점검 업체',
+  target      VARCHAR(200) NULL COMMENT '대상 시설 (자유 입력)',
+  basis       VARCHAR(200) NULL COMMENT '근거 법령·메모',
+  sort_order  INT NOT NULL DEFAULT 0,
+  is_active   TINYINT(1) NOT NULL DEFAULT 1,
+  created_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS legal_check_logs (
+  id          INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  check_id    INT UNSIGNED NOT NULL,
+  done_date   DATE NOT NULL,
+  vendor      VARCHAR(100) NULL,
+  note        VARCHAR(500) NULL,
+  file_path   VARCHAR(255) NULL COMMENT '업체 일지 (선택, pdf·사진)',
+  file_name   VARCHAR(200) NULL,
+  user_id     INT UNSIGNED NULL,
+  created_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_check (check_id, done_date),
+  CONSTRAINT fk_lcl_check FOREIGN KEY (check_id) REFERENCES legal_checks(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 -- 장비
 CREATE TABLE IF NOT EXISTS equipment (
   id             INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,

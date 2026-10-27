@@ -1337,3 +1337,12 @@ label .tm-pick { display: flex; margin-top: .25rem; }
 .issue-add > summary::-webkit-details-marker { display: none; }
 .issue-add[open] > summary { background: #eef5f0; }
 .issue-add form { margin-top: .5rem; }
+
+/* 법정점검 */
+.legal-add > summary, .card > details > summary.btn { list-style: none; cursor: pointer; display: inline-flex; }
+.legal-add > summary::-webkit-details-marker, .card > details > summary.btn::-webkit-details-marker { display: none; }
+.legal-form { display: grid; gap: .3rem; min-width: 15rem; margin-top: .4rem; }
+.legal-now td b.ok, .legal-year td.ok { color: var(--green); }
+.legal-year td.warn { color: #b3261e; }
+.legal-edit { align-items: end; border-bottom: 1px dashed var(--line); padding: .4rem 0; }
+.legal-edit.new { background: #f7faf7; }
