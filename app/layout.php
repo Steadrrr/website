@@ -267,6 +267,7 @@ const SETTINGS_MENU = [
     'import'    => ['admin/import_sales.php', '매출 가져오기'],
     'facility'  => ['groups.php?kind=facility', '시설 구역·건물'],
     'equipment' => ['groups.php?kind=equipment', '장비 분류'],
+    'asset_import' => ['admin/import_assets.php', '시설물 가져오기'],
 ];
 
 function settings_nav(string $active): void
