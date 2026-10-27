@@ -23,10 +23,18 @@
 - 메뉴를 추가·변경하면 `app/layout.php` 의 체험판 6묶음 `NAV_BUNDLES` 에도 넣는다.
 
 ## 체험판 (/demo) · 경진대회
-- 경진대회 작업은 `contest` 브랜치에서 한다. 커밋 메시지에 `[데모배포]` 가 있을 때만 체험판(/demo)에 배포된다.
+- 작업은 main 쪽(작업 브랜치 → "메인에 합쳐줘")에서 계속 한다. **체험판 반영은 사용자가 "데모에 반영해줘" 라고 할 때만** 한다.
+  1) `git fetch origin main contest` → contest 브랜치에서 origin/main 을 merge (contest 에만 있는 커밋은 지우지 않는다)
+  2) 체험판 모드로 띄워 확인: app/config.php 없이 app/config.demo.php 로 동작, 같은 DB 의 demo_ 표 사용.
+     역할 4개(demo_keeper·demo_worker·demo_officer·demo_leader, 비밀번호 demo1234)로 새 화면이 오류 없이 열리는지, 휴대폰 폭에서 넘치지 않는지
+  3) 문제 없으면 커밋 메시지에 `[데모배포]` 를 넣어 contest 에 push → '데모 사이트 배포 (FTP /demo)' Actions 성공 확인
+- 커밋 메시지에 `[데모배포]` 가 있을 때만 체험판(/demo)에 배포된다 — 설명으로라도 이 글자를 쓰면 바로 배포되니 주의.
+- 평소 main 작업 때 (체험판이 같은 코드를 쓰기 때문):
+  - 실제 기록을 넣는 migrate 단계(예: v59 법정점검 기록)는 `is_demo()` 일 때 건너뛴다 — 체험판엔 가상 자료만.
+  - 심사 때 보여 줄 새 기능이면 `app/demo_seed.php` 에 가상 자료도 추가한다 (없으면 체험판에서 빈 화면).
 - 체험판: `app/demo.php`, `demo_db.php`, `demo_seed.php`, `config.demo.php`. 운영과 같은 DB 의 `demo_` 표를 쓰고 세션은 따로 둔다.
 - AI 분석 API 키는 서버의 `app/anthropic_key.txt` 에만 둔다 (gitignore, 절대 커밋 금지). 입력은 `ai_key.php` 화면에서.
-- 경위·진행 기록: `dev/contest-plan.md` 10절.
+- 경위·진행 기록·자세한 구조: contest 브랜치의 `dev/contest-plan.md` 10절, `app/demo.php` 맨 위 주석.
 
 ## 일하는 방식
 - **사용자가 상황을 설명만 했을 때 기능을 먼저 만들지 않는다.** 만들어 달라는 요청인지 애매하면 먼저 묻는다.
