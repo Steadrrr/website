@@ -33,6 +33,7 @@
   - 실제 기록을 넣는 migrate 단계(예: v59 법정점검 기록)는 `is_demo()` 일 때 건너뛴다 — 체험판엔 가상 자료만.
   - 심사 때 보여 줄 새 기능이면 `app/demo_seed.php` 에 가상 자료도 추가한다 (없으면 체험판에서 빈 화면).
 - 체험판: `app/demo.php`, `demo_db.php`, `demo_seed.php`, `config.demo.php`. 운영과 같은 DB 의 `demo_` 표를 쓰고 세션은 따로 둔다.
+- 체험판 가상 자료(`app/demo_seed.php`)를 바꾸면 `app/demo.php` 의 `DEMO_SEED_VERSION` 을 1 올린다 (배포 후 첫 접속 때 다시 만든다).
 - AI 분석 API 키는 서버의 `app/anthropic_key.txt` 에만 둔다 (gitignore, 절대 커밋 금지). 입력은 `ai_key.php` 화면에서.
 - 경위·진행 기록·자세한 구조: contest 브랜치의 `dev/contest-plan.md` 10절, `app/demo.php` 맨 위 주석.
 

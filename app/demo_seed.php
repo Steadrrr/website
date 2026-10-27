@@ -1,6 +1,8 @@
 <?php
 defined('APP_ROOT') || exit;
 
+/* 자료를 바꾸면 app/demo.php 의 DEMO_SEED_VERSION 을 1 올린다 (안 올리면 다음 날에야 새 자료가 보인다) */
+
 /*
  * 체험판 가상 자료 만들기 (app/demo.php 의 demo_seed() 가 초기화할 때만 불러온다)
  *
@@ -512,6 +514,7 @@ function demo_seed_data(): void
             'finder' => $keeper['name'], 'status' => $st, 'author_id' => $keeper['id']]);
     }
     demo_seed_supplies($roomNights, $worker, $officer, $byRank);
+    demo_seed_legal($fac, $facMan, $officer);
 }
 
 /*
@@ -618,6 +621,54 @@ function demo_seed_supplies(array $roomNights, array $worker, array $officer, ar
         ksort($moves);
         foreach ($moves as $d => $m) {
             if ($m['in'] || $m['out']) demo_ins('supply_moves', ['supply_id' => $sid, 'move_date' => $d, 'in_qty' => $m['in'], 'out_qty' => $m['out'], 'note' => $m['note'], 'user_id' => $worker['id']]);
+        }
+    }
+}
+
+/*
+ * 법정점검 · 진행 중인 시설 이상 · 세부시설 점검 주기 (가상, 업체명은 일반 명칭)
+ *  - 법정점검: 운영 기본 목록(migrate v58)과 같은 5가지 + 지난 기록. 소방은 이번 달 아직 안 해서 '이번 달 할 일'로 보이게
+ */
+function demo_seed_legal(array $fac, array $by, array $officer): void
+{
+    foreach ([['치유센터', '소방설비', 'outsourced'], ['산림교육센터', '강의실 음향·영상', 'month'], ['공원시설', '안내 표지판', 'week'],
+              ['공원시설', '유아숲 놀이터', 'month'], ['쉬자센터·카페·매표소', '방송·통신설비', 'quarter']] as [$g, $n, $cycle]) {
+        if (isset($fac[$g][$n])) db()->prepare('UPDATE facilities SET check_cycle = ? WHERE id = ?')->execute([$cycle, $fac[$g][$n]]);
+    }
+    $issues = [
+        ['공원시설', '공원 데크(폭포 앞)', '점검필요', '데크 판재 부식·들뜸, 라바콘 설치 (보수 업체 견적 중)', -20, null],
+        ['치유의집 객실동', '욕실 배수·위생설비', '수리요청', '구름B 욕실 배수 느림, 배관 세척 예정', -5, null],
+        ['공원시설', '발목풀장', '점검필요', '바닥 타일 들뜸 — 보수 완료', -75, -50],
+    ];
+    foreach ($issues as [$g, $n, $res, $note, $from, $to]) {
+        if (!isset($fac[$g][$n])) continue;
+        demo_ins('facility_issues', ['facility_id' => $fac[$g][$n], 'result' => $res, 'note' => $note, 'start_date' => date('Y-m-d', strtotime("$from days")),
+            'end_date' => $to === null ? null : date('Y-m-d', strtotime("$to days")), 'created_by' => $by['id']]);
+    }
+    $checks = [
+        ['전기설비(수전) 위탁 점검', 'month', '○○전기안전', '산림교육센터 전기실 · 야외화장실 전기실', '전기안전관리법 — 전기안전관리 대행업체 월간 점검'],
+        ['소방시설 위탁 점검', 'month', '○○소방', '용문산치유센터 · 산림교육센터 · 단체숙박동', '소방시설법 — 위탁 업체 월간 점검'],
+        ['승강기(휠체어리프트) 자체점검', 'month', null, '산림교육센터 휠체어리프트', '승강기 안전관리법 — 월 1회 자체점검'],
+        ['어린이놀이시설 정기시설검사', 'year2', '○○안전검사원', '숲속놀이터 · 유아숲체험원', '어린이놀이시설 안전관리법 — 2년에 1회 정기시설검사'],
+        ['저수조 청소', 'half', '○○환경', '물탱크 6곳', '수도법 — 반기 1회 청소'],
+    ];
+    $month1 = date('Y-m-01');
+    foreach ($checks as $i => [$name, $cycle, $vendor, $target, $basis]) {
+        $cid = demo_ins('legal_checks', ['name' => $name, 'cycle' => $cycle, 'vendor' => $vendor, 'target' => $target, 'basis' => $basis, 'sort_order' => ($i + 1) * 10]);
+        $dates = [];
+        if ($cycle === 'month') {
+            for ($m = $i === 1 ? 1 : 0; $m <= 9; $m++) { // 소방(1번)은 이번 달 아직
+                $d = date('Y-m-d', strtotime("$month1 -$m months +" . (8 + $i * 5) . ' days'));
+                if ($d < date('Y-m-d')) $dates[] = $d;
+            }
+        } elseif ($cycle === 'half') {
+            $dates = [date('Y-m-d', strtotime('-6 months -10 days')), date('Y-m-d', strtotime('-25 days'))];
+        } else {
+            $dates = [date('Y-m-d', strtotime('-14 months'))];
+        }
+        foreach ($dates as $d) {
+            demo_ins('legal_check_logs', ['check_id' => $cid, 'done_date' => $d, 'vendor' => $vendor, 'user_id' => $vendor ? $officer['id'] : $by['id'],
+                'note' => match ($cycle) { 'month' => $vendor ? '월간 점검 이상 없음' : '자체점검 완료, 점검표 비치', 'half' => '전체 저수조 청소 (당일 단수 안내)', default => '정기시설검사 합격' }]);
         }
     }
 }
