@@ -6,7 +6,7 @@ defined('APP_ROOT') || exit;
  * 새 버전 파일을 FTP로 덮어쓰기만 하면, 첫 접속 때 부족한 테이블/컬럼을 만든다.
  * (기존 자료는 그대로 유지)
  */
-const DB_VERSION = 59; // v57: facility_issues (진행 중 이상), v58: legal_checks·legal_check_logs (법정점검) — schema.sql 의 CREATE TABLE 로 생김, v59: 2026 법정점검 기록
+const DB_VERSION = 60; // v57: facility_issues (진행 중 이상), v58: legal_checks·legal_check_logs (법정점검) — schema.sql 의 CREATE TABLE 로 생김, v59: 2026 법정점검 기록, v60: 소방 자체점검(종합·작동)·소방훈련 목록
 
 function db_version(): int
 {
@@ -505,6 +505,23 @@ function db_migrate(): void
         }
         $pdo->exec("INSERT INTO settings (name, value) VALUES ('legal_seed_2026', '1')");
     }
+
+    // v60: 특정소방대상물 자체점검(종합·작동)과 소방훈련 — 양평소방서 '소방시설등 자체점검 관련 안내문' (2026.10) 기준, 위탁 업체가 실시
+    $find = $pdo->prepare('SELECT id FROM legal_checks WHERE name = ?');
+    $add = $pdo->prepare('INSERT INTO legal_checks (name, cycle, target, basis, sort_order) VALUES (?, ?, ?, ?, ?)');
+    foreach ([
+        ['소방시설 종합점검 (자체점검)', 'year', '용문산치유센터 · 산림교육센터 · 단체숙박동 (스프링클러 설치 특정소방대상물)',
+         '소방시설법 제22조 — 연 1회, 건축물 사용승인일이 속한 달. 끝난 뒤 15일 안에 결과보고서 소방서 제출(safeland.go.kr), 점검기록표 30일 게시, 2년 보관', 21],
+        ['소방시설 작동점검 (자체점검)', 'year', '용문산치유센터 · 산림교육센터 · 단체숙박동',
+         '소방시설법 제22조 — 연 1회, 종합점검 받은 달부터 6개월이 되는 달. 15일 안에 결과보고서 제출', 22],
+        ['소방훈련', 'half', '쉬자파크 (공공기관)', '화재예방법 제37조 — 공공기관 연 2회(그중 1회는 소방서 합동), 결과 2년 보관', 23],
+    ] as [$n, $c, $t, $b, $o]) {
+        $find->execute([$n]);
+        if (!$find->fetchColumn()) $add->execute([$n, $c, $t, $b, $o]);
+    }
+    // 매월 위탁 점검 = 공공기관 외관점검 (작동·종합점검 한 달은 빠짐) — 근거를 처음 넣은 문구일 때만 고친다
+    $pdo->prepare("UPDATE legal_checks SET basis = ? WHERE name = '소방시설 위탁 점검' AND basis = '소방시설법 — 위탁 업체 월간 점검'")
+        ->execute(['공공기관 외관점검 월 1회 이상 (작동·종합점검 한 달은 빠짐) — 위탁 업체']);
 
     $pdo->prepare("INSERT INTO settings (name, value) VALUES ('db_version', ?) ON DUPLICATE KEY UPDATE value = VALUES(value)")
         ->execute([(string) DB_VERSION]);
