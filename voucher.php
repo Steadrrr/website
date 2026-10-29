@@ -178,8 +178,11 @@ $openT = voucher_stock($f);
 /** 권종별 매수 입력칸 */
 $qtyInputs = function (array $qty = []) use ($denoms): void {
     foreach ($denoms as $d): ?>
-      <label><?= e(denom_label($d)) ?><input name="qty[<?= $d ?>]" value="<?= !empty($qty[$d]) ? (int) $qty[$d] : '' ?>" class="num short" inputmode="numeric" placeholder="0"></label>
+      <label><?= e(denom_label($d)) ?><input name="qty[<?= $d ?>]" value="<?= !empty($qty[$d]) ? (int) $qty[$d] : '' ?>" class="num short" inputmode="numeric" placeholder="0" data-vault-qty="<?= (int) $d ?>"></label>
     <?php endforeach;
+    $sum = array_sum(array_map(fn($d) => (int) ($qty[$d] ?? 0) * $d, $denoms)); ?>
+      <div class="vault-total">합계 <b data-vault-total><?= number_format($sum) ?></b>원</div>
+    <?php
 };
 $userSelect = function (string $name, ?int $sel, bool $required) use ($users): void { ?>
   <select name="<?= $name ?>" <?= $required ? 'required' : '' ?>>
@@ -337,6 +340,20 @@ if ($pending): ?>
     <?php endif ?>
     <datalist id="vault-rooms"><?php foreach (array_unique([...$dayRooms, ...$allRooms]) as $rn): ?><option value="<?= e($rn) ?>"><?php endforeach ?></datalist>
   </div>
+  <script>
+  // 권종별 매수를 넣으면 옆에 총 금액
+  document.querySelectorAll('.vault-form').forEach(function (f) {
+    var out = f.querySelector('[data-vault-total]');
+    if (!out) return;
+    var calc = function () {
+      var t = 0;
+      f.querySelectorAll('[data-vault-qty]').forEach(function (i) { t += (parseInt(i.value.replace(/[^0-9]/g, ''), 10) || 0) * Number(i.dataset.vaultQty); });
+      out.textContent = t.toLocaleString('ko-KR');
+    };
+    f.addEventListener('input', calc);
+    calc();
+  });
+  </script>
   <?php else: ?>
     <p class="muted small">불출·반납 입력은 공무직 이상이 합니다.</p>
   <?php endif ?>

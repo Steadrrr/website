@@ -1348,3 +1348,6 @@ label .tm-pick { display: flex; margin-top: .25rem; }
 .legal-edit.new { background: #f7faf7; }
 /* 체험판 방문자 수 (화면 아래 구석) */
 .demo-visits { font-size: .75rem; color: var(--muted); margin-top: .3rem; }
+
+.vault-total { align-self: center; margin-bottom: .4rem; padding: .35rem .7rem; border-radius: 6px; background: #eef5f0; white-space: nowrap; }
+.vault-total b { font-size: 1.1rem; color: var(--green-d); }
