@@ -181,6 +181,7 @@ $qtyInputs = function (array $qty = []) use ($denoms): void {
       <label><?= e(denom_label($d)) ?><input name="qty[<?= $d ?>]" value="<?= !empty($qty[$d]) ? (int) $qty[$d] : '' ?>" class="num short" inputmode="numeric" placeholder="0" data-vault-qty="<?= (int) $d ?>"></label>
     <?php endforeach;
     $sum = array_sum(array_map(fn($d) => (int) ($qty[$d] ?? 0) * $d, $denoms)); ?>
+      <span class="vault-break"></span>
       <div class="vault-total">합계 <b data-vault-total><?= number_format($sum) ?></b>원</div>
     <?php
 };
