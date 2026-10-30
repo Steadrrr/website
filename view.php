@@ -19,8 +19,6 @@ if ($att) {
     $editable = false;
     $attWorker = att_user((int) $att['user_id']);
     $canCancel = att_can_cancel($journal, $att, $user);
-    $canSeeFile = $attWorker && att_can_view($user, $attWorker);
-    $canAttach = $canSeeFile && ($isAuthor || (int) $att['user_id'] === (int) $user['id'] || att_is_manager($user));
 }
 if ($journal['type'] === 'arwork' && !can_ar($user)) abort(403, 'AR 사용보고는 공무직 이상만 볼 수 있습니다.');
 if ($journal['type'] === 'purchase' && !can_purchase($user)) abort(403, '물품구매는 공무직 이상만 볼 수 있습니다.');
@@ -48,17 +46,6 @@ if (is_post()) {
                 journal_submit($journal, (int) $user['rank_level']); // 결재선은 결재를 올린 사람 기준
                 journal_log($id, $user, $journal['status'] === 'rejected' ? '재상신' : '결재 올리기');
                 flash('결재를 올렸습니다.', 'success');
-                redirect('view.php?id=' . $id);
-            case 'attach':
-                if (!$att || !$canAttach) abort(403, '첨부 권한이 없습니다.');
-                [$file, $upErr] = att_store_attachment($_FILES['attachment'] ?? []);
-                if ($upErr || !$file) {
-                    flash($upErr ?: '파일을 고르세요.', 'error');
-                } else {
-                    if ($att['attachment'] && is_file(APP_ROOT . '/' . $att['attachment'])) @unlink(APP_ROOT . '/' . $att['attachment']);
-                    db()->prepare('UPDATE attendance SET attachment = ? WHERE journal_id = ?')->execute([$file, $id]);
-                    flash('첨부했습니다.', 'success');
-                }
                 redirect('view.php?id=' . $id);
             case 'delete':
                 if ($att ? !$canCancel : !$deletable) abort(403, '삭제 권한이 없습니다.');
@@ -107,22 +94,9 @@ $docTitle = $att ? '근태 신청 · ' . $att['user_name'] . ' ' . att_kind_name
         <?php if (!att_is_time_kind($att['kind'])): ?><small class="muted">(휴무일·공휴일 제외 근무일 기준)</small><?php endif ?>
         <?php if (in_array($att['kind'], ['early', 'out'], true)): ?><small class="muted">(연차에서 차감)</small><?php endif ?></td></tr>
       <tr><th>입력</th><td><?= e($journal['author_name']) ?> <small class="muted"><?= e(rank_name($journal['author_rank'])) ?> · <?= e(date('Y-m-d H:i', strtotime($journal['created_at']))) ?></small></td></tr>
-      <?php if ($canSeeFile): ?>
-      <tr><th>첨부</th><td>
-        <?php if ($att['attachment']): ?><a href="<?= e(url('attendance.php?file=' . $id)) ?>" target="_blank">📎 첨부 파일 보기</a><?php else: ?><span class="muted">없음</span><?php endif ?>
-      </td></tr>
-      <?php endif ?>
     </table>
-    <?php if ($att['cert_required'] && !$att['attachment']): ?>
-      <p class="cert-alert">⚠ 연속 3일 이상 또는 연 6일을 넘는 병가입니다. 의사의 진단서를 첨부해야 합니다.</p>
-    <?php endif ?>
-    <?php if ($canAttach && ($att['cert_required'] || in_array($att['kind'], ['sick', 'official'], true))): ?>
-      <form method="post" enctype="multipart/form-data" class="inline-form no-print">
-        <?= csrf_field() ?>
-        <label><?= $att['attachment'] ? '첨부 바꾸기' : '진단서 등 첨부' ?> <small class="muted">(사진 또는 PDF)</small>
-          <input type="file" name="attachment" accept="image/*,application/pdf" required></label>
-        <button class="btn small" name="action" value="attach">올리기</button>
-      </form>
+    <?php if ($att['cert_required']): ?>
+      <p class="cert-alert">⚠ 연속 3일 이상 또는 연 6일을 넘는 병가입니다. 의사의 진단서는 담당 주무관에게 종이로 제출합니다 (사이트에는 올리지 않음).</p>
     <?php endif ?>
   <?php else: items_view($journal); endif ?>
   <?php if ($journal['type'] === 'rooms') vault_day_html($journal['work_date'], $id) ?>

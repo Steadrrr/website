@@ -77,7 +77,6 @@
       b.querySelectorAll('input, select').forEach((el) => { el.disabled = !on; el.required = on && el.name !== ''; });
     });
     $('[data-day-only]', form).hidden = time;
-    $('[data-attach]', form).hidden = !['sick', 'official'].includes(kind());
     const w = data.workers[F('worker_id').value];
     const [ws, we] = w ? w.hours : ['09:00', '18:00'];
     if (hourMode() && lastKind !== kind()) { // 종류를 바꾸면 시각을 새로 고름 (조퇴는 종료 = 퇴근 시각)
@@ -119,7 +118,6 @@
       (res.notes || []).forEach((m) => ul.appendChild(li(m, m.includes('진단서') ? 'cert' : 'note')));
       if (ul.children.length) check.appendChild(ul);
       form.dataset.cert = res.cert ? '1' : '';
-      if (res.cert) $('[data-attach]', form).hidden = false;
     }, 250);
   }
 
@@ -144,10 +142,6 @@
     F('end_date').addEventListener('change', runCheck);
     boxFree.querySelectorAll('input').forEach((el) => el.addEventListener('change', () => { boxFree.dataset.touched = '1'; runCheck(); }));
     boxHour.querySelectorAll('select').forEach((el) => el.addEventListener('change', () => { el.dataset.touched = '1'; runCheck(); }));
-    form.addEventListener('submit', (ev) => {
-      if (form.dataset.cert && !F('attachment').files.length
-          && !confirm('의사의 진단서를 첨부해야 하는 병가입니다.\n첨부 없이 올릴까요? (문서 화면에서 나중에 첨부할 수 있습니다)')) ev.preventDefault();
-    });
   }
 
   // ── 클릭 연결

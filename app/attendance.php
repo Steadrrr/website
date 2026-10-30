@@ -420,7 +420,7 @@ function att_validate(array $worker, array $in, int $excludeJournal = 0): array
             $total = $sum['sick_used'] + $row['days'];
             if ($row['days'] >= 3 || $total > 6) {
                 $row['cert_required'] = 1;
-                $notes[] = '의사의 진단서를 첨부해야 합니다. (' . ($row['days'] >= 3 ? '연속 3일 이상 병가' : "연 6일 초과 — 올해 합계 {$total}일") . ')';
+                $notes[] = '의사의 진단서를 담당 주무관에게 종이로 제출해야 합니다 (사이트에는 올리지 않음). (' . ($row['days'] >= 3 ? '연속 3일 이상 병가' : "연 6일 초과 — 올해 합계 {$total}일") . ')';
             }
         }
     }
@@ -455,36 +455,6 @@ function att_can_cancel(array $journal, array $att, array $me): bool
     if (!empty($me['is_admin']) || (int) $me['rank_level'] >= RANK_OFFICER) return true;
     $mine = (int) $journal['author_id'] === (int) $me['id'] || (int) $att['user_id'] === (int) $me['id'];
     return $mine && $journal['status'] !== 'approved';
-}
-
-/**
- * 진단서 등 첨부 저장 (사진 또는 PDF). 개인정보라 uploads/attendance 는 직접 열 수 없게 막고
- * attendance.php?file=문서번호 로만 내려준다.
- * @return array{0: ?string, 1: ?string} [경로, 오류]
- */
-function att_store_attachment(array $f): array
-{
-    $err = (int) ($f['error'] ?? UPLOAD_ERR_NO_FILE);
-    if ($err === UPLOAD_ERR_NO_FILE) return [null, null];
-    if ($err === UPLOAD_ERR_INI_SIZE || $err === UPLOAD_ERR_FORM_SIZE) return [null, '첨부 파일이 너무 큽니다.'];
-    if ($err !== UPLOAD_ERR_OK) return [null, "첨부 파일 업로드 실패 (오류 {$err})"];
-    $allowed = ['image/jpeg' => 'jpg', 'image/png' => 'png', 'image/gif' => 'gif', 'image/webp' => 'webp', 'application/pdf' => 'pdf'];
-    $mime = (new finfo(FILEINFO_MIME_TYPE))->file($f['tmp_name']);
-    if (!isset($allowed[$mime])) return [null, '첨부는 사진(jpg, png) 또는 PDF 파일만 올릴 수 있습니다.'];
-
-    $base = APP_ROOT . '/uploads/attendance';
-    $dirRel = 'uploads/attendance/' . date('Ym');
-    if (!is_dir(APP_ROOT . '/' . $dirRel) && !@mkdir(APP_ROOT . '/' . $dirRel, 0755, true)) {
-        return [null, 'uploads 폴더를 만들 수 없습니다. FTP에서 uploads 폴더 권한을 707로 설정하세요.'];
-    }
-    if (!is_file("$base/.htaccess")) {
-        @file_put_contents("$base/.htaccess", "# 진단서 등 개인정보: 주소로 직접 열 수 없음 (attendance.php?file= 로만 열람)\n<IfModule mod_authz_core.c>\n  Require all denied\n</IfModule>\n<IfModule !mod_authz_core.c>\n  Deny from all\n</IfModule>\n");
-    }
-    $file = bin2hex(random_bytes(16)) . '.' . $allowed[$mime];
-    if (!move_uploaded_file($f['tmp_name'], APP_ROOT . "/$dirRel/$file")) {
-        return [null, '첨부 파일 저장 실패. uploads 폴더 쓰기 권한(707)을 확인하세요.'];
-    }
-    return ["$dirRel/$file", null];
 }
 
 /** 달력에 그릴 막대 (week_layout 용) */

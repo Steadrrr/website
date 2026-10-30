@@ -4,7 +4,6 @@
  *   attendance.php?ym=2026-09[&team=1][&user=5]      근태 달력 (모든 근무자, 팀·사람별 조회)
  *   attendance.php?view=sheet&user=5&ym=2026-09        월간 근태 (&export=xlsx 엑셀, 인쇄)
  *   attendance.php?api=check&...                       입력 창의 실시간 검사 (연차·병가 현황, 진단서 안내)
- *   attendance.php?file=문서번호                       진단서 등 첨부 열람 (본인·공무직 이상)
  */
 require __DIR__ . '/app/bootstrap.php';
 require __DIR__ . '/app/xlsx.php';
@@ -17,22 +16,6 @@ $isMgr = att_is_manager($me);
 $ym = $_GET['ym'] ?? date('Y-m');
 if (!preg_match('/^\d{4}-\d{2}$/', $ym) || !valid_date("$ym-01")) $ym = date('Y-m');
 $view = ($_GET['view'] ?? '') === 'sheet' ? 'sheet' : 'month';
-
-/* ───────────── 첨부 열람 ───────────── */
-if (isset($_GET['file'])) {
-    $att = att_find((int) $_GET['file']) ?? abort(404, '근태 문서를 찾을 수 없습니다.');
-    $worker = att_user((int) $att['user_id']);
-    if (!$worker || !att_can_view($me, $worker)) abort(403, '첨부 파일은 본인과 공무직 이상만 볼 수 있습니다.');
-    $path = APP_ROOT . '/' . $att['attachment'];
-    if (!$att['attachment'] || !is_file($path)) abort(404, '첨부 파일이 없습니다.');
-    $mime = (new finfo(FILEINFO_MIME_TYPE))->file($path);
-    header('Content-Type: ' . $mime);
-    header('Content-Length: ' . filesize($path));
-    header("Content-Disposition: inline; filename=\"attendance-{$att['journal_id']}." . pathinfo($path, PATHINFO_EXTENSION) . '"');
-    header('Cache-Control: private, no-store');
-    readfile($path);
-    exit;
-}
 
 /* ───────────── 실시간 검사 (입력 창) ───────────── */
 if (($_GET['api'] ?? '') === 'check') {
@@ -89,20 +72,14 @@ if (is_post()) {
         'kind' => $kind, 'start_date' => post('start_date'), 'end_date' => post('end_date'),
         'start_time' => post('start_time'), 'end_time' => post('end_time'),
     ]);
-    $file = null;
-    if (!$errors) {
-        [$file, $upErr] = att_store_attachment($_FILES['attachment'] ?? []);
-        if ($upErr) $errors[] = $upErr;
-    }
     if ($errors) {
         foreach ($errors as $m) flash($m, 'error');
         redirect($back);
     }
-    $id = att_create($me, $worker, $row, mb_substr(post('reason'), 0, 1000), $file);
+    $id = att_create($me, $worker, $row, mb_substr(post('reason'), 0, 1000), null); // 진단서는 사이트에 올리지 않는다 (종이로 담당 주무관에게)
     $j = journal_find($id);
     flash("{$worker['name']} " . att_kind_name($kind) . ' ' . att_when($row) . ' — ' . ($j['status'] === 'approved' ? '결재완료' : '결재를 올렸습니다.'), 'success');
     foreach ($notes as $m) flash($m, 'info');
-    if ($row['cert_required'] && !$file) flash('진단서가 첨부되지 않았습니다. 이 문서 화면에서 나중에 첨부할 수 있습니다.', 'error');
     redirect('view.php?id=' . $id);
 }
 
@@ -423,7 +400,6 @@ layout_header('근태관리 ' . $first->format('Y년 n월'), 'attendance');
       <p class="muted tiny-text" data-break></p>
     </div>
     <div class="att-check" aria-live="polite"></div>
-    <label data-attach hidden>진단서 등 첨부 <small class="muted">(사진 또는 PDF)</small><input type="file" name="attachment" accept="image/*,application/pdf"></label>
     <label>사유<textarea name="reason" rows="2" placeholder="예: 개인 사정, 병원 진료"></textarea></label>
     <p class="muted tiny-text">연차·병가·공가·결근은 하루 단위(휴무일·공휴일 제외), 조퇴·외출은 시간 단위로 연차에서 차감(1일 = 8시간), 초과근무는 공휴일·휴무일에만 입력하며 4시간마다 30분 휴게시간을 뺍니다.
       입력하면 결재가 바로 올라갑니다.</p>
