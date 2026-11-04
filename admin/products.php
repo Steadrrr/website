@@ -169,7 +169,7 @@ function product_row(string $grp, ?array $p, int $sort, array $ticketSeasons): v
     <td class="center muted">🔒</td>
     <td><b><?= e($p['name']) ?></b></td>
     <td><span class="badge">무료</span></td>
-    <td colspan="<?= 1 + count($ticketSeasons) ?>" class="small muted"><?= $p['sys_key'] === 'stay_in' ? '매출보고의 객실 입실인원 합계가 자동으로 들어갑니다' : '전날 매출보고의 입실인원 합계가 자동으로 들어갑니다' ?> (수정·삭제 불가)</td>
+    <td colspan="<?= 1 + count($ticketSeasons) ?>" class="small muted"><?= $p['sys_key'] === 'stay_in' ? '매출보고의 객실 입실인원 합계가 자동으로 들어갑니다' : '퇴실하는 객실(전날이 마지막 밤)의 입실인원 합계가 자동으로 들어갑니다 — 연박 중에는 퇴실로 세지 않음' ?> (수정·삭제 불가)</td>
     <td class="center">✔</td><td></td>
   </tr>
     <?php return; endif;

@@ -335,11 +335,30 @@ function stay_guests(string $date): int
     return (int) $st->fetchColumn();
 }
 
-/** 퇴실 인원 = 전날 입실인원 합계 */
+/**
+ * 퇴실 인원 = 전날이 마지막 밤인 객실의 입실인원 합계
+ * 연박(일일객실판매의 '연박 2·3박')은 묵는 날마다 입실로 세고, 퇴실은 실제로 나가는 날에만 센다 (공원 이용객 기준)
+ */
 function stay_out_guests(string $date): int
 {
-    return stay_guests(date('Y-m-d', strtotime("$date -1 day")));
+    $prev = date('Y-m-d', strtotime("$date -1 day"));
+    $st = db()->prepare("SELECT l.product_id, j.work_date, SUM(l.guests) AS g, MAX(l.stay_nights) AS s FROM journals j JOIN sales_lines l ON l.journal_id = j.id
+                          WHERE j.type = 'rooms' AND l.grp = 'room' AND j.work_date BETWEEN ? AND ?
+                          GROUP BY l.product_id, j.work_date ORDER BY j.work_date");
+    $st->execute([date('Y-m-d', strtotime("$date -" . (STAY_MAX_NIGHTS + 1) . ' days')), $prev]);
+    $nights = [];
+    foreach ($st as $r) $nights[(int) $r['product_id']][$r['work_date']] = ['g' => (int) $r['g'], 's' => (int) $r['s']];
+    $sum = 0;
+    foreach ($nights as $days) {
+        foreach (rt_stays($days) as $stay) {
+            if ($stay['last'] === $prev) $sum += $days[$prev]['g'] ?? $stay['g']; // 마지막 밤 줄이 없으면 입실일 인원
+        }
+    }
+    return $sum;
 }
+
+/** 연박으로 고를 수 있는 가장 긴 박수 (퇴실 계산에서 이만큼 앞까지 읽는다) */
+const STAY_MAX_NIGHTS = 30;
 
 /** 시스템 상품 sys_key => 상품 */
 function stay_products(): array
@@ -350,19 +369,15 @@ function stay_products(): array
 }
 
 /**
- * 어떤 날의 매출보고가 저장·삭제되면 다음 날 매출보고의 '쉬자파크숙박(퇴실)' 수량을 다시 맞춘다
- * (다음 날 보고서가 이미 있을 때)
+ * 일일객실판매가 저장·삭제되면: 그 날 매출보고의 '쉬자파크숙박(입실)'과,
+ * 연박이 바뀌면 퇴실 날이 뒤로 밀리거나 당겨지므로 다음 날부터 연박 최장 기간까지의 '(퇴실)'을 맞춘다
  */
-function stay_sync_next(string $date): void
-{
-    stay_set_line(date('Y-m-d', strtotime("$date +1 day")), 'stay_out', stay_guests($date));
-}
-
-/** 일일객실판매가 저장·삭제되면: 그 날 매출보고의 '쉬자파크숙박(입실)', 다음 날의 '(퇴실)'을 맞춘다 */
 function stay_sync_rooms(string $date): void
 {
     stay_set_line($date, 'stay_in', stay_guests($date));
-    stay_sync_next($date);
+    $st = db()->prepare("SELECT work_date FROM journals WHERE type = 'sales' AND work_date BETWEEN ? AND ?");
+    $st->execute([date('Y-m-d', strtotime("$date +1 day")), date('Y-m-d', strtotime("$date +" . (STAY_MAX_NIGHTS + 1) . ' days'))]);
+    foreach ($st->fetchAll(PDO::FETCH_COLUMN) as $d) stay_set_line($d, 'stay_out', stay_out_guests($d));
 }
 
 /** 그 날 매출보고(있을 때만)의 쉬자파크숙박 입장권 수량을 바꾼다 */

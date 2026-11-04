@@ -252,7 +252,7 @@ function items_parse(string $type, string $workDate, int $journalId): array
             if ($ses || $paid || $free || $amt) $lines[] = program_sale_line($pt, $ses, $paid, $free, $amt, false);
         }
 
-        // 쉬자파크숙박 입실 = 그 날 일일객실판매의 입실인원 합계, 퇴실 = 전날 입실인원 합계 (수정 불가, 무료 입장권으로 집계)
+        // 쉬자파크숙박 입실 = 그 날 일일객실판매의 입실인원 합계(연박도 날마다), 퇴실 = 전날이 마지막 밤인 객실 인원 (수정 불가, 무료 입장권으로 집계)
         $roomGuests = valid_date($workDate) ? stay_guests($workDate) : 0;
         $stayLines = [];
         foreach (stay_products() as $key => $p) {
@@ -465,8 +465,8 @@ function items_form(string $type, array $payload, string $workDate, ?array $jour
       <tr data-base="<?= $p['is_free'] ? 0 : (int) $p['price'] ?>" data-price="<?= ticket_price($p, $workDate)[0] ?>" data-free="<?= (int) $p['is_free'] ?>"
           data-seasons="<?= e(json_encode($sp ?: new stdClass())) ?>">
         <?php if (!empty($p['sys_key'])): // 쉬자파크숙박 입실·퇴실: 수량 자동, 수정 불가 ?>
-        <td><?= e($p['name']) ?> <span class="badge auto-badge" title="<?= $p['sys_key'] === 'stay_in' ? '그 날 일일객실판매의 입실인원 합계' : '전날 일일객실판매의 입실인원 합계' ?>">자동</span>
-          <br><small class="muted"><?= $p['sys_key'] === 'stay_in' ? '객실판매 입실인원 합계' : '전날 입실인원 합계' ?></small></td>
+        <td><?= e($p['name']) ?> <span class="badge auto-badge" title="<?= $p['sys_key'] === 'stay_in' ? '그 날 일일객실판매의 입실인원 합계' : '전날이 마지막 밤인 객실의 입실인원 합계 (연박 중에는 퇴실 없음)' ?>">자동</span>
+          <br><small class="muted"><?= $p['sys_key'] === 'stay_in' ? '객실판매 입실인원 합계' : '퇴실하는 객실 인원' ?></small></td>
         <td><span class="badge">무료</span></td>
         <td class="right" data-unit>0</td>
         <td><input value="<?= e($p['sys_key'] === 'stay_in' ? stay_guests($workDate) : stay_out_guests($workDate)) ?>" class="num short" data-qty data-stay="<?= $p['sys_key'] === 'stay_in' ? 'in' : 'out' ?>" readonly tabindex="-1" title="자동 계산 (수정 불가)"></td>
