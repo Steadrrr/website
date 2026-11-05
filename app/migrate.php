@@ -6,7 +6,7 @@ defined('APP_ROOT') || exit;
  * 새 버전 파일을 FTP로 덮어쓰기만 하면, 첫 접속 때 부족한 테이블/컬럼을 만든다.
  * (기존 자료는 그대로 유지)
  */
-const DB_VERSION = 60; // v57: facility_issues (진행 중 이상), v58: legal_checks·legal_check_logs (법정점검) — schema.sql 의 CREATE TABLE 로 생김, v59: 2026 법정점검 기록, v60: 소방 자체점검(종합·작동)·소방훈련 목록
+const DB_VERSION = 61; // v61: 지난 매출보고 쉬자파크숙박(퇴실) 다시 계산, v57: facility_issues (진행 중 이상), v58: legal_checks·legal_check_logs (법정점검) — schema.sql 의 CREATE TABLE 로 생김, v59: 2026 법정점검 기록, v60: 소방 자체점검(종합·작동)·소방훈련 목록
 
 function db_version(): int
 {
@@ -522,6 +522,14 @@ function db_migrate(): void
     // 매월 위탁 점검 = 공공기관 외관점검 (작동·종합점검 한 달은 빠짐) — 근거를 처음 넣은 문구일 때만 고친다
     $pdo->prepare("UPDATE legal_checks SET basis = ? WHERE name = '소방시설 위탁 점검' AND basis = '소방시설법 — 위탁 업체 월간 점검'")
         ->execute(['공공기관 외관점검 월 1회 이상 (작동·종합점검 한 달은 빠짐) — 위탁 업체']);
+
+    // v61: 지난 매출보고의 쉬자파크숙박(퇴실)을 새 기준(연박은 실제 퇴실 날에만)으로 한 번 다시 계산 (사용자 요청 2026-11-05)
+    if (!(int) $pdo->query("SELECT COUNT(*) FROM settings WHERE name = 'stay_out_recalc_v61'")->fetchColumn()) {
+        foreach ($pdo->query("SELECT work_date FROM journals WHERE type = 'sales' ORDER BY work_date")->fetchAll(PDO::FETCH_COLUMN) as $d) {
+            stay_set_line($d, 'stay_out', stay_out_guests($d));
+        }
+        $pdo->exec("INSERT INTO settings (name, value) VALUES ('stay_out_recalc_v61', '1')");
+    }
 
     $pdo->prepare("INSERT INTO settings (name, value) VALUES ('db_version', ?) ON DUPLICATE KEY UPDATE value = VALUES(value)")
         ->execute([(string) DB_VERSION]);
