@@ -252,6 +252,7 @@ function vcheck_form(array $payload, string $workDate, ?array $journal): void
   결재가 끝나면 차이(실제 − 장부)만큼 재고가 맞춰집니다.
   <?= $last ? '마지막 점검: <a href="' . e(url('view.php?id=' . $last['id'])) . '">' . e($last['work_date']) . '</a>' : '아직 결재완료된 점검이 없습니다.' ?></p>
 <?php if (!$journal): ?><script>document.addEventListener('change', (ev) => { if (ev.target.name === 'work_date' && ev.target.value) location.href = '?type=vcheck&date=' + ev.target.value; });</script><?php endif ?>
+<div class="vcheck-print-bar no-print"><button type="button" class="btn" data-vcheck-print-btn title="입력한 내용으로 A4 한 장 점검표를 인쇄합니다 (실제 매수를 비워 두면 손으로 적는 빈 칸)">🖨 인쇄</button></div>
 <div class="table-scroll">
 <table class="table vcheck-table" data-vcheck>
   <thead><tr><th>권종</th><th class="right">장부상 금고</th><th>실제 매수</th><th class="right">차이</th><th class="right">차이 금액</th><th class="right muted">담당자 보유</th></tr></thead>
@@ -288,6 +289,76 @@ function vcheck_form(array $payload, string $workDate, ?array $journal): void
     t.querySelector('[data-diff-total]').textContent = dAmt ? f(dAmt) + '원' : '0';
   }
   t.addEventListener('input', calc); calc();
+})();
+</script>
+<?php vcheck_print_sheet($book, $holder, $journal, $last); ?>
+    <?php
+}
+
+/**
+ * 금고점검 작성 화면의 인쇄용 점검표 (A4 세로 한 장) — 화면에서는 숨기고, 인쇄할 때 입력칸의 값을 옮겨 이것만 인쇄한다.
+ * 실제 매수를 비워 두면 빈 칸으로 나와 금고 앞에서 손으로 적을 수 있다.
+ */
+function vcheck_print_sheet(array $book, array $holder, ?array $journal, ?array $last): void
+{
+    $me = current_user();
+    $author = $journal['author_name'] ?? $me['name'];
+    $authorRank = (int) ($journal['author_rank'] ?? $me['rank_level']);
+    ?>
+<div class="vcheck-print" data-vcheck-sheet hidden>
+  <div class="vp-head">
+    <h1>상품권 금고점검표</h1>
+    <table class="vp-stamps"><tr><th rowspan="2" class="vp-stamp-label">결<br>재</th><th>작성</th><?php foreach (approval_line_for($authorRank, 'vcheck') as $r): ?><th><?= e(rank_name($r)) ?></th><?php endforeach ?></tr>
+      <tr><td><small><?= e($author) ?></small></td><?php foreach (approval_line_for($authorRank, 'vcheck') as $r): ?><td></td><?php endforeach ?></tr></table>
+  </div>
+  <table class="vp-info">
+    <tr><th>점검일</th><td data-vp-date></td><th>점검자</th><td><?= e($author) ?> (<?= e(rank_name($authorRank)) ?>)</td></tr>
+    <tr><th>점검 장소</th><td><?= e(config('site_name', '')) ?> 상품권 금고</td><th>마지막 점검</th><td><?= $last ? e(date('Y. n. j.', strtotime($last['work_date']))) : '-' ?></td></tr>
+  </table>
+  <table class="vp-table">
+    <thead><tr><th>권종</th><th>장부상 금고</th><th>실제 매수</th><th>차이</th><th>차이 금액</th><th>담당자 보유</th></tr></thead>
+    <tbody>
+    <?php foreach (voucher_denoms() as $d): ?>
+      <tr data-vp-denom="<?= $d ?>"><td><?= e(denom_label($d)) ?></td><td class="r"><?= number_format($book[$d]) ?>매</td><td class="r" data-vp-actual></td><td class="r" data-vp-diff></td><td class="r" data-vp-diff-amt></td><td class="r"><?= $holder[$d] ? number_format($holder[$d]) . '매' : '-' ?></td></tr>
+    <?php endforeach ?>
+    </tbody>
+    <tfoot><tr><th>금액 합계</th><th class="r"><?= e(won(voucher_amount($book))) ?></th><th class="r" data-vp-actual-amt></th><th></th><th class="r" data-vp-diff-total></th><th></th></tr></tfoot>
+  </table>
+  <div class="vp-box"><b>차이 사유</b><div data-vp-remarks></div></div>
+  <div class="vp-box"><b>점검 메모</b> <small>(점검 시각 · 입회자 · 점검 방법)</small><div data-vp-content></div></div>
+  <table class="vp-sign"><tr><th>점검자</th><td><?= e($author) ?></td><td class="vp-sign-box">(서명)</td><th>입회자</th><td></td><td class="vp-sign-box">(서명)</td></tr></table>
+  <p class="vp-foot">장부상 금고 = 점검일의 불출·반납·매출보고 지급까지 반영한 매수. 결재가 끝나면 차이만큼 재고(금고)가 맞춰집니다. · 출력 <?= e(date('Y-m-d H:i')) ?> · <?= e($me['name']) ?></p>
+</div>
+<script>
+(function () {
+  const sheet = document.querySelector('[data-vcheck-sheet]');
+  const form = document.querySelector('[data-vcheck]')?.closest('form');
+  if (!sheet || !form) return;
+  document.body.appendChild(sheet); // 인쇄할 때 이 점검표만 남긴다 (style.css .vcheck-printing)
+  document.documentElement.classList.add('vcheck-printing');
+  const n = (v) => parseInt(String(v).replace(/\D/g, ''), 10) || 0;
+  const f = (v) => v.toLocaleString('ko-KR');
+  const fill = () => {
+    const date = form.querySelector('input[name=work_date]')?.value || '';
+    const dt = date ? new Date(date + 'T00:00:00') : null;
+    sheet.querySelector('[data-vp-date]').textContent = dt ? `${dt.getFullYear()}. ${dt.getMonth() + 1}. ${dt.getDate()}. (${'일월화수목금토'[dt.getDay()]})` : '';
+    let amt = 0, dAmt = 0, any = false;
+    sheet.querySelectorAll('[data-vp-denom]').forEach((tr) => {
+      const d = n(tr.dataset.vpDenom);
+      const row = form.querySelector(`[data-vcheck] tr[data-denom="${d}"]`);
+      const v = row.querySelector('[data-actual]').value.trim(), book = n(row.dataset.book), diff = n(v) - book;
+      tr.querySelector('[data-vp-actual]').textContent = v === '' ? '' : f(n(v)) + '매';
+      tr.querySelector('[data-vp-diff]').textContent = v === '' ? '' : (diff > 0 ? '+' : '') + f(diff);
+      tr.querySelector('[data-vp-diff-amt]').textContent = v === '' || !diff ? '' : f(diff * d) + '원';
+      if (v !== '') { any = true; amt += n(v) * d; dAmt += diff * d; }
+    });
+    sheet.querySelector('[data-vp-actual-amt]').textContent = any ? f(amt) + '원' : '';
+    sheet.querySelector('[data-vp-diff-total]').textContent = any ? (dAmt ? f(dAmt) + '원' : '일치') : '';
+    sheet.querySelector('[data-vp-remarks]').textContent = form.querySelector('textarea[name=remarks]')?.value || '';
+    sheet.querySelector('[data-vp-content]').textContent = form.querySelector('textarea[name=content]')?.value || '';
+  };
+  window.addEventListener('beforeprint', fill); // Ctrl+P 로 인쇄해도 같은 점검표
+  document.querySelector('[data-vcheck-print-btn]')?.addEventListener('click', () => { fill(); window.print(); });
 })();
 </script>
     <?php
