@@ -5,7 +5,7 @@
  */
 require __DIR__ . '/app/bootstrap.php';
 require __DIR__ . '/app/sales_xls.php';
-require __DIR__ . '/app/rooms_xls.php';
+require __DIR__ . '/app/rooms_paste.php';
 
 $user = require_login();
 $pdo = db();
@@ -55,7 +55,7 @@ $fillRep = null;
 if ($type === 'sales' && !is_post() && !empty($_GET['fill']) && ($fill = $_SESSION[SALES_FILL_KEY] ?? null) && $fill['date'] === $workDate) {
     [$payload, $fillRep] = sales_fill_apply($payload, $fill, $workDate);
 }
-// 일일객실판매: '예약 엑셀로 채우기' (개인정보 없이 객실별 인원·할인만)
+// 일일객실판매: '예약 복사해서 붙여넣기' (개인정보 없이 객실별 일정·인원·할인만)
 if ($type === 'rooms' && !is_post() && !empty($_GET['fill']) && ($fill = $_SESSION[ROOMS_FILL_KEY] ?? null) && $fill['date'] === $workDate) {
     [$payload, $fillRep] = rooms_fill_apply($payload, $fill, $workDate);
 }
