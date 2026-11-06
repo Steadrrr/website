@@ -5,7 +5,7 @@
  *   - 재고 현황: 금고 / 담당자 보유 / 전체
  *   - 일일 불출·반납: 공무직이 금고에서 꺼내 담당자에게 주는 것(불출), 입실 취소·미지급분을 돌려받는 것(반납).
  *     입력·수정·삭제는 공무직 이상만 (사원은 권한 없음). 그 날의 대조(불출 − 매출보고 지급 − 반납)를 함께 보여준다.
- *   - 회수: 본청으로 돌려보낸 상품권 — 금고와 전체 재고에서 빠진다. 주무관 이상만 입력·수정·삭제.
+ *   - 회수: 본청으로 돌려보낸 상품권 — 금고와 전체 재고에서 빠진다. 불출·반납처럼 공무직 이상이 입력·수정·삭제.
  *   - 수불부: 입고·불출·지급·반납·회수·금고점검 조정과 금고·담당자·전체 잔액
  */
 require __DIR__ . '/app/bootstrap.php';
@@ -15,7 +15,6 @@ require_menu($user, 'ops');
 $pdo = db();
 $denoms = voucher_denoms();
 $canVault = can_vault($user);
-$canRecall = can_vault_recall($user);
 const VAULT_KIND_LABEL = ['issue' => '불출', 'return' => '반납', 'recall' => '회수'];
 
 $date = valid_date($_GET['date'] ?? '') ? $_GET['date'] : date('Y-m-d');
@@ -49,7 +48,6 @@ if (is_post()) {
     if ($action === 'delete_issue') {
         $id = (int) post('id');
         if ($old = vault_record($id)) {
-            if ($old['kind'] === 'recall' && !$canRecall) abort(403, '상품권 회수는 주무관 이상만 삭제할 수 있습니다.');
             $pdo->prepare('DELETE FROM voucher_issues WHERE id = ?')->execute([$id]);
             vault_log($id, $old['work_date'], $user, '삭제', VAULT_KIND_LABEL[$old['kind']] . ' ' . vault_qty_text($old['qty']) . ($old['holder_name'] ? " · {$old['holder_name']}" : ''));
             flash('삭제했습니다.', 'success');
@@ -62,7 +60,6 @@ if (is_post()) {
         $id = (int) post('id');
         $kind = isset(VAULT_KIND_LABEL[post('kind')]) ? post('kind') : 'issue';
         $prev = $id ? vault_record($id) : null; // 고치기 전 기록
-        if (($kind === 'recall' || ($prev['kind'] ?? '') === 'recall') && !$canRecall) abort(403, '상품권 회수는 주무관 이상만 입력할 수 있습니다.');
         $wd = post('work_date');
         $holder = $kind === 'recall' ? null : ((int) post('holder_id') ?: null); // 받는 담당자(불출) / 돌려준 담당자(반납)
         $issuer = $kind === 'issue' ? ((int) post('issuer_id') ?: null) : null; // 불출 담당자 (금고에서 꺼내 준 사람)
@@ -297,10 +294,10 @@ if ($pending): ?>
         <td class="small"><?= e($r['note'] ?? '') ?></td>
         <td class="small muted"><?= e($r['created_name'] ?? '') ?> <?= e(date('H:i', strtotime($r['created_at']))) ?>
           <?= $r['updated_at'] ? '<br>수정 ' . e($r['updated_name'] ?? '') . ' ' . e(date('m/d H:i', strtotime($r['updated_at']))) : '' ?></td>
-        <?php if ($canVault): ?><td class="nowrap no-print"><?php if ($r['kind'] !== 'recall' || $canRecall): ?>
+        <?php if ($canVault): ?><td class="nowrap no-print">
           <a class="btn small" href="<?= e(url($self(['edit' => $r['id']]) . '#vault-form')) ?>">수정</a>
           <form method="post" class="inline" onsubmit="return confirm('이 기록을 삭제할까요?')"><?= csrf_field() ?><input type="hidden" name="action" value="delete_issue"><input type="hidden" name="id" value="<?= (int) $r['id'] ?>"><button class="btn small danger">삭제</button></form>
-        <?php endif ?></td><?php endif ?>
+        </td><?php endif ?>
       </tr>
     <?php endforeach ?>
     <?php if (!$records): ?><tr><td colspan="8" class="center muted">이 날의 불출·반납·회수 기록이 없습니다.</td></tr><?php endif ?>
@@ -356,18 +353,14 @@ if ($pending): ?>
         <label>메모<input name="note" maxlength="300" placeholder="예: 101호 당일 취소"></label>
         <div class="actions"><button class="btn primary">반납 저장</button></div>
       </form>
-      <?php if ($canRecall): ?>
       <form method="post" class="vault-form recall" onsubmit="return confirm('회수한 매수만큼 금고와 전체 재고에서 빠집니다. 저장할까요?')">
         <?= csrf_field() ?><input type="hidden" name="action" value="save_issue"><input type="hidden" name="kind" value="recall"><input type="hidden" name="work_date" value="<?= e($date) ?>">
-        <h3>회수 <small class="muted">금고 → 본청 (<?= e(date('n/j', strtotime($date))) ?>) · 주무관 이상</small></h3>
+        <h3>회수 <small class="muted">금고 → 본청 (<?= e(date('n/j', strtotime($date))) ?>)</small></h3>
         <p class="small muted">본청으로 돌려보낸 상품권입니다. 저장하면 <b>금고와 전체 재고에서 빠집니다</b> (그 날 금고 재고보다 많이 회수할 수 없음).</p>
         <div class="vault-fields"><?php $qtyInputs() ?></div>
         <label>회수 사유 · 근거<input name="note" maxlength="300" required placeholder="예: 본청 회수 요청(산림과-1234), 인계자 ○○○"></label>
         <div class="actions"><button class="btn primary">회수 저장</button></div>
       </form>
-      <?php else: ?>
-      <p class="muted small vault-recall-note">본청으로 돌려보낸 상품권 <b>회수</b>는 주무관 이상이 입력합니다.</p>
-      <?php endif ?>
     <?php endif ?>
     <datalist id="vault-rooms"><?php foreach (array_unique([...$dayRooms, ...$allRooms]) as $rn): ?><option value="<?= e($rn) ?>"><?php endforeach ?></datalist>
   </div>

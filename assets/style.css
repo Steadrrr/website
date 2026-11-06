@@ -855,7 +855,6 @@ tr.recur td { background: #fff4e0; }
 .vault-form.return { border-left: 4px solid #e8710a; }
 .vault-form.recall { border-left: 4px solid #8d6e63; background: #fbf9f8; }
 .vault-form.recall p { margin: 0 0 .5rem; }
-.vault-recall-note { grid-column: 1 / -1; margin: 0; }
 .vault-form h3 { margin: 0 0 .5rem; }
 .vault-fields { display: flex; flex-wrap: wrap; gap: .4rem .8rem; align-items: end; }
 .vault-fields label { margin-bottom: .4rem; }
