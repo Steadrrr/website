@@ -6,7 +6,7 @@ defined('APP_ROOT') || exit;
  * 새 버전 파일을 FTP로 덮어쓰기만 하면, 첫 접속 때 부족한 테이블/컬럼을 만든다.
  * (기존 자료는 그대로 유지)
  */
-const DB_VERSION = 61; // v61: 지난 매출보고 쉬자파크숙박(퇴실) 다시 계산, v57: facility_issues (진행 중 이상), v58: legal_checks·legal_check_logs (법정점검) — schema.sql 의 CREATE TABLE 로 생김, v59: 2026 법정점검 기록, v60: 소방 자체점검(종합·작동)·소방훈련 목록
+const DB_VERSION = 62; // v62: 상품권 회수(본청) voucher_issues.kind 'recall', v61: 지난 매출보고 쉬자파크숙박(퇴실) 다시 계산, v57: facility_issues (진행 중 이상), v58: legal_checks·legal_check_logs (법정점검) — schema.sql 의 CREATE TABLE 로 생김, v59: 2026 법정점검 기록, v60: 소방 자체점검(종합·작동)·소방훈련 목록
 
 function db_version(): int
 {
@@ -529,6 +529,11 @@ function db_migrate(): void
             stay_set_line($d, 'stay_out', stay_out_guests($d));
         }
         $pdo->exec("INSERT INTO settings (name, value) VALUES ('stay_out_recalc_v61', '1')");
+    }
+
+    // v62: 상품권 회수 — 본청으로 돌려보낸 상품권 (금고·전체 재고에서 뺀다)
+    if (!enum_has('voucher_issues', 'kind', 'recall')) {
+        $pdo->exec("ALTER TABLE voucher_issues MODIFY kind ENUM('issue','return','recall') NOT NULL");
     }
 
     $pdo->prepare("INSERT INTO settings (name, value) VALUES ('db_version', ?) ON DUPLICATE KEY UPDATE value = VALUES(value)")

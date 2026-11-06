@@ -3,7 +3,7 @@ defined('APP_ROOT') || exit;
 
 /*
  * 상품권 금고 관리
- *   금고        = 입고 − 불출 + 반납 (+ 금고점검 조정)
+ *   금고        = 입고 − 불출 + 반납 − 회수 (+ 금고점검 조정)     회수 = 본청으로 돌려보낸 상품권 (주무관 이상만 입력)
  *   담당자 보유 = 불출 − 고객 지급(매출보고) − 반납     … 하루가 끝나면 0 이어야 정상
  *   전체 재고   = 금고 + 담당자 보유 = voucher_stock()
  * 금고 관리를 시작한 날(settings vault_start) 전의 매출보고 지급분은 금고에서 바로 나간 것으로 본다.
@@ -23,6 +23,12 @@ function can_vault(array $u): bool
     return !empty($u['is_admin']) || (int) $u['rank_level'] >= RANK_WORKER;
 }
 
+/** 상품권 회수(본청)를 입력·수정·삭제할 수 있는가: 주무관 이상과 최고관리자 */
+function can_vault_recall(array $u): bool
+{
+    return !empty($u['is_admin']) || (int) $u['rank_level'] >= RANK_OFFICER;
+}
+
 /** 결재완료된 금고점검의 권종별 조정 매수 (실제 − 장부). $before 를 주면 그 날짜 전까지 */
 function vault_check_adjust(?string $before = null): array
 {
@@ -38,7 +44,7 @@ function vault_check_adjust(?string $before = null): array
     return $out;
 }
 
-/** 권종별 불출(issue) 또는 반납(return) 합계. $from ≤ 일자 < $before */
+/** 권종별 불출(issue) · 반납(return) · 회수(recall) 합계. $from ≤ 일자 < $before */
 function vault_moves(string $kind, ?string $before = null, ?string $from = null, ?string $reason = null): array
 {
     $out = array_fill_keys(voucher_denoms(), 0);

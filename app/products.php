@@ -446,6 +446,8 @@ function voucher_stock(?string $before = null): array
     }
     // 결재완료된 금고점검의 차이(실제 − 장부)만큼 맞춘다
     foreach (vault_check_adjust($before) as $d => $n) $stock[$d] = ($stock[$d] ?? 0) + $n;
+    // 본청으로 회수된 상품권은 재고에서 뺀다
+    foreach (vault_moves('recall', $before) as $d => $n) $stock[$d] = ($stock[$d] ?? 0) - $n;
     return $stock;
 }
 

@@ -237,10 +237,11 @@ CREATE TABLE IF NOT EXISTS price_period_items (
 
 -- 상품권 불출·반납: 공무직이 금고에서 꺼내 담당자에게 주는 것(issue)과 담당자가 금고로 돌려주는 것(return).
 -- 반납 사유: cancel = 입실 취소, unpaid = 입실했지만 고객에게 주지 못함(미지급)
+-- 회수(recall): 본청으로 돌려보낸 상품권 — 금고와 전체 재고에서 빠진다 (주무관 이상만 입력)
 CREATE TABLE IF NOT EXISTS voucher_issues (
   id         INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   work_date  DATE         NOT NULL,
-  kind       ENUM('issue','return') NOT NULL,
+  kind       ENUM('issue','return','recall') NOT NULL,
   reason     ENUM('cancel','unpaid') NULL,
   holder_id  INT UNSIGNED NULL COMMENT '담당자 (받은 사람 / 돌려준 사람)',
   issuer_id  INT UNSIGNED NULL COMMENT '불출 담당자 (금고에서 꺼내 준 사람)',
