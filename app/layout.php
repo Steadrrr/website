@@ -100,6 +100,7 @@ function nav_groups(?array $user): array
         'personal' => ['label' => '개인업무', 'items' => [
             'attendance' => ['attendance.php', '근태 달력'],
             'att_sheet'  => ['attendance.php?view=sheet', '월간 근태'],
+            'clock'      => ['clock.php', '출퇴근'],
             'approval'   => ['approvals.php', '결재함'],
             'docs'       => ['docs.php', '문서관리'],
         ]],
@@ -157,7 +158,7 @@ function nav_groups(?array $user): array
     } elseif ($user && can_manage_users($user)) {
         $groups['etc']['items']['admin'] = ['admin/users.php', '회원관리'];
     }
-    if (!can_menu($user, 'att')) unset($groups['personal']['items']['attendance'], $groups['personal']['items']['att_sheet']); // 근태는 메뉴 권한
+    if (!can_menu($user, 'att')) unset($groups['personal']['items']['attendance'], $groups['personal']['items']['att_sheet']); // 근태는 메뉴 권한 (출퇴근은 모두 — 사원은 본인 기록만)
     if (!$user || !can_manage_docs($user)) unset($groups['personal']['items']['docs']); // 문서관리는 공무직 이상
     if (!$user || !can_ar($user)) unset($groups['room']['items']['ar'], $groups['room']['items']['ar_stats']); // AR사용관리·현황은 공무직 이상
     if (!$user || !can_purchase($user)) unset($groups['fac']['items']['purchase']); // 물품구매는 공무직 이상
@@ -180,7 +181,7 @@ function nav_bundled(): bool
  * 화면·권한은 그대로이고 이름·순서만 다시 묶는다. 권한으로 이미 빠진 항목은 그대로 빠진다.
  */
 const NAV_BUNDLES = [
-    'b_record'  => ['기록·결재', ['schedule', 'daily', 'approval', 'docs', 'notices', 'attendance', 'att_sheet']],
+    'b_record'  => ['기록·결재', ['schedule', 'daily', 'approval', 'docs', 'notices', 'attendance', 'att_sheet', 'clock']],
     'b_room'    => ['객실 운영', ['rooms', 'clean', 'room_ops', 'supplies', 'ar', 'ar_stats', 'room_stats']],
     'b_money'   => ['재정·상품권', ['sales', 'voucher', 'stats', 'product_sales']],
     'b_fac'     => ['시설·안전', ['facility', 'facilities', 'equipment', 'legal', 'purchase']],

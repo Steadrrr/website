@@ -806,3 +806,46 @@ CREATE TABLE IF NOT EXISTS ai_insights (
   created_at    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   INDEX idx_kind (kind, created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 출퇴근 (개인업무 › 출퇴근): 휴게실 QR을 본인 휴대폰으로 찍어 출근·퇴근. 위치(GPS)는 쓰지 않는다
+CREATE TABLE IF NOT EXISTS clock_places (
+  id         INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  name       VARCHAR(50)  NOT NULL COMMENT '휴게실 (QR을 붙인 곳)',
+  token      CHAR(24)     NOT NULL COMMENT 'QR 주소에 넣는 비밀값 (다시 만들면 예전 QR은 못 씀)',
+  sort_order INT          NOT NULL DEFAULT 0,
+  is_active  TINYINT(1)   NOT NULL DEFAULT 1,
+  created_at DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_token (token)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 현장 인터넷: 휴게실 공유기 회선의 공인 IP. 여기서 찍으면 '현장', 아니면 '현장 밖'으로 표시만 한다 (막지 않음)
+CREATE TABLE IF NOT EXISTS clock_nets (
+  id           INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  ip           VARCHAR(45)  NOT NULL,
+  label        VARCHAR(50)  NULL COMMENT '예: 공원관리소 KT',
+  created_by   INT UNSIGNED NULL,
+  created_at   DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  last_seen_at DATETIME     NULL,
+  UNIQUE KEY uq_ip (ip)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 출퇴근 기록. work_date = 그 근무의 날짜 (밤샘 근무의 다음 날 아침 퇴근은 출근한 날). 지운 기록도 사유와 함께 남긴다
+CREATE TABLE IF NOT EXISTS clock_logs (
+  id          INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  user_id     INT UNSIGNED NOT NULL,
+  work_date   DATE         NOT NULL,
+  kind        ENUM('in','out') NOT NULL,
+  at          DATETIME     NOT NULL,
+  place_id    INT UNSIGNED NULL,
+  onsite      TINYINT(1)   NOT NULL DEFAULT 0 COMMENT '현장 인터넷에서 찍음',
+  ip          VARCHAR(45)  NULL COMMENT '현장 인터넷 등록용, 60일 뒤 지움',
+  method      ENUM('qr','manual') NOT NULL DEFAULT 'qr',
+  note        VARCHAR(200) NULL COMMENT '직접 입력 사유',
+  created_by  INT UNSIGNED NULL,
+  created_at  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  deleted_at  DATETIME     NULL,
+  deleted_by  INT UNSIGNED NULL,
+  delete_note VARCHAR(200) NULL,
+  INDEX idx_date (work_date),
+  INDEX idx_user_date (user_id, work_date)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

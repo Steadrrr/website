@@ -1388,3 +1388,52 @@ label .tm-pick { display: flex; margin-top: .25rem; }
   .vcheck-print .vp-sign .vp-sign-box { width: 30mm; text-align: right; color: #777; font-size: 9pt; vertical-align: bottom; }
   .vp-foot { margin-top: 8px; font-size: 8.5pt; color: #444; }
 }
+
+/* ── 출퇴근 (clock.php) ── */
+.clock-punch { max-width: 520px; margin: 0 auto; text-align: center; }
+.clock-place { display: inline-block; background: #e9f4ec; color: var(--green-d); font-weight: 700; padding: .3rem .9rem; border-radius: 999px; }
+.clock-who { font-size: 1.25rem; margin: .8rem 0 .2rem; }
+.clock-now { font-size: 3.2rem; font-weight: 700; letter-spacing: .02em; line-height: 1.1; }
+.clock-date { color: var(--muted); margin-bottom: .6rem; }
+.clock-net { padding: .55rem .8rem; border-radius: 8px; font-size: .92rem; }
+.clock-net.ok { background: #e9f4ec; color: var(--green-d); }
+.clock-net.warn { background: #fff4e5; color: #8a4b00; }
+.clock-buttons { display: grid; grid-template-columns: 1fr 1fr; gap: .8rem; margin: 1rem 0; }
+.clock-buttons .btn { font-size: 1.5rem; font-weight: 700; padding: 1.4rem .5rem; border-radius: 14px; color: #fff; border: 0; }
+.clock-buttons .clock-in { background: var(--green); }
+.clock-buttons .clock-out { background: var(--blue, #1a73e8); }
+.clock-today { list-style: none; padding: 0; margin: 0 0 .8rem; text-align: left; }
+.clock-today li { padding: .4rem .2rem; border-top: 1px solid var(--line); }
+.cs { font-weight: 600; }
+.cs-miss { color: var(--red); }
+.cs-late { color: #c26a00; }
+.cs-ok, .cs-work { color: var(--green-d); }
+.cs-rest, .cs-wait, .cs-leave { color: var(--muted); }
+td.cs-miss { background: #fdecea; }
+td.cs-late { background: #fff4e5; }
+td.cs-rest { background: #fafafa; }
+.clock-log { white-space: nowrap; }
+.clock-log form { margin-left: .2rem; }
+.clock-manual { margin-top: 1rem; padding: .7rem .9rem; border: 1px solid #dfe7e1; border-radius: 8px; background: #fbfdfb; }
+.clock-manual h3 { margin: 0 0 .5rem; }
+.clock-manual .grow { flex: 1 1 16rem; }
+.clock-month th, .clock-month td { padding: .25rem .3rem; font-size: .78rem; text-align: center; line-height: 1.25; }
+.clock-month th:first-child { text-align: left; }
+.clock-month th.sun a, .clock-month th.sun { color: var(--red); }
+.clock-month th.sat a, .clock-month th.sat { color: var(--blue, #1a73e8); }
+.clock-qr-thumb img { width: 72px; height: 72px; image-rendering: pixelated; }
+.clock-mynet { padding: .6rem .8rem; background: #fff4e5; border-radius: 8px; margin: .5rem 0 .8rem; }
+.clock-mynet.ok { background: #e9f4ec; }
+@media print {
+  .clock-qr-sheets { display: block; }
+  body:has(.clock-qr-sheets) .print-head { display: none !important; }
+  .clock-qr-sheet { break-after: page; text-align: center; padding-top: 10mm; }
+  .clock-qr-sheet:last-child { break-after: auto; }
+  .cq-site { font-size: 14pt; color: #444; }
+  .cq-title { font-size: 30pt; font-weight: 700; margin: 2mm 0; }
+  .cq-place { font-size: 26pt; font-weight: 700; border: 2px solid #000; display: inline-block; padding: 2mm 10mm; border-radius: 4mm; margin: 4mm 0 8mm; }
+  .cq-code img { width: 110mm; height: 110mm; image-rendering: pixelated; }
+  .cq-how { text-align: left; display: inline-block; font-size: 15pt; line-height: 1.8; margin: 8mm 0 4mm; }
+  .cq-note { font-size: 10pt; color: #444; }
+  .clock-month th, .clock-month td { font-size: 7pt; padding: 1px 2px; }
+}

@@ -6,7 +6,7 @@ defined('APP_ROOT') || exit;
  * 새 버전 파일을 FTP로 덮어쓰기만 하면, 첫 접속 때 부족한 테이블/컬럼을 만든다.
  * (기존 자료는 그대로 유지)
  */
-const DB_VERSION = 62; // v62: 상품권 회수(본청) voucher_issues.kind 'recall', v61: 지난 매출보고 쉬자파크숙박(퇴실) 다시 계산, v57: facility_issues (진행 중 이상), v58: legal_checks·legal_check_logs (법정점검) — schema.sql 의 CREATE TABLE 로 생김, v59: 2026 법정점검 기록, v60: 소방 자체점검(종합·작동)·소방훈련 목록
+const DB_VERSION = 63; // v63: 출퇴근 clock_places·clock_nets·clock_logs (schema.sql), 기본 휴게실, v62: 상품권 회수(본청) voucher_issues.kind 'recall', v61: 지난 매출보고 쉬자파크숙박(퇴실) 다시 계산, v57: facility_issues (진행 중 이상), v58: legal_checks·legal_check_logs (법정점검) — schema.sql 의 CREATE TABLE 로 생김, v59: 2026 법정점검 기록, v60: 소방 자체점검(종합·작동)·소방훈련 목록
 
 function db_version(): int
 {
@@ -534,6 +534,12 @@ function db_migrate(): void
     // v62: 상품권 회수 — 본청으로 돌려보낸 상품권 (금고·전체 재고에서 뺀다)
     if (!enum_has('voucher_issues', 'kind', 'recall')) {
         $pdo->exec("ALTER TABLE voucher_issues MODIFY kind ENUM('issue','return','recall') NOT NULL");
+    }
+
+    // v63: 출퇴근 — 기본 휴게실 (비어 있을 때만, 이름은 화면에서 고침)
+    if (!(int) $pdo->query('SELECT COUNT(*) FROM clock_places')->fetchColumn()) {
+        $ins = $pdo->prepare('INSERT INTO clock_places (name, token, sort_order) VALUES (?, ?, ?)');
+        foreach (['공원관리소', '여성휴게실', '치유의집 사무실', '쉬자센터', '산림교육센터'] as $i => $n) $ins->execute([$n, bin2hex(random_bytes(12)), ($i + 1) * 10]);
     }
 
     $pdo->prepare("INSERT INTO settings (name, value) VALUES ('db_version', ?) ON DUPLICATE KEY UPDATE value = VALUES(value)")
