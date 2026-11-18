@@ -127,9 +127,23 @@ function facility_find(int $id): ?array
     return $st->fetch() ?: null;
 }
 
+/**
+ * 시설 점검결과 선택지 (첫 번째 = 정상). 서버의 config.php 목록에 '조치중'(수리 진행 중)이 없으면 '조치완료' 앞에 넣는다
+ * ('조치중'은 해결 전 상태라 '진행 중 이상'으로 계속 이어짐)
+ */
+function facility_results(): array
+{
+    $list = array_values(config('facility_results', ['정상']));
+    if (!in_array('조치중', $list, true)) {
+        $at = array_search('조치완료', $list, true);
+        array_splice($list, $at === false ? count($list) : $at, 0, ['조치중']);
+    }
+    return $list;
+}
+
 function normal_result(): string
 {
-    return config('facility_results', ['정상'])[0];
+    return facility_results()[0];
 }
 
 /* ───────────────────────── 점검 주기 ───────────────────────── */

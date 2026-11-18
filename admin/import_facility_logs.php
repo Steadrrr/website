@@ -94,7 +94,7 @@ if (is_post()) {
             flash($e->getMessage(), 'error');
             redirect('admin/import_facility_logs.php');
         }
-        $results = config('facility_results', ['정상']);
+        $results = facility_results();
         $logs = $issues = $warn = [];
         foreach (ifl_rows($sheets['점검일지'] ?? [], '날짜') as $i => $r) {
             $date = sheet_date($r['날짜'] ?? '') ?? (valid_date(trim((string) ($r['날짜'] ?? ''))) ? trim((string) $r['날짜']) : null);

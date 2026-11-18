@@ -148,7 +148,7 @@ function ai_open_issues(string $date): array
         $ids[] = (int) $r['facility_id'];
         $k = $r['area'] . '|' . $r['result'] . '|' . $r['note'];
         $groups[$k] ??= ['구역' => $r['area'], '시설' => [], '결과' => $r['result'], '내용' => mb_substr((string) $r['note'], 0, 80), '시작' => $r['start_date'],
-                         '며칠째' => ai_days($r['start_date'], $date), '계획된 공사·폐쇄' => $r['result'] !== '수리요청' && ai_is_planned((string) $r['note'])]; // 수리요청은 공사가 잡혀 있어도 고장
+                         '며칠째' => ai_days($r['start_date'], $date), '계획된 공사·폐쇄' => !in_array($r['result'], ['수리요청', '조치중'], true) && ai_is_planned((string) $r['note'])]; // 수리요청·조치중(수리 진행)은 공사가 잡혀 있어도 고장
         $groups[$k]['시설'][] = $r['name'];
     }
     $list = array_map(function ($g) {

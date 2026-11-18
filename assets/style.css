@@ -94,7 +94,7 @@ tr.highlight { background: #fff8e5; }
 .st-approved { background: #dff1e5; color: #1e6b3d; }
 .st-rejected { background: #fbe1de; color: #9b2c20; }
 .result { font-weight: 600; }
-.r-정상 { color: var(--green); } .r-점검필요 { color: var(--amber); } .r-수리요청 { color: var(--red); } .r-조치완료 { color: var(--blue); }
+.r-정상 { color: var(--green); } .r-점검필요 { color: var(--amber); } .r-수리요청 { color: var(--red); } .r-조치중 { color: #8e24aa; } .r-조치완료 { color: var(--blue); }
 
 /* KPI */
 .kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; margin-bottom: 1rem; }
@@ -156,6 +156,7 @@ tr.highlight { background: #fff8e5; }
 .kpis.k2 { grid-template-columns: repeat(2, 1fr); }
 .kpis.k3 { grid-template-columns: repeat(3, 1fr); }
 .kpis.k4 { grid-template-columns: repeat(4, 1fr); }
+.kpis.k5 { grid-template-columns: repeat(5, 1fr); }
 .card .kpis { margin-bottom: .75rem; }
 .card .kpi { background: #f7f9f7; }
 .kpi small { display: block; font-size: .8rem; }
@@ -181,7 +182,7 @@ tr.new-row td { background: #fbfdf9; border-top: 2px dashed var(--line); }
 .stampbox .delegated { color: var(--amber); }
 
 @media (max-width: 760px) {
-  .kpis.k3, .kpis.k4 { grid-template-columns: 1fr 1fr; }
+  .kpis.k3, .kpis.k4, .kpis.k5 { grid-template-columns: 1fr 1fr; }
 }
 .product-table input[name="name"] { min-width: 11rem; }
 

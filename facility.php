@@ -20,7 +20,7 @@ if (is_post()) {
         $start = post('start_date');
         $end = post('end_date');
         $res = post('result');
-        if (!valid_date($start) || ($end !== '' && (!valid_date($end) || $end < $start)) || !in_array($res, config('facility_results', []), true) || $res === $normal) {
+        if (!valid_date($start) || ($end !== '' && (!valid_date($end) || $end < $start)) || !in_array($res, facility_results(), true) || $res === $normal) {
             flash('시작일·끝나는 날(선택)·결과(정상 아닌 것)를 확인해 주세요.', 'error');
         } else {
             db()->prepare('INSERT INTO facility_issues (facility_id, result, note, start_date, end_date, created_by) VALUES (?, ?, ?, ?, ?, ?)')
@@ -107,7 +107,7 @@ layout_header($f['name'], 'facilities');
         <?= csrf_field() ?><input type="hidden" name="act" value="issue_add">
         <label>시작일<input type="date" name="start_date" value="<?= e(date('Y-m-d')) ?>" required></label>
         <label>끝나는 날 <small class="muted">(모르면 비움 = 해결될 때까지)</small><input type="date" name="end_date"></label>
-        <label>결과<select name="result"><?php foreach (config('facility_results', []) as $r): if ($r === $normal) continue; ?><option><?= e($r) ?></option><?php endforeach ?></select></label>
+        <label>결과<select name="result"><?php foreach (facility_results() as $r): if ($r === $normal) continue; ?><option><?= e($r) ?></option><?php endforeach ?></select></label>
         <label>내용<input name="note" maxlength="500" placeholder="예: 소방 공사로 폐쇄, 누수로 객실 파손"></label>
         <button class="btn primary">등록</button>
       </form>
@@ -118,8 +118,8 @@ layout_header($f['name'], 'facilities');
   <?php if ($f['spec']): ?><h3>규격·스펙</h3><div class="pre"><?= e($f['spec']) ?></div><?php endif ?>
   <?php if ($f['note']): ?><h3>비고</h3><div class="pre"><?= e($f['note']) ?></div><?php endif ?>
 
-  <div class="kpis k<?= min(count(config('facility_results', [])), 4) ?> result-counts">
-    <?php foreach (config('facility_results', []) as $r): ?>
+  <div class="kpis k<?= min(count(facility_results()), 5) ?> result-counts">
+    <?php foreach (facility_results() as $r): ?>
       <div class="kpi"><span><?= e($r) ?></span><b class="result r-<?= e($r) ?>"><?= number_format($counts[$r] ?? 0) ?>건</b></div>
     <?php endforeach ?>
   </div>

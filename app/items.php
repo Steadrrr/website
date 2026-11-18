@@ -92,7 +92,7 @@ function items_parse(string $type, string $workDate, int $journalId): array
     $payload = items_default($type, isset(teams_all()[$teamId]) ? $teamId : null);
 
     if ($type === 'facility') {
-        $results = config('facility_results', ['정상']);
+        $results = facility_results();
         $registered = facilities_list(null, false);
         $rows = [];
         foreach ((array) ($_POST['fac'] ?? []) as $row) {
@@ -680,7 +680,7 @@ function items_form(string $type, array $payload, string $workDate, ?array $jour
 function facility_form_rows(array $payload, string $workDate, ?array $journal): void
 {
     $normal = normal_result();
-    $results = config('facility_results', ['정상']);
+    $results = facility_results();
     $teamId = (int) ($payload['team_id'] ?? 0);
     $due = $teamId ? facility_due($teamId, $workDate, $journal ? (int) $journal['id'] : null) : [];
     // 진행 중 이상: 맨 위에 따로, 기본 체크 + 이상 결과·내용 + '계속'
